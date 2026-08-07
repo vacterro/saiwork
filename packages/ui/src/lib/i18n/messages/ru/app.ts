@@ -15,8 +15,8 @@ export const appMessages = {
   "app.stopInstance.cancelLabel": "Оставить запущенным",
   "app.stopInstance.toast.error": "Не удалось остановить рабочее пространство.",
 
-  "emptyState.logoAlt": "Логотип CodeNomad",
-  "emptyState.brandTitle": "CodeNomad",
+  "emptyState.logoAlt": "Логотип SAIWORK",
+  "emptyState.brandTitle": "SAIWORK",
   "emptyState.tagline": "Выберите папку, чтобы начать писать код с AI",
   "emptyState.actions.selectFolder": "Выбрать папку",
   "emptyState.actions.selecting": "Выбор…",
@@ -25,8 +25,8 @@ export const appMessages = {
   "emptyState.multipleInstances": "Можно иметь несколько экземпляров одной и той же папки",
 
   "releases.upgradeRequired.title": "Требуется обновление",
-  "releases.upgradeRequired.message.withVersion": "Обновите CodeNomad до версии {version}, чтобы использовать последний UI.",
-  "releases.upgradeRequired.message.noVersion": "Обновите CodeNomad, чтобы использовать последний UI.",
+  "releases.upgradeRequired.message.withVersion": "Обновите SAIWORK до версии {version}, чтобы использовать последний UI.",
+  "releases.upgradeRequired.message.noVersion": "Обновите SAIWORK, чтобы использовать последний UI.",
   "releases.upgradeRequired.action.getUpdate": "Получить обновление",
 
   "releases.uiUpdated.title": "UI обновлён",

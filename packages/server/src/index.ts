@@ -34,6 +34,7 @@ import { VoiceModeManager } from "./plugins/voice-mode"
 import { runCliUpgrade } from "./cli-upgrade"
 import { createServerShutdownHandler, orchestrateServerShutdown, type ServerShutdownTrigger } from "./shutdown"
 import { AutoAcceptManager } from "./permissions/auto-accept-manager"
+import { resolveYoloDefault } from "./permissions/auto-accept-store"
 import { createOpencodePermissionReplier } from "./permissions/opencode-replier"
 import { createOpencodeYoloPersistence } from "./permissions/opencode-yolo-metadata"
 
@@ -74,10 +75,10 @@ interface CliOptions {
 }
 
 const DEFAULT_HOST = "127.0.0.1"
-const DEFAULT_CONFIG_PATH = "~/.config/codenomad/config.json"
+const DEFAULT_CONFIG_PATH = "~/.config/saiwork/config.json"
 const DEFAULT_HTTPS_PORT = 9898
 const DEFAULT_HTTP_PORT = 9899
-export const STDIN_SHUTDOWN_COMMAND = "codenomad:shutdown"
+export const STDIN_SHUTDOWN_COMMAND = "saiwork:shutdown"
 
 interface ShutdownSignalSource {
   on: (signal: "SIGINT" | "SIGTERM", listener: () => void) => unknown
@@ -120,8 +121,8 @@ export function installShutdownStdinHandler(
 
 function parseCliOptions(argv: string[]): CliOptions {
   const program = new Command()
-    .name("codenomad")
-    .description("CodeNomad CLI server")
+    .name("saiwork")
+    .description("SaiWork CLI server")
     .version(packageJson.version, "-v, --version", "Show the CLI version")
     .addOption(new Option("--host <host>", "Host interface to bind").env("CLI_HOST").default(DEFAULT_HOST))
     .addOption(new Option("--https <enabled>", "Enable HTTPS listener (true|false)").env("CLI_HTTPS").default("true"))
@@ -150,29 +151,29 @@ function parseCliOptions(argv: string[]): CliOptions {
     .addOption(new Option("--launch", "Launch the UI in a browser after start").env("CLI_LAUNCH").default(false))
     .addOption(
       new Option("--username <username>", "Username for server authentication")
-        .env("CODENOMAD_SERVER_USERNAME")
+        .env("SAIWORK_SERVER_USERNAME")
         .default(DEFAULT_AUTH_USERNAME),
     )
-    .addOption(new Option("--password <password>", "Password for server authentication").env("CODENOMAD_SERVER_PASSWORD"))
+    .addOption(new Option("--password <password>", "Password for server authentication").env("SAIWORK_SERVER_PASSWORD"))
     .addOption(
       new Option("--auth-cookie-name <name>", "Cookie name for server authentication")
-        .env("CODENOMAD_AUTH_COOKIE_NAME")
+        .env("SAIWORK_AUTH_COOKIE_NAME")
         .default(DEFAULT_AUTH_COOKIE_NAME),
     )
     .addOption(
       new Option("--generate-token", "Emit a one-time bootstrap token for desktop")
-        .env("CODENOMAD_GENERATE_TOKEN")
+        .env("SAIWORK_GENERATE_TOKEN")
         .default(false),
     )
     .addOption(
       new Option(
         "--dangerously-skip-auth",
-        "Disable CodeNomad's internal auth. Use only behind a trusted perimeter (SSO/VPN/etc).",
+        "Disable SaiWork's internal auth. Use only behind a trusted perimeter (SSO/VPN/etc).",
       )
-        .env("CODENOMAD_SKIP_AUTH")
+        .env("SAIWORK_SKIP_AUTH")
         .default(false),
     )
-    .addOption(new Option("--upgrade [version]", "Upgrade the global CodeNomad CLI server package and exit"))
+    .addOption(new Option("--upgrade [version]", "Upgrade the global SaiWork CLI server package and exit"))
 
   program.parse(argv, { from: "user" })
   const parsed = program.opts<{
@@ -300,11 +301,11 @@ async function main() {
     authPassword: options.authPassword ? "[REDACTED]" : undefined,
   }
 
-  logger.info({ options: logOptions }, "Starting CodeNomad CLI server")
+  logger.info({ options: logOptions }, "Starting SaiWork CLI server")
 
   if (options.dangerouslySkipAuth) {
     logger.warn(
-      "DANGEROUS: internal authentication is disabled (--dangerously-skip-auth / CODENOMAD_SKIP_AUTH).",
+      "DANGEROUS: internal authentication is disabled (--dangerously-skip-auth / SAIWORK_SKIP_AUTH).",
     )
   }
 
@@ -389,12 +390,15 @@ async function main() {
   const previewManager = new PreviewManager()
   const yoloLogger = logger.child({ component: "yolo" })
   const sessionMetadataPersistence = createOpencodeYoloPersistence(workspaceManager)
+  const yoloDefault = resolveYoloDefault()
   const yoloManager = new AutoAcceptManager({
     eventBus,
     logger: yoloLogger,
     replier: createOpencodePermissionReplier({ workspaceManager, logger: yoloLogger }),
     persistence: sessionMetadataPersistence,
+    defaultEnabled: yoloDefault,
   })
+  yoloLogger.info({ defaultEnabled: yoloDefault }, "Yolo mode default")
   yoloManager.start()
   const instanceEventBridge = new InstanceEventBridge({
     workspaceManager,
@@ -432,8 +436,8 @@ async function main() {
     minServerVersion: uiResolution.minServerVersion,
   }
 
-  const updateChannel = (process.env.CODENOMAD_UPDATE_CHANNEL ?? "").trim().toLowerCase()
-  const githubRepo = (process.env.CODENOMAD_GITHUB_REPO ?? "NeuralNomadsAI/CodeNomad").trim()
+  const updateChannel = (process.env.SAIWORK_UPDATE_CHANNEL ?? "").trim().toLowerCase()
+  const githubRepo = (process.env.SAIWORK_GITHUB_REPO ?? "vacterro/saiwork").trim()
   const isDevVersion = packageJson.version.includes("-dev.") || packageJson.version.includes("-dev-")
   const enableDevUpdateChecks = updateChannel === "dev" || (updateChannel === "" && isDevVersion)
   const devReleaseMonitor = enableDevUpdateChecks

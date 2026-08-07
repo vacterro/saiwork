@@ -11,7 +11,7 @@ import test from "node:test"
 import { cleanStaleRunningMarkers, createRunningMarker, electClientStateProcess, getRunningMarkerPath, hasLiveTauriClient, REGISTRATION_LOCK_WAIT_MS, removeProcessOwnerLockIfOwned, removeRunningMarkerIfOwned, type ProcessOwner } from "./client-state-process"
 import { getProcessStartIdentity, getProcessStartIdentityAsync } from "./client-state-process-identity"
 
-function temp(t: test.TestContext) { const directory = mkdtempSync(join(tmpdir(), "codenomad-election-")); t.after(() => rmSync(directory, { recursive: true, force: true })); return directory }
+function temp(t: test.TestContext) { const directory = mkdtempSync(join(tmpdir(), "saiwork-election-")); t.after(() => rmSync(directory, { recursive: true, force: true })); return directory }
 
 test("legacy Tauri markers block only while their PID may be live", (t) => {
   const directory = temp(t)

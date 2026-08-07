@@ -265,12 +265,12 @@ export function useAppSessionCapture() {
     const flushNow = () => void flush()
     window.addEventListener("pagehide", flushNow)
     window.addEventListener("beforeunload", flushNow)
-    if (isElectronHost() && isLocalWindow()) window.__CODENOMAD_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__ = flush
+    if (isElectronHost() && isLocalWindow()) window.__SAIWORK_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__ = flush
     onCleanup(() => {
       window.removeEventListener("pagehide", flushNow)
       window.removeEventListener("beforeunload", flushNow)
-      if (window.__CODENOMAD_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__ === flush) {
-        delete window.__CODENOMAD_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__
+      if (window.__SAIWORK_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__ === flush) {
+        delete window.__SAIWORK_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__
       }
     })
   })

@@ -55,7 +55,7 @@ jobs:
             const prNumber = Number(process.env.PR_NUMBER);
             const headSha = process.env.HEAD_SHA;
             const retentionDays = Number(process.env.RETENTION_DAYS || '7');
-            const marker = '<!-- codenomad-pr-artifacts -->';
+            const marker = '<!-- saiwork-pr-artifacts -->';
 
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

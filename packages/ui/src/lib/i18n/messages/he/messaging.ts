@@ -8,8 +8,8 @@ export const messagingMessages = {
   "messageListHeader.connection.connecting": "מתחבר...",
   "messageListHeader.connection.disconnected": "מנותק",
 
-  "messageSection.empty.logoAlt": "לוגו CodeNomad",
-  "messageSection.empty.brandTitle": "CodeNomad",
+  "messageSection.empty.logoAlt": "לוגו SAIWORK",
+  "messageSection.empty.brandTitle": "SAIWORK",
   "messageSection.empty.title": "התחל שיחה",
   "messageSection.empty.description": "הקלד הודעה למטה או פתח את לוח הפקודות:",
   "messageSection.empty.tips.commandPalette": "לוח פקודות",

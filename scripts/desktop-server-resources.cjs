@@ -1,7 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 
-const excludedDistRoots = new Set(["codenomad-server", "opencode-config", "opencode-config-template", "opencode-config.js"])
+const excludedDistRoots = new Set(["saiwork-server", "opencode-config", "opencode-config-template", "opencode-config.js"])
 
 function copyPackagedServerResources(options) {
   const { serverRoot, serverDest, log = () => {} } = options

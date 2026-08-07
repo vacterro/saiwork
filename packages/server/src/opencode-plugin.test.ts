@@ -4,7 +4,7 @@ import { describe, it } from "node:test"
 import { buildOpencodeConfigContent } from "./opencode-plugin"
 
 describe("buildOpencodeConfigContent", () => {
-  it("creates config content with the CodeNomad plugin", () => {
+  it("creates config content with the SaiWork plugin", () => {
     const content = buildOpencodeConfigContent(undefined, "file:///plugin.tgz")
 
     assert.deepEqual(JSON.parse(content), {
@@ -30,7 +30,7 @@ describe("buildOpencodeConfigContent", () => {
     })
   })
 
-  it("does not duplicate the CodeNomad plugin", () => {
+  it("does not duplicate the SaiWork plugin", () => {
     const content = buildOpencodeConfigContent('{"plugin":["file:///plugin.tgz"]}', "file:///plugin.tgz")
 
     assert.deepEqual(JSON.parse(content).plugin, ["file:///plugin.tgz"])

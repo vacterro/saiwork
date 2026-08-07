@@ -10,10 +10,10 @@ const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname, "..")
 const repoRoot = path.resolve(root, "..", "..")
 
-const r2Bucket = process.env.CODENOMAD_R2_BUCKET
+const r2Bucket = process.env.SAIWORK_R2_BUCKET
 
 if (!r2Bucket) {
-  console.error("Missing env var: CODENOMAD_R2_BUCKET")
+  console.error("Missing env var: SAIWORK_R2_BUCKET")
   process.exit(1)
 }
 
@@ -32,7 +32,7 @@ if (!fs.existsSync(uiBuildDir)) {
   process.exit(1)
 }
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "codenomad-ui-release-"))
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-ui-release-"))
 const zipPath = path.join(tmpDir, `ui-${uiVersion}.zip`)
 
 try {
@@ -59,7 +59,7 @@ try {
       stdio: "inherit",
       env: {
         ...process.env,
-        CODENOMAD_R2_BUCKET: r2Bucket,
+        SAIWORK_R2_BUCKET: r2Bucket,
       },
     },
   )

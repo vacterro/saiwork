@@ -44,12 +44,12 @@ jobs:
         working-directory: packages/cloudflare
 
       - name: Build UI
-        run: npm run build --workspace @codenomad/ui
+        run: npm run build --workspace @saiwork/ui
 
       - name: Publish UI zip + update manifest
         working-directory: packages/cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CODENOMAD_R2_BUCKET: ${{ vars.CODENOMAD_R2_BUCKET }}
+          SAIWORK_R2_BUCKET: ${{ vars.SAIWORK_R2_BUCKET }}
         run: npm run release:ui

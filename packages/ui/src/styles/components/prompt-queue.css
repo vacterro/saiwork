@@ -1,0 +1,117 @@
+/* Prompt queue panel -- Vintage Golden. */
+
+.prompt-queue {
+  border: 2px solid;
+  border-color: var(--borderHighlight) var(--borderDark) var(--borderDark) var(--borderHighlight);
+  background: var(--surface);
+  margin: 0 0 4px 0;
+}
+
+.prompt-queue-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 4px;
+  background: var(--surfaceRaised);
+  border-bottom: 1px solid var(--borderDark);
+}
+
+.prompt-queue-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--textPrimary);
+  letter-spacing: 1px;
+}
+
+.prompt-queue-count {
+  font-size: 10px;
+  color: var(--textSecondary);
+}
+
+.prompt-queue-state {
+  font-size: 10px;
+  color: var(--warning);
+}
+
+.prompt-queue-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.prompt-queue-actions button,
+.prompt-queue-item-actions button {
+  font-size: 10px;
+  min-height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+}
+
+.prompt-queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.prompt-queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--borderDark);
+}
+
+.prompt-queue-item:last-child {
+  border-bottom: 0;
+}
+
+.prompt-queue-item[data-next="true"] {
+  background: var(--selection);
+}
+
+.prompt-queue-index {
+  min-width: 18px;
+  font-size: 10px;
+  color: var(--textMuted);
+  text-align: right;
+  padding-top: 2px;
+}
+
+.prompt-queue-text {
+  flex: 1;
+  font-size: 11px;
+  color: var(--textPrimary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding-top: 2px;
+}
+
+.prompt-queue-meta {
+  font-size: 10px;
+  color: var(--textMuted);
+}
+
+.prompt-queue-edit {
+  flex: 1;
+  min-height: 44px;
+  font-size: 11px;
+}
+
+.prompt-queue-item-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.prompt-queue-empty,
+.prompt-queue-hint {
+  padding: 4px;
+  font-size: 10px;
+  color: var(--textMuted);
+}
+
+.prompt-queue-hint {
+  border-top: 1px solid var(--borderDark);
+}

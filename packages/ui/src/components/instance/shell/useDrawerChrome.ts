@@ -57,8 +57,11 @@ export interface DrawerChromeApi {
 export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeApi {
   const [leftPinned, setLeftPinned] = createSignal(true)
   const [leftOpen, setLeftOpen] = createSignal(true)
-  const [rightPinned, setRightPinned] = createSignal(true)
-  const [rightOpen, setRightOpen] = createSignal(true)
+  // The right panel starts closed and unpinned. Pinned, it mounted the git
+  // status and diff views on every session load, which is the expensive work in
+  // this shell -- and it is a panel you consult, not one you read continuously.
+  const [rightPinned, setRightPinned] = createSignal(false)
+  const [rightOpen, setRightOpen] = createSignal(false)
 
   const measureDrawerHost = () => options.measureDrawerHost?.()
 
@@ -87,7 +90,7 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
     switch (options.layoutMode()) {
       case "desktop": {
         const leftSaved = readStoredPinState("left", true)
-        const rightSaved = readStoredPinState("right", true)
+        const rightSaved = readStoredPinState("right", false)
         setLeftPinned(leftSaved)
         setLeftOpen(leftSaved || readStoredOpenState("left", false))
         setRightPinned(rightSaved)

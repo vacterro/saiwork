@@ -15,8 +15,8 @@ export const appMessages = {
   "app.stopInstance.cancelLabel": "Keep running",
   "app.stopInstance.toast.error": "Failed to stop workspace.",
 
-  "emptyState.logoAlt": "CodeNomad logo",
-  "emptyState.brandTitle": "CodeNomad",
+  "emptyState.logoAlt": "SAIWORK logo",
+  "emptyState.brandTitle": "SAIWORK",
   "emptyState.tagline": "Select a folder to start coding with AI",
   "emptyState.actions.selectFolder": "Select Folder",
   "emptyState.actions.selecting": "Selecting...",
@@ -25,8 +25,8 @@ export const appMessages = {
   "emptyState.multipleInstances": "You can have multiple instances of the same folder",
 
   "releases.upgradeRequired.title": "Upgrade required",
-  "releases.upgradeRequired.message.withVersion": "Update to CodeNomad {version} to use the latest UI.",
-  "releases.upgradeRequired.message.noVersion": "Update CodeNomad to use the latest UI.",
+  "releases.upgradeRequired.message.withVersion": "Update to SAIWORK {version} to use the latest UI.",
+  "releases.upgradeRequired.message.noVersion": "Update SAIWORK to use the latest UI.",
   "releases.upgradeRequired.action.getUpdate": "Get update",
 
   "releases.uiUpdated.title": "UI updated",

@@ -27,12 +27,60 @@ const mainDirname = dirname(mainFilename)
 
 const isMac = process.platform === "darwin"
 
+/**
+ * Portable mode: keep every byte SAIWORK writes next to the executable.
+ *
+ * electron-builder's `portable` target exports PORTABLE_EXECUTABLE_DIR, and a
+ * `saiwork-data` folder placed beside any build opts in manually -- so the same
+ * binary works both installed and carried on a stick without a flag.
+ *
+ * Runs before any other path setup: once `userData` has been read, moving it
+ * would split state across two locations.
+ */
+function configurePortableStoragePaths(): boolean {
+  // Priority: explicit override, then the portable launcher's own directory,
+  // then a `saiwork-data` folder the user dropped next to the executable.
+  const explicit = process.env.SAIWORK_DATA_DIR?.trim()
+  const portableDir = process.env.PORTABLE_EXECUTABLE_DIR?.trim()
+  const besideExecutable = join(dirname(process.execPath), "saiwork-data")
+
+  const target =
+    explicit ||
+    (portableDir ? join(portableDir, "saiwork-data") : null) ||
+    (existsSync(besideExecutable) ? besideExecutable : null)
+
+  if (!target) {
+    return false
+  }
+
+  try {
+    const sessionDataPath = join(target, "session-data")
+    mkdirSync(target, { recursive: true })
+    mkdirSync(sessionDataPath, { recursive: true })
+
+    app.setName("SAIWORK")
+    app.setPath("userData", target)
+    app.setPath("sessionData", sessionDataPath)
+    console.info("[electron-startup] portable storage", target)
+    return true
+  } catch (error) {
+    console.warn("[electron-startup] failed to configure portable storage paths", error)
+    return false
+  }
+}
+
+const isPortableRun = configurePortableStoragePaths()
+
 function configureDevStoragePaths() {
+  if (isPortableRun) {
+    return
+  }
+
   if (app.isPackaged) {
     return
   }
 
-  const appName = "CodeNomad"
+  const appName = "SaiWork"
 
   try {
     app.setName(appName)
@@ -53,7 +101,7 @@ function configureDevStoragePaths() {
 configureDevStoragePaths()
 
 function configurePackagedStoragePaths() {
-  if (!app.isPackaged) {
+  if (!app.isPackaged || isPortableRun) {
     return
   }
 
@@ -370,8 +418,8 @@ function destroyPreloadingView(target?: BrowserView | null) {
 }
 
 function createWindow() {
-  const prefersDark = true
-  const backgroundColor = prefersDark ? "#1a1a1a" : "#ffffff"
+  // Vintage Golden --background. There is no second palette to branch on.
+  const backgroundColor = "#342012"
   const iconPath = getIconPath()
   const savedWindowState = clientStateManager.getWindowState()
   const restoredBounds = savedWindowState
@@ -396,7 +444,7 @@ function createWindow() {
       nodeIntegration: false,
       ...(savedWindowState ? { zoomFactor: savedWindowState.zoomFactor } : {}),
       spellcheck: !isMac,
-      additionalArguments: ["--codenomad-window-context=local"],
+      additionalArguments: ["--saiwork-window-context=local"],
     },
   })
 
@@ -434,7 +482,10 @@ function createWindow() {
   clearWindowAllowedOrigin(window)
   void loadLoadingScreen(window)
 
-  if (process.env.NODE_ENV === "development") {
+  // DevTools stay shut unless asked for. Upstream popped a detached window on
+  // every dev start, which steals focus and covers the app you are trying to
+  // look at. The menu's toggle and F12 still open it on demand.
+  if (process.env.NODE_ENV === "development" && process.env.SAIWORK_DEVTOOLS === "1") {
     window.webContents.openDevTools({ mode: "detach" })
   }
 
@@ -610,7 +661,7 @@ async function openRemoteWindow(payload: { id: string; name: string; baseUrl: st
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#342012",
     icon: getIconPath(),
     title,
     webPreferences: {
@@ -618,7 +669,7 @@ async function openRemoteWindow(payload: { id: string; name: string; baseUrl: st
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: !isMac,
-      additionalArguments: ["--codenomad-window-context=remote"],
+      additionalArguments: ["--saiwork-window-context=remote"],
     },
   })
   lockWindowTitle(window, title)
@@ -795,7 +846,7 @@ app.whenReady().then(() => {
   // Required for Windows notifications / taskbar grouping.
   // Keep in sync with desktop app identifier.
   try {
-    app.setAppUserModelId("ai.neuralnomads.codenomad.client")
+    app.setAppUserModelId("ai.saipen.saiwork.client")
   } catch {
     // ignore
   }
@@ -818,7 +869,7 @@ app.whenReady().then(() => {
   }
 
   createWindow()
-  ;(mainWindow as BrowserWindow & { __codenomadOpenRemoteWindow?: typeof openRemoteWindow }).__codenomadOpenRemoteWindow = openRemoteWindow
+  ;(mainWindow as BrowserWindow & { __saiworkOpenRemoteWindow?: typeof openRemoteWindow }).__saiworkOpenRemoteWindow = openRemoteWindow
 
   app.on("certificate-error", (event, _webContents, url, error, _certificate, callback) => {
     if (isInsecureOriginAllowed(url)) {

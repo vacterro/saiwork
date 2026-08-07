@@ -1,11 +1,11 @@
-name = "codenomad-ui-host"
+name = "saiwork-ui-host"
 main = "src/index.ts"
 compatibility_date = "2026-01-22"
 
 # Custom domain for the manifest host.
 # Note: Custom domains apply to all paths on the hostname.
 [[routes]]
-pattern = "ui.codenomad.neuralnomads.ai"
+pattern = "ui.saiwork.neuralnomads.ai"
 custom_domain = true
 
 [assets]

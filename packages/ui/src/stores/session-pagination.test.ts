@@ -27,13 +27,13 @@ describe("project session list loading", () => {
   it("filters project-scoped results to the root and known worktree directories", () => {
     const sessions = [
       { id: "root", directory: "/repo" },
-      { id: "worktree", directory: "/repo/.codenomad/worktrees/feature" },
+      { id: "worktree", directory: "/repo/.saiwork/worktrees/feature" },
       { id: "sibling", directory: "/other" },
       { id: "unknown" },
     ]
 
     assert.deepEqual(
-      filterProjectScopedSessions(sessions, ["/repo", "/repo/.codenomad/worktrees/feature"]).map((session) => session.id),
+      filterProjectScopedSessions(sessions, ["/repo", "/repo/.saiwork/worktrees/feature"]).map((session) => session.id),
       ["root", "worktree", "unknown"],
     )
   })
@@ -41,12 +41,12 @@ describe("project session list loading", () => {
   it("normalizes Windows paths when filtering project-scoped results", () => {
     const sessions = [
       { id: "root", directory: String.raw`C:\Repo` },
-      { id: "worktree", directory: "c:/repo/.codenomad/worktrees/feature/" },
+      { id: "worktree", directory: "c:/repo/.saiwork/worktrees/feature/" },
       { id: "other", directory: String.raw`C:\Other` },
     ]
 
     assert.deepEqual(
-      filterProjectScopedSessions(sessions, ["c:/repo/", String.raw`C:\Repo\.codenomad\worktrees\feature`]).map(
+      filterProjectScopedSessions(sessions, ["c:/repo/", String.raw`C:\Repo\.saiwork\worktrees\feature`]).map(
         (session) => session.id,
       ),
       ["root", "worktree"],

@@ -87,7 +87,7 @@ export class VoiceModeManager {
 
 function buildVoiceModeEvent(enabled: boolean) {
   return {
-    type: "codenomad.voiceMode",
+    type: "saiwork.voiceMode",
     properties: {
       enabled,
       formatVersion: "v1",

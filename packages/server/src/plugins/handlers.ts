@@ -16,7 +16,7 @@ interface HandlerDeps {
 
 export function handlePluginEvent(workspaceId: string, event: PluginInboundEvent, deps: HandlerDeps) {
   switch (event.type) {
-    case "codenomad.pong":
+    case "saiwork.pong":
       deps.logger.debug({ workspaceId, properties: event.properties }, "Plugin pong received")
       return
 
@@ -28,7 +28,7 @@ export function handlePluginEvent(workspaceId: string, event: PluginInboundEvent
 export function buildPingEvent(): PluginOutboundEvent {
 
   return {
-    type: "codenomad.ping",
+    type: "saiwork.ping",
     properties: {
       ts: Date.now(),
     },

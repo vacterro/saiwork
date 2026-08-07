@@ -12,7 +12,7 @@ export function createApplicationMenu(mainWindow: BrowserWindow, actions: Applic
     ...(isMac
       ? [
           {
-            label: "CodeNomad",
+            label: "SaiWork",
             submenu: [
               { role: "about" as const },
               { type: "separator" as const },

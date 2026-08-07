@@ -42,16 +42,16 @@ const portable = (rows: Array<[number, number, number, string, string]>) =>
 const windows = (rows: Array<[number, number, string]>) =>
   rows.map(([pid, ppid, start], i) => `${pid}|${ppid}|0|${start}||${100 + i}`).join("\n")
 const guarded = (matched: boolean, rows: Array<[number, number, number, string]>, boot = "boot-a") => [
-  ...rows.map(([pid, ppid, pgid, start]) => `CODENOMAD_TARGET|${pid}|${ppid}|${pgid}|${start}|${boot}|${start}`),
-  `CODENOMAD_RESULT|${matched ? "1" : "0"}|200|${rows.length ? "1" : "0"}`,
+  ...rows.map(([pid, ppid, pgid, start]) => `SAIWORK_TARGET|${pid}|${ppid}|${pgid}|${start}|${boot}|${start}`),
+  `SAIWORK_RESULT|${matched ? "1" : "0"}|200|${rows.length ? "1" : "0"}`,
 ].join("\n")
 const token = (rows: Array<[number, number, number, string]>, signal: boolean, boot = "boot-a") => [
-  ...rows.map(([pid, ppid, pgid, start]) => `${signal ? "CODENOMAD_TARGET" : "CODENOMAD_PROCESS"}|${pid}|${ppid}|${pgid}|${start}|${boot}|${start}`),
-  ...(signal ? [`CODENOMAD_RESULT|${rows.length ? "1" : "0"}`] : []),
+  ...rows.map(([pid, ppid, pgid, start]) => `${signal ? "SAIWORK_TARGET" : "SAIWORK_PROCESS"}|${pid}|${ppid}|${pgid}|${start}|${boot}|${start}`),
+  ...(signal ? [`SAIWORK_RESULT|${rows.length ? "1" : "0"}`] : []),
 ].join("\n")
-const isToken = (args: readonly string[]) => args.includes("codenomad-token-cleanup")
+const isToken = (args: readonly string[]) => args.includes("saiwork-token-cleanup")
 const isSignal = (args: readonly string[]) => isToken(args) && (args.includes("TERM") || args.includes("KILL"))
-const isGuarded = (args: readonly string[]) => !isToken(args) && args.some((arg) => arg.includes("guarded-signal") || arg.includes("CODENOMAD_RESULT"))
+const isGuarded = (args: readonly string[]) => !isToken(args) && args.some((arg) => arg.includes("guarded-signal") || arg.includes("SAIWORK_RESULT"))
 async function harness(options: WorkspaceRuntimeOptions & { binary?: string; output?: string; report?: boolean } = {}) {
   const child = new FakeChild()
   const timers = new ManualTimers()
@@ -62,7 +62,7 @@ async function harness(options: WorkspaceRuntimeOptions & { binary?: string; out
     const alive = child.exitCode === null && child.signalCode === null
     if (isToken(args)) return result(token(alive ? [[4242, 1, 4242, "100"]] : [], isSignal(args)))
     if (isGuarded(args)) return result(platform === "win32"
-      ? "CODENOMAD_TARGET|4242|1|0|win-start||100\nCODENOMAD_RESULT|1||1"
+      ? "SAIWORK_TARGET|4242|1|0|win-start||100\nSAIWORK_RESULT|1||1"
       : guarded(true, [[4242, 1, 4242, "100"]]))
     return result(platform === "win32"
       ? windows(alive ? [[4242, 1, "win-start"]] : [])
@@ -135,10 +135,10 @@ describe("workspace runtime lifecycle contracts", () => {
   })
   it("signals identity-matched POSIX, Windows, and WSL processes", async () => {
     const scenarios = [
-      { name: "POSIX", platform: "linux" as const, binary: "opencode", marker: "codenomad-guarded-signal" },
-      { name: "Windows", platform: "win32" as const, binary: "opencode.exe", marker: "CODENOMAD_RESULT" },
-      { name: "WSL", platform: "win32" as const, binary: "\\\\wsl$\\Ubuntu\\usr\\bin\\opencode", marker: "codenomad-wsl-guarded-signal",
-        output: "__CODENOMAD_WSL_PID__:99:99:50:wsl-boot\nopencode server listening on http://127.0.0.1:4321\n" },
+      { name: "POSIX", platform: "linux" as const, binary: "opencode", marker: "saiwork-guarded-signal" },
+      { name: "Windows", platform: "win32" as const, binary: "opencode.exe", marker: "SAIWORK_RESULT" },
+      { name: "WSL", platform: "win32" as const, binary: "\\\\wsl$\\Ubuntu\\usr\\bin\\opencode", marker: "saiwork-wsl-guarded-signal",
+        output: "__SAIWORK_WSL_PID__:99:99:50:wsl-boot\nopencode server listening on http://127.0.0.1:4321\n" },
     ]
     for (const scenario of scenarios) {
       let alive = true
@@ -148,7 +148,7 @@ describe("workspace runtime lifecycle contracts", () => {
         const wsl = scenario.name === "WSL"
         if (wsl && command === "powershell.exe") return result(windows([[4242, 1, "host-start"]]))
         if (isToken(args)) { const rows: Array<[number, number, number, string]> = alive ? [[wsl ? 99 : 4242, 1, wsl ? 99 : 4242, wsl ? "50" : "100"]] : []; if (isSignal(args)) alive = false; return result(token(rows, isSignal(args), wsl ? "wsl-boot" : "boot-a")) }
-        if (isGuarded(args)) { alive = false; return result(wsl ? guarded(true, [[99, 1, 99, "50"]], "wsl-boot") : scenario.platform === "win32" ? "CODENOMAD_TARGET|4242|1|0|win-start||100\nCODENOMAD_RESULT|1||1" : guarded(true, [[4242, 1, 4242, "100"]])) }
+        if (isGuarded(args)) { alive = false; return result(wsl ? guarded(true, [[99, 1, 99, "50"]], "wsl-boot") : scenario.platform === "win32" ? "SAIWORK_TARGET|4242|1|0|win-start||100\nSAIWORK_RESULT|1||1" : guarded(true, [[4242, 1, 4242, "100"]])) }
         return result(wsl
           ? posix(alive ? [[99, 1, 99, "50"]] : [[1, 0, 1, "10"]], "wsl-boot")
           : scenario.platform === "win32"
@@ -184,7 +184,7 @@ describe("workspace runtime lifecycle contracts", () => {
       if (isGuarded(args)) {
         (guardedCalls as string[][]).push([...args])
         alive = false
-        return result(`CODENOMAD_TARGET_B64|5000|1|4242|${Buffer.from(start).toString("base64")}|${Buffer.from("opencode-child").toString("base64")}\nCODENOMAD_RESULT|1||1`)
+        return result(`SAIWORK_TARGET_B64|5000|1|4242|${Buffer.from(start).toString("base64")}|${Buffer.from("opencode-child").toString("base64")}\nSAIWORK_RESULT|1||1`)
       }
       const rows: Array<[number, number, number, string, string]> = !alive
         ? []
@@ -208,7 +208,7 @@ describe("workspace runtime lifecycle contracts", () => {
     const h = await harness({ platform: "darwin", spawnSync: ((_command: string, args: readonly string[]) => {
       if (isGuarded(args)) {
         (guardedCalls as string[][]).push([...args])
-        return result("CODENOMAD_RESULT|0||0")
+        return result("SAIWORK_RESULT|0||0")
       }
       return result(portable(leaderExited
         ? [[6000, 1, 4242, "Fri Jul 10 99:99:99 2026", "unverified-process"]]
@@ -229,7 +229,7 @@ describe("workspace runtime lifecycle contracts", () => {
     const calls: Call[] = []
     const h = await harness({ platform: "win32", binary: "opencode.exe", spawnSync: ((command: string, args: readonly string[]) => {
       calls.push({ command, args: [...args] })
-      return isGuarded(args) ? result("CODENOMAD_TARGET|4242|1|0|win-start||100\nCODENOMAD_RESULT|1||1") : result(windows([[4242, 1, "win-start"]]))
+      return isGuarded(args) ? result("SAIWORK_TARGET|4242|1|0|win-start||100\nSAIWORK_RESULT|1||1") : result(windows([[4242, 1, "win-start"]]))
     }) as unknown as Command })
     const stop = h.runtime.stop("w"); h.timers.run(); h.timers.run()
     await assert.rejects(stop, WorkspaceStopTimeoutError)

@@ -24,10 +24,10 @@ const nodeRequire = createRequire(import.meta.url)
 const mainFilename = fileURLToPath(import.meta.url)
 const mainDirname = path.dirname(mainFilename)
 
-const BOOTSTRAP_TOKEN_PREFIX = "CODENOMAD_BOOTSTRAP_TOKEN:"
-const SERVER_SHUTDOWN_COMPLETE = "CODENOMAD_SHUTDOWN_STATUS:complete"
-const SERVER_SHUTDOWN_INCOMPLETE = "CODENOMAD_SHUTDOWN_STATUS:incomplete"
-const SESSION_COOKIE_NAME_PREFIX = "codenomad_session"
+const BOOTSTRAP_TOKEN_PREFIX = "SAIWORK_BOOTSTRAP_TOKEN:"
+const SERVER_SHUTDOWN_COMPLETE = "SAIWORK_SHUTDOWN_STATUS:complete"
+const SERVER_SHUTDOWN_INCOMPLETE = "SAIWORK_SHUTDOWN_STATUS:incomplete"
+const SESSION_COOKIE_NAME_PREFIX = "saiwork_session"
 type CliState = "starting" | "ready" | "error" | "stopped"
 type ListeningMode = "local" | "all"
 
@@ -56,7 +56,7 @@ interface CliEntryResolution {
   nodeArgs?: string[]
 }
 
-const DEFAULT_CONFIG_PATH = "~/.config/codenomad/config.json"
+const DEFAULT_CONFIG_PATH = "~/.config/saiwork/config.json"
 
 function isYamlPath(filePath: string): boolean {
   const lower = filePath.toLowerCase()
@@ -188,7 +188,7 @@ export class CliProcessManager extends EventEmitter {
     const cliEntry = await this.resolveCliEntry(options)
 
     console.info(
-      `[cli] launching CodeNomad CLI (${options.dev ? "dev" : "prod"}) using ${cliEntry.runner} at ${cliEntry.entry} (host=${host})`,
+      `[cli] launching SaiWork CLI (${options.dev ? "dev" : "prod"}) using ${cliEntry.runner} at ${cliEntry.entry} (host=${host})`,
     )
 
     const env = supportsUserShell() ? getUserShellEnv() : { ...process.env }
@@ -570,7 +570,7 @@ export class CliProcessManager extends EventEmitter {
       }
     }
 
-    throw new Error("Unable to locate the packaged CodeNomad server entrypoint (dist/bin.js). Rebuild the desktop bundle.")
+    throw new Error("Unable to locate the packaged SaiWork server entrypoint (dist/bin.js). Rebuild the desktop bundle.")
   }
 
 }

@@ -99,10 +99,10 @@ jobs:
         run: npm install @rollup/rollup-darwin-x64 --no-save
 
       - name: Build macOS binaries (Electron)
-        run: npm run build:mac --workspace @neuralnomads/codenomad-electron-app
+        run: npm run build:mac --workspace @saiwork/electron-app
 
       - name: Verify bundled Node resource (Electron macOS)
-        run: node scripts/verify-bundled-node.cjs packages/electron-app/release/mac/CodeNomad.app/Contents/Resources@darwin-x64 packages/electron-app/release/mac-arm64/CodeNomad.app/Contents/Resources@darwin-arm64
+        run: node scripts/verify-bundled-node.cjs packages/electron-app/release/mac/SaiWork.app/Contents/Resources@darwin-x64 packages/electron-app/release/mac-arm64/SaiWork.app/Contents/Resources@darwin-arm64
 
       - name: Ad-hoc sign Electron macOS app bundles (seal resources)
         shell: bash
@@ -113,10 +113,10 @@ jobs:
           apps=()
           while IFS= read -r -d '' app; do
             apps+=("$app")
-          done < <(find "$release_root" -type d -name 'CodeNomad.app' -print0)
+          done < <(find "$release_root" -type d -name 'SaiWork.app' -print0)
 
           if [ "${#apps[@]}" -eq 0 ]; then
-            echo "No CodeNomad.app found under $release_root" >&2
+            echo "No SaiWork.app found under $release_root" >&2
             exit 1
           fi
 
@@ -152,9 +152,9 @@ jobs:
           apps=()
           while IFS= read -r -d '' app; do
             apps+=("$app")
-          done < <(find "$release_root" -type d -name 'CodeNomad.app' -print0)
+          done < <(find "$release_root" -type d -name 'SaiWork.app' -print0)
           if [ "${#apps[@]}" -eq 0 ]; then
-            echo "No CodeNomad.app found under $release_root" >&2
+            echo "No SaiWork.app found under $release_root" >&2
             exit 1
           fi
 
@@ -165,7 +165,7 @@ jobs:
               arch="arm64"
             fi
 
-            out_zip="$release_root/CodeNomad-Electron-macos-${arch}-${VERSION_TO_USE}.zip"
+            out_zip="$release_root/SaiWork-Electron-macos-${arch}-${VERSION_TO_USE}.zip"
             rm -f "$out_zip"
             echo "ditto -ck: $app -> $out_zip"
             ditto -ck --sequesterRsrc --keepParent "$app" "$out_zip"
@@ -180,7 +180,7 @@ jobs:
           tmp_dir=$(mktemp -d)
           trap 'rm -rf "$tmp_dir"' EXIT
 
-          zips=(packages/electron-app/release/CodeNomad-Electron-macos-*.zip)
+          zips=(packages/electron-app/release/SaiWork-Electron-macos-*.zip)
           if [ "${#zips[@]}" -eq 0 ]; then
             echo "No Electron macOS zip artifacts found to validate" >&2
             exit 1
@@ -260,7 +260,7 @@ jobs:
         run: npm install @rollup/rollup-win32-x64-msvc --no-save
 
       - name: Build Windows binaries (Electron)
-        run: npm run build:win --workspace @neuralnomads/codenomad-electron-app
+        run: npm run build:win --workspace @saiwork/electron-app
 
       - name: Verify bundled Node resource (Electron Windows)
         run: node scripts/verify-bundled-node.cjs packages/electron-app/electron/resources@win32-x64
@@ -312,7 +312,7 @@ jobs:
         run: npm install @rollup/rollup-linux-x64-gnu --no-save
 
       - name: Build Linux binaries (Electron)
-        run: npm run build:linux --workspace @neuralnomads/codenomad-electron-app
+        run: npm run build:linux --workspace @saiwork/electron-app
 
       - name: Verify bundled Node resource (Electron Linux)
         run: node scripts/verify-bundled-node.cjs packages/electron-app/electron/resources@linux-x64
@@ -331,9 +331,9 @@ jobs:
           trap 'rm -rf "$extract_dir"' EXIT
           tar -xzf "${archives[0]}" -C "$extract_dir"
 
-          binary=$(find "$extract_dir" -type f -name CodeNomad -print -quit)
+          binary=$(find "$extract_dir" -type f -name SaiWork -print -quit)
           if [ -z "$binary" ] || [ ! -x "$binary" ]; then
-            echo "Electron portable archive does not contain an executable CodeNomad binary" >&2
+            echo "Electron portable archive does not contain an executable SaiWork binary" >&2
             exit 1
           fi
 
@@ -376,8 +376,8 @@ jobs:
           }
           NODE
 
-          ldd "$binary" | tee /tmp/codenomad-electron-ldd.txt
-          if grep -q "not found" /tmp/codenomad-electron-ldd.txt; then
+          ldd "$binary" | tee /tmp/saiwork-electron-ldd.txt
+          if grep -q "not found" /tmp/saiwork-electron-ldd.txt; then
             echo "Electron portable binary has unresolved shared libraries" >&2
             exit 1
           fi
@@ -404,7 +404,7 @@ jobs:
 
           gh release view "$TAG" --json assets --jq '.assets[].name' | while IFS= read -r asset; do
             case "$asset" in
-              CodeNomad-Electron-linux-*.zip|CodeNomad-Electron-linux-*.AppImage|CodeNomad-Electron-linux-*.flatpak)
+              SaiWork-Electron-linux-*.zip|SaiWork-Electron-linux-*.AppImage|SaiWork-Electron-linux-*.flatpak)
                 echo "Deleting obsolete Linux asset $asset"
                 gh release delete-asset "$TAG" "$asset" --yes
                 ;;
@@ -446,7 +446,7 @@ jobs:
         run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
 
       - name: Sync Tauri package version
-        run: npm run sync:version --workspace @codenomad/tauri-app
+        run: npm run sync:version --workspace @saiwork/tauri-app
 
       - name: Install dependencies
         run: npm ci --workspaces --include=optional
@@ -455,7 +455,7 @@ jobs:
         run: npm install @rollup/rollup-darwin-x64 --no-save
 
       - name: Prebuild (Tauri)
-        run: npm run prebuild --workspace @codenomad/tauri-app
+        run: npm run prebuild --workspace @saiwork/tauri-app
 
       - name: Verify bundled Node resource (Tauri macOS x64)
         run: node scripts/verify-bundled-node.cjs packages/tauri-app/src-tauri/resources@darwin-x64
@@ -486,8 +486,8 @@ jobs:
           ARTIFACT_DIR="packages/tauri-app/release-tauri"
           rm -rf "$ARTIFACT_DIR"
           mkdir -p "$ARTIFACT_DIR"
-          if [ -d "$BUNDLE_ROOT/macos/CodeNomad.app" ]; then
-            ditto -ck --sequesterRsrc --keepParent "$BUNDLE_ROOT/macos/CodeNomad.app" "$ARTIFACT_DIR/CodeNomad-Tauri-macos-x64-${VERSION}.zip"
+          if [ -d "$BUNDLE_ROOT/macos/SaiWork.app" ]; then
+            ditto -ck --sequesterRsrc --keepParent "$BUNDLE_ROOT/macos/SaiWork.app" "$ARTIFACT_DIR/SaiWork-Tauri-macos-x64-${VERSION}.zip"
           fi
 
       - name: Upload Actions artifacts (Tauri macOS)
@@ -536,7 +536,7 @@ jobs:
         run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
 
       - name: Sync Tauri package version
-        run: npm run sync:version --workspace @codenomad/tauri-app
+        run: npm run sync:version --workspace @saiwork/tauri-app
 
       - name: Install dependencies
         run: npm ci --workspaces --include=optional
@@ -545,7 +545,7 @@ jobs:
         run: npm install @rollup/rollup-darwin-arm64 --no-save
 
       - name: Prebuild (Tauri)
-        run: npm run prebuild --workspace @codenomad/tauri-app
+        run: npm run prebuild --workspace @saiwork/tauri-app
 
       - name: Verify bundled Node resource (Tauri macOS arm64)
         run: node scripts/verify-bundled-node.cjs packages/tauri-app/src-tauri/resources@darwin-arm64
@@ -576,8 +576,8 @@ jobs:
           ARTIFACT_DIR="packages/tauri-app/release-tauri"
           rm -rf "$ARTIFACT_DIR"
           mkdir -p "$ARTIFACT_DIR"
-          if [ -d "$BUNDLE_ROOT/macos/CodeNomad.app" ]; then
-            ditto -ck --sequesterRsrc --keepParent "$BUNDLE_ROOT/macos/CodeNomad.app" "$ARTIFACT_DIR/CodeNomad-Tauri-macos-arm64-${VERSION}.zip"
+          if [ -d "$BUNDLE_ROOT/macos/SaiWork.app" ]; then
+            ditto -ck --sequesterRsrc --keepParent "$BUNDLE_ROOT/macos/SaiWork.app" "$ARTIFACT_DIR/SaiWork-Tauri-macos-arm64-${VERSION}.zip"
           fi
 
       - name: Upload Actions artifacts (Tauri macOS arm64)
@@ -627,7 +627,7 @@ jobs:
         shell: bash
 
       - name: Sync Tauri package version
-        run: npm run sync:version --workspace @codenomad/tauri-app
+        run: npm run sync:version --workspace @saiwork/tauri-app
 
       - name: Install dependencies
         run: npm ci --workspaces --include=optional
@@ -636,7 +636,7 @@ jobs:
         run: npm install @rollup/rollup-win32-x64-msvc --no-save
 
       - name: Prebuild (Tauri)
-        run: npm run prebuild --workspace @codenomad/tauri-app
+        run: npm run prebuild --workspace @saiwork/tauri-app
 
       - name: Verify bundled Node resource (Tauri Windows)
         run: node scripts/verify-bundled-node.cjs packages/tauri-app/src-tauri/resources@win32-x64
@@ -671,7 +671,7 @@ jobs:
           New-Item -ItemType Directory -Path $artifactDir | Out-Null
           $exe = Get-ChildItem -Path $bundleRoot -Recurse -File -Filter *.exe | Select-Object -First 1
           if ($null -ne $exe) {
-            $dest = Join-Path $artifactDir ("CodeNomad-Tauri-windows-x64-$env:VERSION.zip")
+            $dest = Join-Path $artifactDir ("SaiWork-Tauri-windows-x64-$env:VERSION.zip")
             Compress-Archive -Path $exe.Directory.FullName -DestinationPath $dest -Force
           }
 
@@ -734,7 +734,7 @@ jobs:
         run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
 
       - name: Sync Tauri package version
-        run: npm run sync:version --workspace @codenomad/tauri-app
+        run: npm run sync:version --workspace @saiwork/tauri-app
 
       - name: Install dependencies
         run: npm ci --workspaces --include=optional
@@ -743,7 +743,7 @@ jobs:
         run: npm install @rollup/rollup-linux-x64-gnu --no-save
 
       - name: Prebuild (Tauri)
-        run: npm run prebuild --workspace @codenomad/tauri-app
+        run: npm run prebuild --workspace @saiwork/tauri-app
 
       - name: Verify bundled Node resource (Tauri Linux)
         run: node scripts/verify-bundled-node.cjs packages/tauri-app/src-tauri/resources@linux-x64
@@ -786,7 +786,7 @@ jobs:
             exit 1
           fi
 
-          artifact="$ARTIFACT_DIR/CodeNomad-Tauri-linux-x64-${VERSION_TO_USE}.deb"
+          artifact="$ARTIFACT_DIR/SaiWork-Tauri-linux-x64-${VERSION_TO_USE}.deb"
           cp "${debs[0]}" "$artifact"
           dpkg-deb --info "$artifact"
           dpkg-deb --contents "$artifact"
@@ -800,9 +800,9 @@ jobs:
           trap 'rm -rf "$extract_dir"' EXIT
           dpkg-deb --extract "$artifact" "$extract_dir"
 
-          binary="$extract_dir/usr/bin/codenomad-tauri"
-          resources_dir="$extract_dir/usr/lib/CodeNomad/resources"
-          desktop_file="$extract_dir/usr/share/applications/CodeNomad.desktop"
+          binary="$extract_dir/usr/bin/saiwork-tauri"
+          resources_dir="$extract_dir/usr/lib/SaiWork/resources"
+          desktop_file="$extract_dir/usr/share/applications/SaiWork.desktop"
           for required in "$binary" "$resources_dir" "$desktop_file"; do
             if [ ! -e "$required" ]; then
               echo "Missing path in Tauri deb: $required" >&2
@@ -810,7 +810,7 @@ jobs:
             fi
           done
 
-          grep -Fx "Exec=codenomad-tauri" "$desktop_file"
+          grep -Fx "Exec=saiwork-tauri" "$desktop_file"
           if grep -Fxq "NoDisplay=true" "$desktop_file"; then
             echo "Generated Tauri desktop entry must be visible" >&2
             exit 1
@@ -820,8 +820,8 @@ jobs:
             --loading "$resources_dir/ui-loading" \
             --target linux-x64
 
-          ldd "$binary" | tee /tmp/codenomad-tauri-ldd.txt
-          if grep -q "not found" /tmp/codenomad-tauri-ldd.txt; then
+          ldd "$binary" | tee /tmp/saiwork-tauri-ldd.txt
+          if grep -q "not found" /tmp/saiwork-tauri-ldd.txt; then
             echo "Tauri deb binary has unresolved shared libraries" >&2
             exit 1
           fi
@@ -839,20 +839,20 @@ jobs:
 
           artifact=$(realpath "${debs[0]}")
           docker run --rm \
-            --volume "$artifact:/tmp/codenomad.deb:ro" \
+            --volume "$artifact:/tmp/saiwork.deb:ro" \
             ubuntu:24.04 \
             bash -euc '
               export DEBIAN_FRONTEND=noninteractive
               apt-get update >/dev/null
-              apt-get install -y /tmp/codenomad.deb >/dev/null
-              test -x /usr/bin/codenomad-tauri
-              test -x /usr/lib/CodeNomad/resources/node/linux-x64/bin/node
-              test -f /usr/lib/CodeNomad/resources/server/dist/bin.js
-              test -f /usr/lib/CodeNomad/resources/ui-loading/loading.html
-              /usr/lib/CodeNomad/resources/node/linux-x64/bin/node \
-                /usr/lib/CodeNomad/resources/server/dist/bin.js --version
-              ldd /usr/bin/codenomad-tauri | tee /tmp/codenomad-tauri-ldd.txt
-              ! grep -q "not found" /tmp/codenomad-tauri-ldd.txt
+              apt-get install -y /tmp/saiwork.deb >/dev/null
+              test -x /usr/bin/saiwork-tauri
+              test -x /usr/lib/SaiWork/resources/node/linux-x64/bin/node
+              test -f /usr/lib/SaiWork/resources/server/dist/bin.js
+              test -f /usr/lib/SaiWork/resources/ui-loading/loading.html
+              /usr/lib/SaiWork/resources/node/linux-x64/bin/node \
+                /usr/lib/SaiWork/resources/server/dist/bin.js --version
+              ldd /usr/bin/saiwork-tauri | tee /tmp/saiwork-tauri-ldd.txt
+              ! grep -q "not found" /tmp/saiwork-tauri-ldd.txt
             '
 
       - name: Upload Actions artifacts (Tauri Linux)
@@ -886,7 +886,7 @@ jobs:
 
           gh release view "$TAG" --json assets --jq '.assets[].name' | while IFS= read -r asset; do
             case "$asset" in
-              CodeNomad-Tauri-linux-*.zip|CodeNomad-Tauri-linux-*.AppImage|CodeNomad-Tauri-linux-*.rpm|CodeNomad-Tauri-linux-*.flatpak)
+              SaiWork-Tauri-linux-*.zip|SaiWork-Tauri-linux-*.AppImage|SaiWork-Tauri-linux-*.rpm|SaiWork-Tauri-linux-*.flatpak)
                 echo "Deleting obsolete Linux asset $asset"
                 gh release delete-asset "$TAG" "$asset" --yes
                 ;;
@@ -948,7 +948,7 @@ jobs:
         run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
 
       - name: Sync Tauri package version
-        run: npm run sync:version --workspace @codenomad/tauri-app
+        run: npm run sync:version --workspace @saiwork/tauri-app
 
       - name: Install dependencies
         run: npm ci --workspaces --include=optional
@@ -963,7 +963,7 @@ jobs:
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
           CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
           AR_aarch64_unknown_linux_gnu: aarch64-linux-gnu-ar
-        run: npm run build --workspace @codenomad/tauri-app
+        run: npm run build --workspace @saiwork/tauri-app
 
       - name: Package Tauri artifacts (Linux arm64)
         run: |
@@ -974,11 +974,11 @@ jobs:
           mkdir -p "$ARTIFACT_DIR"
           shopt -s nullglob globstar
           first_artifact=$(find "$SEARCH_ROOT" -type f \( -name "*.AppImage" -o -name "*.tar.gz" \) | head -n1)
-          fallback_bin="$SEARCH_ROOT/release/codenomad-tauri"
+          fallback_bin="$SEARCH_ROOT/release/saiwork-tauri"
           if [ -n "$first_artifact" ]; then
-            zip -j "$ARTIFACT_DIR/CodeNomad-Tauri-linux-arm64-${VERSION}.zip" "$first_artifact"
+            zip -j "$ARTIFACT_DIR/SaiWork-Tauri-linux-arm64-${VERSION}.zip" "$first_artifact"
           elif [ -f "$fallback_bin" ]; then
-            zip -j "$ARTIFACT_DIR/CodeNomad-Tauri-linux-arm64-${VERSION}.zip" "$fallback_bin"
+            zip -j "$ARTIFACT_DIR/SaiWork-Tauri-linux-arm64-${VERSION}.zip" "$fallback_bin"
           else
             echo "No bundled artifact found under $SEARCH_ROOT and no binary at $fallback_bin" >&2
             exit 1

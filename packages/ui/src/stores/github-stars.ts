@@ -3,8 +3,8 @@ import { getLogger } from "../lib/logger"
 
 const log = getLogger("api")
 
-const STORAGE_KEY = "codenomad:github:stars"
-const REPO_API_URL = "https://api.github.com/repos/NeuralNomadsAI/CodeNomad"
+const STORAGE_KEY = "saiwork:github:stars"
+const REPO_API_URL = "https://api.github.com/repos/vacterro/saiwork"
 
 function readStoredStars(): number | null {
   if (typeof window === "undefined") return null
@@ -24,7 +24,16 @@ const [githubStars, setGithubStars] = createSignal<number | null>(readStoredStar
 
 let initialized = false
 
+/**
+ * SAIWORK is a fork with no repository of its own, and showing upstream's star
+ * count next to the SAIWORK logo would present someone else's numbers as ours.
+ * Set to true only if this fork ever gets a repo of its own, and point
+ * REPO_API_URL at it in the same change.
+ */
+const SHOW_GITHUB_STARS = false
+
 export async function initGithubStars(): Promise<void> {
+  if (!SHOW_GITHUB_STARS) return
   if (initialized) return
   initialized = true
 

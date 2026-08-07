@@ -26,7 +26,7 @@ describe("process identity probes", () => {
   it("parses immutable Linux identities", () => {
     const call = {} as Call
     const probe = probePosixProcesses(spawn("42|1|42|123456|boot-a|123456\n", call), 25, "linux")
-    assert.deepEqual([call.command, call.args.includes("codenomad-posix-identity"), call.script.trimEnd().endsWith("exit 0")], ["sh", true, true])
+    assert.deepEqual([call.command, call.args.includes("saiwork-posix-identity"), call.script.trimEnd().endsWith("exit 0")], ["sh", true, true])
     assert.deepEqual(probe.ok && probe.processes.get(42), identity())
   })
 
@@ -76,7 +76,7 @@ describe("process identity probes", () => {
 
   it("preserves delimiter-heavy identities through POSIX escalation and rescan", () => {
     const command = "/opt/opencode pipe|value\nnext\t'quoted'"
-    const row = `CODENOMAD_TARGET_B64|42|1|42|${b64("Fri Jul 10 12:34:56 2026")}|${b64(command)}\nCODENOMAD_RESULT|1||1\n`
+    const row = `SAIWORK_TARGET_B64|42|1|42|${b64("Fri Jul 10 12:34:56 2026")}|${b64(command)}\nSAIWORK_RESULT|1||1\n`
     const expected = `Fri Jul 10 12:34:56 2026\t${command}`
     const guardedCall = {} as Call
     const guarded = signalPosixProcesses(spawn(row, guardedCall), { leader: identity(expected), groupId: 42, members: [identity(expected)], signal: "SIGKILL" }, 25, "darwin")
@@ -92,7 +92,7 @@ describe("process identity probes", () => {
 
   it("marks a retained portable group request for leaderless guarded cleanup", () => {
     const call = {} as Call
-    const guarded = signalPosixProcesses(spawn("CODENOMAD_RESULT|1||1\n", call), {
+    const guarded = signalPosixProcesses(spawn("SAIWORK_RESULT|1||1\n", call), {
       leader: identity("gone"), groupId: 42, members: [identity("member")], signal: "SIGTERM",
       allowLeaderlessGroup: true, cleanupToken: "secret-token",
     }, 25, "darwin")
@@ -106,7 +106,7 @@ describe("process identity probes", () => {
   it("queries WSL identities in the selected distro", () => {
     const call = {} as Call
     const probe = probeWslProcesses(spawn("99|1|99|123456|boot-a|123456\n101|99|99|123460|boot-a|123460\n", call), "Ubuntu Test", 25)
-    assert.deepEqual([call.command, call.args.slice(0, 4), call.args.includes("codenomad-wsl-identity"), call.script.trimEnd().endsWith("exit 0")],
+    assert.deepEqual([call.command, call.args.slice(0, 4), call.args.includes("saiwork-wsl-identity"), call.script.trimEnd().endsWith("exit 0")],
       ["wsl.exe", ["--distribution", "Ubuntu Test", "--exec", "sh"], true, true])
     assert.equal(probe.ok && probe.processes.get(101)?.startTime, "123460")
   })
@@ -130,25 +130,25 @@ describe("process identity probes", () => {
 
   it("returns a POSIX mismatch without a second signal command", () => {
     const call = {} as Call
-    const guarded = signalPosixProcesses(spawn("CODENOMAD_RESULT|0||0\n", call), { leader: identity(), groupId: 42, members: [identity()], signal: "SIGTERM" }, 25, "linux")
+    const guarded = signalPosixProcesses(spawn("SAIWORK_RESULT|0||0\n", call), { leader: identity(), groupId: 42, members: [identity()], signal: "SIGTERM" }, 25, "linux")
     assert.deepEqual(guarded, { ok: true, matched: false, signalSent: false, signaled: [] })
-    assert.deepEqual([call.command, call.args[2], call.args.includes("123456")], ["sh", "codenomad-guarded-signal", true])
+    assert.deepEqual([call.command, call.args[2], call.args.includes("123456")], ["sh", "saiwork-guarded-signal", true])
     assert.ok(call.script.indexOf('kill "-$requested_signal"') < call.script.indexOf("uptime=$(cut"))
   })
 
   it("selects and terminates Windows identities in one guarded CIM invocation", () => {
     const call = {} as Call
-    const guarded = signalWindowsProcesses(spawn("CODENOMAD_TARGET|4242|1|0|created||99\nCODENOMAD_RESULT|1||1\n", call), { leader: identity("created"), groupId: 42, members: [identity("created")], signal: "SIGKILL" }, 25)
+    const guarded = signalWindowsProcesses(spawn("SAIWORK_TARGET|4242|1|0|created||99\nSAIWORK_RESULT|1||1\n", call), { leader: identity("created"), groupId: 42, members: [identity("created")], signal: "SIGKILL" }, 25)
     assert.equal(guarded.ok && guarded.matched, true)
     assert.equal(call.command, "powershell.exe")
     assert.match(call.script, /CreationDate.*Invoke-CimMethod -InputObject/s)
     assert.equal(call.script.match(/foreach \(\$process in \$selected\)/g)?.length, 2)
-    assert.ok(call.script.indexOf("CODENOMAD_TARGET|") < call.script.indexOf("Invoke-CimMethod"))
+    assert.ok(call.script.indexOf("SAIWORK_TARGET|") < call.script.indexOf("Invoke-CimMethod"))
     assert.doesNotMatch(call.script, /taskkill/i)
   })
 
   it("retains observed Windows identities after partial termination failure", () => {
-    const rows = "CODENOMAD_TARGET|4242|1|0|created||99\nCODENOMAD_TARGET|4243|4242|0|descendant||100"
+    const rows = "SAIWORK_TARGET|4242|1|0|created||99\nSAIWORK_TARGET|4243|4242|0|descendant||100"
     const guarded = signalWindowsProcesses(spawn(rows, undefined, 1, "termination failed"), { leader: identity("created"), groupId: 42, members: [identity("created")], signal: "SIGTERM" }, 25)
     assert.equal(guarded.ok, false)
     assert.deepEqual(!guarded.ok && guarded.observed?.map(({ pid }) => pid), [4242, 4243])

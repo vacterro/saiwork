@@ -7,7 +7,7 @@ import test from "node:test"
 import { getCredential, readOpenCodeAuth, toTimestamp, toUsageWindow } from "./shared"
 
 test("reads the explicit OpenCode auth file without exposing credentials through the API", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "codenomad-usage-"))
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-usage-"))
   const authFile = path.join(directory, "auth.json")
   const previous = process.env.OPENCODE_AUTH_FILE
   fs.writeFileSync(authFile, JSON.stringify({ openai: { type: "oauth", access: "secret-token" } }))

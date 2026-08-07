@@ -52,7 +52,7 @@ export default defineConfig({
       apply: "build",
       buildStart() {
         // vite-pwa-assets requires the source image inside root/public/
-        const source = resolve(__dirname, "src/images/CodeNomad-Icon.png")
+        const source = resolve(__dirname, "src/images/SaiWork-Icon.png")
         const publicDir = resolve(__dirname, "src/renderer/public")
         const dest = resolve(publicDir, "logo.png")
         fs.mkdirSync(publicDir, { recursive: true })
@@ -67,8 +67,8 @@ export default defineConfig({
         image: "public/logo.png",
       },
       manifest: {
-        name: "CodeNomad",
-        short_name: "CodeNomad",
+        name: "SaiWork",
+        short_name: "SaiWork",
         id: "/",
         start_url: "/",
         display: "standalone",

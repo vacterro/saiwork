@@ -194,7 +194,7 @@ export async function createManagedWorktree(params: {
     return normalized || "worktree"
   }
 
-  const worktreesDir = path.join(repoRoot, ".codenomad", "worktrees")
+  const worktreesDir = path.join(repoRoot, ".saiwork", "worktrees")
   const targetDir = path.join(worktreesDir, sanitizeDirName(branch))
   await fsp.mkdir(worktreesDir, { recursive: true })
 

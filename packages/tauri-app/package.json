@@ -1,11 +1,11 @@
 {
-  "name": "@codenomad/tauri-app",
-  "version": "0.18.0",
+  "name": "@saiwork/tauri-app",
+  "version": "0.0.1",
   "private": true,
   "license": "MIT",
   "scripts": {
     "dev": "tauri dev",
-    "dev:ui": "npm run dev --workspace @codenomad/ui",
+    "dev:ui": "npm run dev --workspace @saiwork/ui",
     "dev:prep": "node ./scripts/dev-prep.js",
     "dev:bootstrap": "npm run dev:prep && npm run dev:ui",
     "sync:version": "node ./scripts/sync-tauri-version.js",

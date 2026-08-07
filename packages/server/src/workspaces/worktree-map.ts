@@ -12,7 +12,7 @@ const DEFAULT_MAP: WorktreeMap = {
 }
 
 function getMapPath(repoRoot: string): string {
-  return path.join(repoRoot, ".codenomad", "worktreeMap.json")
+  return path.join(repoRoot, ".saiwork", "worktreeMap.json")
 }
 
 function getGitExcludePath(repoRoot: string): string {
@@ -28,9 +28,9 @@ async function ensureGitExclude(repoRoot: string, logger?: LogLike): Promise<voi
   }
 
   const entries = [
-    ".codenomad/background_processes/",
-    ".codenomad/worktrees/",
-    ".codenomad/worktreeMap.json",
+    ".saiwork/background_processes/",
+    ".saiwork/worktrees/",
+    ".saiwork/worktreeMap.json",
   ]
 
   let existing = ""
@@ -51,12 +51,12 @@ async function ensureGitExclude(repoRoot: string, logger?: LogLike): Promise<voi
     return
   }
 
-  const header = existing.includes("# codenomad") ? "" : (existing.trim() ? "\n" : "") + "# codenomad\n"
+  const header = existing.includes("# saiwork") ? "" : (existing.trim() ? "\n" : "") + "# saiwork\n"
   const suffix = missing.map((e) => `${e}\n`).join("")
   await fsp.writeFile(excludePath, `${existing}${header}${suffix}`, "utf-8")
 }
 
-export async function ensureCodenomadGitExclude(workspaceFolder: string, logger?: LogLike): Promise<void> {
+export async function ensureSaiworkGitExclude(workspaceFolder: string, logger?: LogLike): Promise<void> {
   const { repoRoot, isGitRepo } = await resolveRepoRoot(workspaceFolder, logger)
   if (!isGitRepo) {
     return

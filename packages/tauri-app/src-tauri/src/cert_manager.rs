@@ -3,14 +3,14 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const DEFAULT_CONFIG_PATH: &str = "~/.config/codenomad/config.json";
+const DEFAULT_CONFIG_PATH: &str = "~/.config/saiwork/config.json";
 const TLS_DIR_NAME: &str = "tls";
 const CA_CERT_FILE: &str = "ca-cert.pem";
 const SERVER_CERT_FILE: &str = "server-cert.pem";
 const SERVER_KEY_FILE: &str = "server-key.pem";
 const TRUSTED_MARKER: &str = "server-ca.trusted";
 #[cfg(windows)]
-const WINDOWS_APP_USER_MODEL_ID: &str = "ai.neuralnomads.codenomad.client";
+const WINDOWS_APP_USER_MODEL_ID: &str = "ai.saipen.saiwork.client";
 
 /// Holds the PEM-encoded certificate/key pair used by the local HTTPS proxy,
 /// plus the CA certificate DER used for trust-store installation.
@@ -145,7 +145,7 @@ fn trusted_marker_path() -> Result<PathBuf, String> {
 
     #[cfg(not(windows))]
     {
-        Ok(base.join("codenomad").join(TRUSTED_MARKER))
+        Ok(base.join("saiwork").join(TRUSTED_MARKER))
     }
 }
 
@@ -237,7 +237,7 @@ pub fn trust_cert_in_store(cert_der: &[u8]) -> Result<(), String> {
     }
 
     let temp_path = env::temp_dir().join(format!(
-        "codenomad-server-ca-{}.cer",
+        "saiwork-server-ca-{}.cer",
         trusted_marker_file_suffix(cert_der)
     ));
     fs::write(&temp_path, cert_der).map_err(|e| {
@@ -267,13 +267,13 @@ pub fn trust_cert_in_store(cert_der: &[u8]) -> Result<(), String> {
             stderr
         };
         return Err(format!(
-            "Failed to add the local CodeNomad CA certificate to the macOS trust settings: {detail}"
+            "Failed to add the local SaiWork CA certificate to the macOS trust settings: {detail}"
         ));
     }
 
     if !macos_cert_is_trusted(cert_der)? {
         return Err(format!(
-            "Added the local CodeNomad CA certificate to {} but could not verify that macOS trusts it",
+            "Added the local SaiWork CA certificate to {} but could not verify that macOS trusts it",
             keychain_path.display()
         ));
     }
@@ -341,7 +341,7 @@ fn macos_cert_is_trusted(cert_der: &[u8]) -> Result<bool, String> {
     use std::process::Command;
 
     let temp_path = env::temp_dir().join(format!(
-        "codenomad-server-ca-verify-{}.cer",
+        "saiwork-server-ca-verify-{}.cer",
         trusted_marker_file_suffix(cert_der)
     ));
     fs::write(&temp_path, cert_der).map_err(|e| {
@@ -354,7 +354,7 @@ fn macos_cert_is_trusted(cert_der: &[u8]) -> Result<bool, String> {
     let keychain_path = resolve_macos_user_keychain()?;
     let fingerprint = macos_cert_sha256(&temp_path)?;
     let find_output = Command::new("/usr/bin/security")
-        .args(["find-certificate", "-a", "-Z", "-c", "CodeNomad Local CA"])
+        .args(["find-certificate", "-a", "-Z", "-c", "SaiWork Local CA"])
         .arg(&keychain_path)
         .output()
         .map_err(|e| format!("Failed to query macOS keychain certificates: {e}"))?;
@@ -370,7 +370,7 @@ fn macos_cert_is_trusted(cert_der: &[u8]) -> Result<bool, String> {
             stderr
         };
         return Err(format!(
-            "Failed to inspect the macOS keychain for the local CodeNomad CA certificate: {detail}"
+            "Failed to inspect the macOS keychain for the local SaiWork CA certificate: {detail}"
         ));
     }
 
@@ -387,7 +387,7 @@ fn macos_cert_is_trusted(cert_der: &[u8]) -> Result<bool, String> {
         .arg(&keychain_path)
         .output()
         .map_err(|e| {
-            format!("Failed to verify macOS trust for the local CodeNomad CA certificate: {e}")
+            format!("Failed to verify macOS trust for the local SaiWork CA certificate: {e}")
         })?;
 
     let _ = fs::remove_file(&temp_path);

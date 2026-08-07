@@ -1,10 +1,10 @@
 {
-  "name": "@codenomad/codenomad-opencode-plugin",
-  "version": "0.18.0",
+  "name": "@saiwork/opencode-plugin",
+  "version": "0.0.1",
   "private": true,
   "license": "MIT",
   "type": "module",
-  "main": "dist/codenomad.js",
+  "main": "dist/saiwork.js",
   "files": [
     "dist",
     "README.md"

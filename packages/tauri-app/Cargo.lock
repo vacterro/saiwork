@@ -496,7 +496,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "codenomad-tauri"
+name = "saiwork-tauri"
 version = "0.18.0"
 dependencies = [
  "anyhow",

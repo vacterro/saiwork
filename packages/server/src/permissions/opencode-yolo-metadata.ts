@@ -3,7 +3,7 @@ import type { WorkspaceManager } from "../workspaces/manager"
 import { createInstanceClient } from "../workspaces/instance-client"
 import type { AutoAcceptPersistence, PersistedAutoAcceptSession } from "./auto-accept-manager"
 
-const CODENOMAD_METADATA_VERSION = 1
+const SAIWORK_METADATA_VERSION = 1
 const SESSION_LIST_LIMIT = 10_000
 
 type Metadata = Record<string, unknown>
@@ -18,21 +18,21 @@ function record(value: unknown): Metadata {
 }
 
 export function hasPersistedYolo(sessionId: string, metadata: unknown): boolean {
-  const codenomad = record(record(metadata).codenomad)
-  const yolo = record(codenomad.yolo)
-  return codenomad.version === CODENOMAD_METADATA_VERSION
+  const saiwork = record(record(metadata).saiwork)
+  const yolo = record(saiwork.yolo)
+  return saiwork.version === SAIWORK_METADATA_VERSION
     && yolo.enabled === true
     && yolo.rootSessionId === sessionId
 }
 
 export function mergePersistedYolo(metadata: unknown, rootSessionId: string, enabled: boolean): Metadata {
   const current = record(metadata)
-  const codenomad = record(current.codenomad)
+  const saiwork = record(current.saiwork)
   return {
     ...current,
-    codenomad: {
-      ...codenomad,
-      version: CODENOMAD_METADATA_VERSION,
+    saiwork: {
+      ...saiwork,
+      version: SAIWORK_METADATA_VERSION,
       yolo: { enabled, rootSessionId },
     },
   }
@@ -40,10 +40,10 @@ export function mergePersistedYolo(metadata: unknown, rootSessionId: string, ena
 
 export function mergePersistedWorktreeSlug(metadata: unknown, worktreeSlug: string): Metadata {
   const current = record(metadata)
-  const codenomad = record(current.codenomad)
+  const saiwork = record(current.saiwork)
   return {
     ...current,
-    codenomad: { ...codenomad, version: CODENOMAD_METADATA_VERSION, worktreeSlug },
+    saiwork: { ...saiwork, version: SAIWORK_METADATA_VERSION, worktreeSlug },
   }
 }
 

@@ -2,8 +2,8 @@ type ShutdownLogger = Pick<import("./logger").Logger, "info" | "warn" | "error">
 type ShutdownOperation = () => void | Promise<void>
 
 export type ServerShutdownTrigger = NodeJS.Signals | "stdin"
-export const SERVER_SHUTDOWN_COMPLETE = "CODENOMAD_SHUTDOWN_STATUS:complete"
-export const SERVER_SHUTDOWN_INCOMPLETE = "CODENOMAD_SHUTDOWN_STATUS:incomplete"
+export const SERVER_SHUTDOWN_COMPLETE = "SAIWORK_SHUTDOWN_STATUS:complete"
+export const SERVER_SHUTDOWN_INCOMPLETE = "SAIWORK_SHUTDOWN_STATUS:incomplete"
 
 export type ServerShutdownOperations = Record<
   "stopInstanceEventBridge" | "stopSidecars" | "stopClientConnections" | "stopRemoteProxySessions" | "stopWorkspaces" |

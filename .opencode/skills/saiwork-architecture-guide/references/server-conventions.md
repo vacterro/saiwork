@@ -52,9 +52,9 @@ export type { ExampleResponse } from "../../../server/src/api-types"
 
 | Document | Purpose | File | Notes |
 |----------|---------|------|-------|
-| Config | User preferences, binaries, models | `~/.config/codenomad/config.yaml` | Canonical format |
-| State | Recent folders, session metadata | `~/.config/codenomad/state.yaml` | Canonical format |
-| Config (legacy) | Migration fallback | `~/.config/codenomad/config.json` | Supported as input fallback |
+| Config | User preferences, binaries, models | `~/.config/saiwork/config.yaml` | Canonical format |
+| State | Recent folders, session metadata | `~/.config/saiwork/state.yaml` | Canonical format |
+| Config (legacy) | Migration fallback | `~/.config/saiwork/config.json` | Supported as input fallback |
 
 ## Testing
 

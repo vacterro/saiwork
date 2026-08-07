@@ -4,11 +4,11 @@ import { fileURLToPath, pathToFileURL } from "url"
 import { createLogger } from "./logger"
 
 const log = createLogger({ component: "opencode-plugin" })
-const pluginPackageName = "@codenomad/codenomad-opencode-plugin"
+const pluginPackageName = "@saiwork/opencode-plugin"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
-const devPluginEntry = path.resolve(__dirname, "../../opencode-plugin/plugin/codenomad.ts")
+const devPluginEntry = path.resolve(__dirname, "../../opencode-plugin/plugin/saiwork.ts")
 const prodPluginDirs = [
   resourcesPath ? path.resolve(resourcesPath, "opencode-plugin") : undefined,
   resourcesPath ? path.resolve(resourcesPath, "server/dist/opencode-plugin") : undefined,
@@ -16,17 +16,17 @@ const prodPluginDirs = [
 ].filter((dir): dir is string => Boolean(dir))
 
 const isDevBuild = Boolean(
-  process.env.CODENOMAD_DEV ??
+  process.env.SAIWORK_DEV ??
     process.env.CLI_UI_DEV_SERVER ??
     process.env.VITE_DEV_SERVER_URL ??
     process.env.ELECTRON_RENDERER_URL,
 )
 const isSourceRun = path.basename(__dirname) === "src" && existsSync(devPluginEntry)
 
-export function getCodeNomadPluginUrl(): string {
+export function getSaiWorkPluginUrl(): string {
   if (isDevBuild || isSourceRun) {
     if (!existsSync(devPluginEntry)) {
-      throw new Error(`CodeNomad OpenCode plugin entry missing at ${devPluginEntry}`)
+      throw new Error(`SaiWork OpenCode plugin entry missing at ${devPluginEntry}`)
     }
 
     log.debug({ pluginEntry: devPluginEntry }, "Using OpenCode plugin source directly (dev mode)")
@@ -40,20 +40,35 @@ export function getCodeNomadPluginUrl(): string {
     }
   }
 
-  throw new Error(`CodeNomad OpenCode plugin package missing in ${prodPluginDirs.join(", ")}`)
+  throw new Error(`SaiWork OpenCode plugin package missing in ${prodPluginDirs.join(", ")}`)
 }
 
-export function buildOpencodeConfigContent(existingContent: string | undefined, pluginUrl: string): string {
+export function buildOpencodeConfigContent(
+  existingContent: string | undefined,
+  pluginUrl: string,
+  saipenInstructions: string[] = [],
+): string {
   const config = existingContent?.trim() ? parseJsoncObject(existingContent) : {}
   const existingPlugins = normalizePluginEntries(config.plugin)
   if (!existingPlugins.includes(pluginUrl)) {
     existingPlugins.push(pluginUrl)
   }
+
+  // SAIPEN Core goes in front: BOOT.md is a cold-start kernel and its step
+  // order only holds if it is the first thing the agent reads. Anything the
+  // user already had configured is kept, just after it.
+  const userInstructions = normalizeInstructionEntries(config.instructions)
+  const instructions = [...saipenInstructions]
+  for (const entry of userInstructions) {
+    if (!instructions.includes(entry)) instructions.push(entry)
+  }
+
   return JSON.stringify(
     {
       "$schema": typeof config["$schema"] === "string" ? config["$schema"] : "https://opencode.ai/config.json",
       ...config,
       plugin: existingPlugins,
+      ...(instructions.length > 0 ? { instructions } : {}),
     },
     null,
     2,
@@ -98,6 +113,19 @@ function parseJsoncObject(content: string): Record<string, unknown> {
     const reason = error instanceof Error ? error.message : String(error)
     throw new Error(`Failed to parse OPENCODE_CONFIG_CONTENT: ${reason}`)
   }
+}
+
+function normalizeInstructionEntries(value: unknown): string[] {
+  if (value === undefined) {
+    return []
+  }
+  if (typeof value === "string") {
+    return [value]
+  }
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
+    return [...value]
+  }
+  throw new Error("OPENCODE_CONFIG_CONTENT instructions field must be a string or string array")
 }
 
 function normalizePluginEntries(value: unknown): string[] {

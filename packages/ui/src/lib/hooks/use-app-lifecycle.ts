@@ -3,6 +3,7 @@ import { setupTabKeyboardShortcuts } from "../keyboard"
 import { registerNavigationShortcuts } from "../shortcuts/navigation"
 import { registerInputShortcuts } from "../shortcuts/input"
 import { registerAgentShortcuts } from "../shortcuts/agent"
+import { registerSaiWorkShortcuts } from "../shortcuts/saiwork"
 import { registerEscapeShortcut, setEscapeStateChangeHandler } from "../shortcuts/escape"
 import { keyboardRegistry } from "../keyboard-registry"
 import { abortSession, getSessions, isSessionBusy } from "../../stores/sessions"
@@ -44,6 +45,7 @@ export function useAppLifecycle(options: UseAppLifecycleOptions) {
     )
 
     registerNavigationShortcuts()
+    registerSaiWorkShortcuts()
     registerInputShortcuts(
       () => {
         const textarea = document.querySelector(

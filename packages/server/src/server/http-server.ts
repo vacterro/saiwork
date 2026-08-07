@@ -18,6 +18,7 @@ import { registerSettingsRoutes } from "./routes/settings"
 import { registerFilesystemRoutes } from "./routes/filesystem"
 import { registerConfigFileRoutes } from "./routes/config-files"
 import { registerMetaRoutes } from "./routes/meta"
+import { registerSaipenRoutes } from "./routes/saipen"
 import { registerEventRoutes } from "./routes/events"
 import { registerStorageRoutes } from "./routes/storage"
 import { registerPluginRoutes } from "./routes/plugin"
@@ -232,7 +233,7 @@ export function createHttpServer(deps: HttpServerDeps) {
 
     const requiresAuthForApi = pathname.startsWith("/api/") || pathname.startsWith("/workspaces/") || pathname.startsWith("/sidecars/") || pathname.startsWith("/previews/")
     if (requiresAuthForApi && !session) {
-      // Allow OpenCode plugin -> CodeNomad calls with per-instance basic auth.
+      // Allow OpenCode plugin -> SaiWork calls with per-instance basic auth.
       const pluginMatch = pathname.match(/^\/workspaces\/([^/]+)\/plugin(?:\/|$)/)
       if (pluginMatch) {
         const workspaceId = pluginMatch[1]
@@ -290,6 +291,7 @@ export function createHttpServer(deps: HttpServerDeps) {
   registerFilesystemRoutes(app, { fileSystemBrowser: deps.fileSystemBrowser })
   registerConfigFileRoutes(app)
   registerMetaRoutes(app, { serverMeta: deps.serverMeta })
+  registerSaipenRoutes(app, { settings: deps.settings })
   registerEventRoutes(app, {
     eventBus: deps.eventBus,
     registerClient: registerSseClient,

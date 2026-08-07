@@ -2,7 +2,7 @@
 
 ## Upstream OpenCode Behaviors
 
-The following behaviors are implemented in the upstream OpenCode SDK/server, not in the CodeNomad repository. They affect how CodeNomad must interact with the SDK.
+The following behaviors are implemented in the upstream OpenCode SDK/server, not in the SaiWork repository. They affect how SaiWork must interact with the SDK.
 
 ## Critical Behaviors Table
 

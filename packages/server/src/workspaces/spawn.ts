@@ -7,11 +7,11 @@ export const WINDOWS_POWERSHELL_EXTENSIONS = new Set([".ps1"])
 
 const VERSION_REGEX = /([0-9]+\.[0-9]+\.[0-9A-Za-z.-]+)/
 const WSL_UNC_PATH_REGEX = /^\\\\wsl(?:\.localhost|\$)\\([^\\/]+)(?:[\\/](.*))?$/i
-const CODENOMAD_PLUGIN_PACKAGE_NAME = "@codenomad/codenomad-opencode-plugin"
-const WSL_PLUGIN_PATH_ENV = "CODENOMAD_OPENCODE_PLUGIN_WSL_PATH"
-const WSL_PLUGIN_PATH_PLACEHOLDER = "__CODENOMAD_OPENCODE_PLUGIN_WSL_PATH__"
-const CODENOMAD_PLUGIN_FILE_SPEC_REGEX = new RegExp(
-  `(${escapeRegex(CODENOMAD_PLUGIN_PACKAGE_NAME)}@file:)([A-Za-z]:[^"\\r\\n]+?\\.tgz)`,
+const SAIWORK_PLUGIN_PACKAGE_NAME = "@saiwork/opencode-plugin"
+const WSL_PLUGIN_PATH_ENV = "SAIWORK_OPENCODE_PLUGIN_WSL_PATH"
+const WSL_PLUGIN_PATH_PLACEHOLDER = "__SAIWORK_OPENCODE_PLUGIN_WSL_PATH__"
+const SAIWORK_PLUGIN_FILE_SPEC_REGEX = new RegExp(
+  `(${escapeRegex(SAIWORK_PLUGIN_PACKAGE_NAME)}@file:)([A-Za-z]:[^"\\r\\n]+?\\.tgz)`,
 )
 const WSL_PATH_ENV_KEYS = new Set(["NODE_EXTRA_CA_CERTS", WSL_PLUGIN_PATH_ENV])
 const WINDOWS_DIRECT_EXTENSIONS = new Set([".com", ".exe"])
@@ -233,7 +233,7 @@ function buildWslSpawnSpec(wslPath: WslPath, args: string[], options: BuildSpawn
       "sh",
       "-lc",
       launchScript,
-      "codenomad-wsl-launch",
+      "saiwork-wsl-launch",
     )
     if (workingDirectory) {
       wslArgs.push(workingDirectory.path)
@@ -325,7 +325,7 @@ function buildWslLaunchScript(
 
   if (pidMarker) {
     steps.push(
-      `codenomad_pgid=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]'); codenomad_start=$(awk '{print $22}' "/proc/$$/stat" 2>/dev/null); codenomad_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null); test -n "$codenomad_pgid" && test -n "$codenomad_start" && test -n "$codenomad_boot" && printf '%s%s:%s:%s:%s\\n' '${pidMarker}' "$$" "$codenomad_pgid" "$codenomad_start" "$codenomad_boot"`,
+      `saiwork_pgid=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]'); saiwork_start=$(awk '{print $22}' "/proc/$$/stat" 2>/dev/null); saiwork_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null); test -n "$saiwork_pgid" && test -n "$saiwork_start" && test -n "$saiwork_boot" && printf '%s%s:%s:%s:%s\\n' '${pidMarker}' "$$" "$saiwork_pgid" "$saiwork_start" "$saiwork_boot"`,
     )
   }
 
@@ -400,7 +400,7 @@ function rewriteOpencodePluginPathForWsl(env: NodeJS.ProcessEnv) {
     return
   }
 
-  const match = content.match(CODENOMAD_PLUGIN_FILE_SPEC_REGEX)
+  const match = content.match(SAIWORK_PLUGIN_FILE_SPEC_REGEX)
   const hostPath = match?.[2]
   if (!hostPath) {
     return

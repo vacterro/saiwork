@@ -11,7 +11,7 @@ pub async fn install_stable_update() -> Result<(), String> {
             "upgrade",
             "--exact",
             "--id",
-            "NeuralNomadsAI.CodeNomad",
+            "NeuralNomadsAI.SaiWork",
             "--source",
             "winget",
             "--silent",

@@ -15,8 +15,8 @@ export const appMessages = {
   "app.stopInstance.cancelLabel": "चालु राख्नुहोस्",
   "app.stopInstance.toast.error": "कार्यस्थान रोक्न असफल भयो।",
 
-  "emptyState.logoAlt": "CodeNomad लोगो",
-  "emptyState.brandTitle": "CodeNomad",
+  "emptyState.logoAlt": "SAIWORK लोगो",
+  "emptyState.brandTitle": "SAIWORK",
   "emptyState.tagline": "AI सँग कोडिङ सुरु गर्न फोल्डर चयन गर्नुहोस्",
   "emptyState.actions.selectFolder": "फोल्डर चयन गर्नुहोस्",
   "emptyState.actions.selecting": "चयन गर्दै...",
@@ -25,8 +25,8 @@ export const appMessages = {
   "emptyState.multipleInstances": "तपाईंसँग एउटै फोल्डरका धेरै उदाहरणहरू हुन सक्छन्",
 
   "releases.upgradeRequired.title": "अपग्रेड आवश्यक छ",
-  "releases.upgradeRequired.message.withVersion": "नयाँ UI प्रयोग गर्न CodeNomad {version} मा अपडेट गर्नुहोस्।",
-  "releases.upgradeRequired.message.noVersion": "नयाँ UI प्रयोग गर्न CodeNomad अपडेट गर्नुहोस्।",
+  "releases.upgradeRequired.message.withVersion": "नयाँ UI प्रयोग गर्न SAIWORK {version} मा अपडेट गर्नुहोस्।",
+  "releases.upgradeRequired.message.noVersion": "नयाँ UI प्रयोग गर्न SAIWORK अपडेट गर्नुहोस्।",
   "releases.upgradeRequired.action.getUpdate": "अपडेट प्राप्त गर्नुहोस्",
 
   "releases.uiUpdated.title": "UI अपडेट गरियो",

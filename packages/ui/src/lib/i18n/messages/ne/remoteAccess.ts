@@ -1,7 +1,7 @@
 export const remoteAccessMessages = {
   "remoteAccess.eyebrow": "रिमोट ह्यान्डोभर",
-  "remoteAccess.title": "CodeNomad सँग टाढैबाट (Remotely) जडान गर्नुहोस्",
-  "remoteAccess.subtitle": "अर्को उपकरणबाट CodeNomad खोल्न तलका ठेगानाहरू प्रयोग गर्नुहोस्।",
+  "remoteAccess.title": "SAIWORK सँग टाढैबाट (Remotely) जडान गर्नुहोस्",
+  "remoteAccess.subtitle": "अर्को उपकरणबाट SAIWORK खोल्न तलका ठेगानाहरू प्रयोग गर्नुहोस्।",
   "remoteAccess.close": "रिमोट पहुँच बन्द गर्नुहोस्",
   "remoteAccess.refresh": "रिफ्रेस",
 

@@ -1,27 +1,27 @@
 {
-  "name": "@neuralnomads/codenomad",
-  "version": "0.18.0",
-  "description": "CodeNomad Server",
+  "name": "@saiwork/saiwork",
+  "version": "0.0.1",
+  "description": "SaiWork Server",
   "license": "MIT",
   "author": {
     "name": "Neural Nomads",
-    "email": "codenomad@neuralnomads.ai"
+    "email": "saiwork@saipen.local"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/NeuralNomadsAI/CodeNomad.git"
+    "url": "https://github.com/vacterro/saiwork.git"
   },
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "codenomad": "dist/bin.js"
+    "saiwork": "dist/bin.js"
   },
   "scripts": {
     "build": "npm run build:ui && npm run prepare-ui && tsc -p tsconfig.json && node ./scripts/copy-auth-pages.mjs && npm run prepare-plugin",
     "build:ui": "npm run build --prefix ../ui",
     "prepare-ui": "node ./scripts/copy-ui-dist.mjs",
     "prepare-plugin": "node ./scripts/package-opencode-plugin.mjs",
-    "dev": "cross-env CODENOMAD_DEV=1 CODENOMAD_SERVER_PASSWORD=codenomad-dev CLI_UI_DEV_SERVER=http://localhost:3000 CLI_HTTPS=false CLI_HTTP=true tsx src/index.ts",
+    "dev": "cross-env SAIWORK_DEV=1 SAIWORK_SERVER_PASSWORD=saiwork-dev CLI_UI_DEV_SERVER=http://localhost:3000 CLI_HTTPS=false CLI_HTTP=true tsx src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

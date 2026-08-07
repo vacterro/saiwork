@@ -7,8 +7,8 @@ import type { AuthManager } from "../auth/manager"
 import type { Logger } from "../logger"
 
 const LOOPBACK_HOST = "127.0.0.1"
-const BOOTSTRAP_PAGE_PATH = "/__codenomad/auth/token"
-const BOOTSTRAP_EXCHANGE_PATH = "/__codenomad/api/auth/token"
+const BOOTSTRAP_PAGE_PATH = "/__saiwork/auth/token"
+const BOOTSTRAP_EXCHANGE_PATH = "/__saiwork/api/auth/token"
 const SESSION_IDLE_TTL_MS = 30 * 60_000
 const SESSION_DISPOSAL_TIMEOUT_MS = 5_000
 
@@ -265,7 +265,7 @@ function buildBootstrapPageHtml(): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CodeNomad</title>
+    <title>SaiWork</title>
     <style>
       body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: #0b0b0f; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
       .card { width: 420px; max-width: calc(100vw - 32px); background: #14141c; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 24px; }

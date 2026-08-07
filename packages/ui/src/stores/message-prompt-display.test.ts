@@ -105,15 +105,15 @@ describe("message prompt display overrides", () => {
     const metadata: PromptDisplayMetadata = { segments: [{ kind: "inline", length: 4 }, { kind: "pasted", length: 9 }] }
 
     storage.setItem(
-      "codenomad:prompt-display:v2",
+      "saiwork:prompt-display:v2",
       JSON.stringify({ [`${legacyInstanceId}:${sessionId}:${messageId}`]: metadata }),
     )
     ;(globalThis as unknown as { window?: WindowWithMemoryStorage }).window = { localStorage: storage }
     resetPromptDisplayOverrideStateForTests()
 
     assert.deepEqual(getPromptDisplayOverride(reopenedInstanceId, sessionId, messageId), metadata)
-    assert.equal(storage.getItem("codenomad:prompt-display:v3")?.includes(`${sessionId}:${messageId}`), true)
-    assert.equal(storage.getItem("codenomad:prompt-display:v2"), null)
+    assert.equal(storage.getItem("saiwork:prompt-display:v3")?.includes(`${sessionId}:${messageId}`), true)
+    assert.equal(storage.getItem("saiwork:prompt-display:v2"), null)
 
     clearPromptDisplayOverride(reopenedInstanceId, sessionId, messageId)
     resetPromptDisplayOverrideStateForTests()
@@ -133,11 +133,11 @@ describe("message prompt display overrides", () => {
     const metadata: PromptDisplayMetadata = { segments: [{ kind: "inline", length: 4 }, { kind: "pasted", length: 9 }] }
 
     storage.setItem(
-      "codenomad:prompt-display:v2",
+      "saiwork:prompt-display:v2",
       JSON.stringify({ [`${legacyInstanceId}:${sessionId}:${messageId}`]: metadata }),
     )
     storage.setItem(
-      "codenomad:prompt-display:v3",
+      "saiwork:prompt-display:v3",
       JSON.stringify({ [`${stableSessionId}:${stableMessageId}`]: metadata }),
     )
     ;(globalThis as unknown as { window?: WindowWithMemoryStorage }).window = { localStorage: storage }
@@ -145,7 +145,7 @@ describe("message prompt display overrides", () => {
 
     assert.deepEqual(getPromptDisplayOverride(reopenedInstanceId, sessionId, messageId), metadata)
     assert.deepEqual(getPromptDisplayOverride(reopenedInstanceId, stableSessionId, stableMessageId), metadata)
-    assert.equal(storage.getItem("codenomad:prompt-display:v2"), null)
+    assert.equal(storage.getItem("saiwork:prompt-display:v2"), null)
 
     delete (globalThis as unknown as { window?: unknown }).window
   })

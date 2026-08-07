@@ -530,7 +530,7 @@ test("incomplete shutdown status remains terminal", async () => {
     ;(manager as EventEmitter).on("shutdownIncomplete", () => { enforcements++ })
 
     ;(manager as any).handleStream(
-      "CODENOMAD_SHUTDOWN_STATUS:incomplete\nCODENOMAD_SHUTDOWN_STATUS:complete\n",
+      "SAIWORK_SHUTDOWN_STATUS:incomplete\nSAIWORK_SHUTDOWN_STATUS:complete\n",
       "stdout",
     )
 

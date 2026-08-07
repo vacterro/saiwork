@@ -28,6 +28,8 @@ import CommandPalette from "../command-palette"
 import PermissionNotificationBanner from "../permission-notification-banner"
 import PermissionApprovalModal from "../permission-approval-modal"
 import SessionView from "../session/session-view"
+import SaipenBar from "../saipen-bar"
+import { showSaipenBar } from "../../stores/ui"
 import MessageSection from "../message-section"
 import PromptAttachmentsBar from "../prompt-input/PromptAttachmentsBar"
 import ActionOverflowMenu, { type ActionOverflowMenuItem } from "../action-overflow-menu"
@@ -72,7 +74,7 @@ import { isPermissionAutoAcceptEnabled } from "../../stores/permission-auto-acce
 import { readClientLayoutValue, writeClientLayoutValue } from "../../stores/client-state"
 
 const log = getLogger("session")
-const OPEN_SESSION_SEARCH_EVENT = "codenomad:open-session-search"
+const OPEN_SESSION_SEARCH_EVENT = "saiwork:open-session-search"
 const NO_SESSION_DRAFT_SESSION_ID = "__no_session_draft__"
 type SessionCenterWidthStep = "narrow" | "medium" | "wide"
 
@@ -842,6 +844,10 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
             aria-hidden="true"
           />
         </Show>
+        {/* Mounted only while open. Its git status and diff views are the
+            heaviest work in the shell, and a closed drawer has no business
+            doing any of it. */}
+        <Show when={rightOpen()}>
         <RightPanel
           t={t}
           instanceId={props.instance.id}
@@ -864,6 +870,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
           promptInputApi={activePromptInputApi}
           setContentEl={setRightDrawerContentEl}
         />
+        </Show>
       </Drawer>
 
     )
@@ -1276,6 +1283,17 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
                           removeAttachment(props.instance.id, NO_SESSION_DRAFT_SESSION_ID, attachmentId)
                         }}
                         onExpandTextAttachment={(attachmentId) => draftPromptInputApi()?.expandTextAttachment(attachmentId)}
+                      />
+                    </Show>
+
+                    {/* The bar belongs here too: `cc`, `sss` and `hh` are all
+                        legitimate first messages, and the queue is not -- it
+                        keys on a session id that does not exist yet. */}
+                    <Show when={showSaipenBar()}>
+                      <SaipenBar
+                        folder={props.instance.folder}
+                        onRunShortcut={(shortcut) => void handleFirstPromptSend(shortcut, [])}
+                        onInsertShortcut={(text) => draftPromptInputApi()?.setPromptText(text, { focus: true })}
                       />
                     </Show>
 

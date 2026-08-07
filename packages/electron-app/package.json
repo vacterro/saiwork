@@ -1,19 +1,19 @@
 {
-  "name": "@neuralnomads/codenomad-electron-app",
-  "version": "0.18.0",
-  "description": "CodeNomad - AI coding assistant",
+  "name": "@saiwork/electron-app",
+  "version": "0.0.1",
+  "description": "SaiWork - AI coding assistant",
   "license": "MIT",
   "author": {
     "name": "Neural Nomads",
-    "email": "codenomad@neuralnomads.ai"
+    "email": "saiwork@saipen.local"
   },
   "type": "module",
   "main": "dist/main/main.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/NeuralNomadsAI/CodeNomad.git"
+    "url": "https://github.com/vacterro/saiwork.git"
   },
-  "homepage": "https://github.com/NeuralNomadsAI/CodeNomad",
+  "homepage": "https://github.com/vacterro/saiwork",
   "scripts": {
     "dev": "npm run dev:info",
     "dev:info": "cross-env CLI_LOG_LEVEL=info electron-vite dev",
@@ -59,8 +59,8 @@
     "vite-plugin-solid": "^2.10.0"
   },
   "build": {
-    "appId": "ai.neuralnomads.codenomad.client",
-    "productName": "CodeNomad",
+    "appId": "ai.saipen.saiwork.client",
+    "productName": "SaiWork",
     "directories": {
       "output": "release",
       "buildResources": "electron/resources"
@@ -90,8 +90,8 @@
       "entitlements": "electron/resources/entitlements.mac.plist",
       "entitlementsInherit": "electron/resources/entitlements.mac.plist",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "CodeNomad needs microphone access for speech-to-text prompt input.",
-        "NSLocalNetworkUsageDescription": "CodeNomad needs local network access to connect to locally hosted AI and speech services."
+        "NSMicrophoneUsageDescription": "SaiWork needs microphone access for speech-to-text prompt input.",
+        "NSLocalNetworkUsageDescription": "SaiWork needs local network access to connect to locally hosted AI and speech services."
       },
       "category": "public.app-category.developer-tools",
       "target": [
@@ -99,7 +99,7 @@
           "target": "zip"
         }
       ],
-      "artifactName": "CodeNomad-Electron-macos-${arch}-${version}.${ext}",
+      "artifactName": "SaiWork-Electron-macos-${arch}-${version}.${ext}",
       "icon": "electron/resources/icon.icns"
     },
     "dmg": {
@@ -119,11 +119,19 @@
     "win": {
       "target": [
         {
+          "target": "portable"
+        },
+        {
           "target": "zip"
         }
       ],
-      "artifactName": "CodeNomad-Electron-windows-${arch}-${version}.${ext}",
+      "artifactName": "SAIWORK-${arch}-${version}.${ext}",
       "icon": "electron/resources/icon.ico"
+    },
+    "portable": {
+      "artifactName": "SAIWORK-portable-${arch}-${version}.exe",
+      "requestExecutionLevel": "user",
+      "unpackDirName": "saiwork"
     },
     "nsis": {
       "oneClick": false,
@@ -132,13 +140,13 @@
       "createStartMenuShortcut": true
     },
     "linux": {
-      "executableName": "CodeNomad",
+      "executableName": "SaiWork",
       "target": [
         {
           "target": "tar.gz"
         }
       ],
-      "artifactName": "CodeNomad-Electron-linux-${arch}-${version}.${ext}",
+      "artifactName": "SaiWork-Electron-linux-${arch}-${version}.${ext}",
       "category": "Development",
       "icon": "electron/resources/icon.png"
     }

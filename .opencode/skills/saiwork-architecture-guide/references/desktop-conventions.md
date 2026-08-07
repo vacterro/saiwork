@@ -2,7 +2,7 @@
 
 ## Dual Platform: Electron + Tauri
 
-CodeNomad supports two desktop platforms:
+SaiWork supports two desktop platforms:
 - **Electron** (primary, mature)
 - **Tauri** (emerging, Rust-based)
 
@@ -93,7 +93,7 @@ fn open_dialog(options: DialogOptions) -> Result<DialogResult, String> {
 
 ## Native Abstractions
 
-CodeNomad abstracts native APIs to work across Electron, Tauri, and Web:
+SaiWork abstracts native APIs to work across Electron, Tauri, and Web:
 
 | Feature | Abstraction File |
 |---------|-----------------|

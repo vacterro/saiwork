@@ -16,24 +16,24 @@ describe("cli upgrade", () => {
   it("builds latest upgrade command by default", () => {
     const command = buildUpgradeCommand(undefined, "npm")
 
-    assert.equal(command.packageSpec, "@neuralnomads/codenomad@latest")
-    assert.deepEqual(command.args, ["install", "-g", "@neuralnomads/codenomad@latest"])
-    assert.equal(formatUpgradeCommand(command), "npm install -g @neuralnomads/codenomad@latest")
+    assert.equal(command.packageSpec, "@saiwork/saiwork@latest")
+    assert.deepEqual(command.args, ["install", "-g", "@saiwork/saiwork@latest"])
+    assert.equal(formatUpgradeCommand(command), "npm install -g @saiwork/saiwork@latest")
   })
 
   it("builds a versioned upgrade command", () => {
     const command = buildUpgradeCommand("0.10.5", "pnpm")
 
-    assert.equal(command.packageSpec, "@neuralnomads/codenomad@0.10.5")
-    assert.deepEqual(command.args, ["install", "-g", "@neuralnomads/codenomad@0.10.5"])
-    assert.equal(formatUpgradeCommand(command), "pnpm install -g @neuralnomads/codenomad@0.10.5")
+    assert.equal(command.packageSpec, "@saiwork/saiwork@0.10.5")
+    assert.deepEqual(command.args, ["install", "-g", "@saiwork/saiwork@0.10.5"])
+    assert.equal(formatUpgradeCommand(command), "pnpm install -g @saiwork/saiwork@0.10.5")
   })
 
   it("uses bun add for Bun installs", () => {
     const command = buildUpgradeCommand("0.10.5", "bun")
 
-    assert.equal(command.packageSpec, "@neuralnomads/codenomad@0.10.5")
-    assert.deepEqual(command.args, ["add", "-g", "@neuralnomads/codenomad@0.10.5"])
-    assert.equal(formatUpgradeCommand(command), "bun add -g @neuralnomads/codenomad@0.10.5")
+    assert.equal(command.packageSpec, "@saiwork/saiwork@0.10.5")
+    assert.deepEqual(command.args, ["add", "-g", "@saiwork/saiwork@0.10.5"])
+    assert.equal(formatUpgradeCommand(command), "bun add -g @saiwork/saiwork@0.10.5")
   })
 })

@@ -46,11 +46,44 @@ describe("resolveFamilyRoot", () => {
   })
 })
 
-describe("AutoAcceptStore inheritance", () => {
+describe("AutoAcceptStore default", () => {
   it("is disabled by default for an unknown session", () => {
     const store = new AutoAcceptStore()
     assert.equal(store.isEnabled("inst", "s1"), false)
   })
+
+  it("is enabled for an untouched session when the default is on", () => {
+    const store = new AutoAcceptStore({ defaultEnabled: true })
+    assert.equal(store.isEnabled("inst", "s1"), true)
+  })
+
+  it("keeps an explicit off when the default is on", () => {
+    const store = new AutoAcceptStore({ defaultEnabled: true })
+    store.upsertSession("inst", { id: "root", parentId: null })
+
+    store.setEnabled("inst", "root", false)
+    assert.equal(store.isEnabled("inst", "root"), false)
+
+    // ...and the whole family follows the root, same as the enabled path.
+    store.upsertSession("inst", { id: "child", parentId: "root" })
+    assert.equal(store.isEnabled("inst", "child"), false)
+
+    store.setEnabled("inst", "root", true)
+    assert.equal(store.isEnabled("inst", "root"), true)
+  })
+
+  it("clears both explicit sets for an instance", () => {
+    const store = new AutoAcceptStore({ defaultEnabled: true })
+    store.upsertSession("inst", { id: "root", parentId: null })
+    store.setEnabled("inst", "root", false)
+
+    store.clearInstance("inst")
+
+    assert.equal(store.isEnabled("inst", "root"), true)
+  })
+})
+
+describe("AutoAcceptStore inheritance", () => {
 
   it("enabling a parent enables every descendant that resolves to it", () => {
     const store = new AutoAcceptStore()

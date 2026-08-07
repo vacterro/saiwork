@@ -121,7 +121,7 @@ export function isExpectedTauriProcess(pid: number): boolean | undefined {
         )?.slice(5)
     if (!executable) return undefined
     if (resolve(executable).toLowerCase() === resolve(process.execPath).toLowerCase()) return false
-    return ["codenomad", "codenomad.exe", "codenomad-tauri", "codenomad-tauri.exe"]
+    return ["saiwork", "saiwork.exe", "saiwork-tauri", "saiwork-tauri.exe"]
       .includes(basename(executable).toLowerCase())
   } catch {
     return undefined

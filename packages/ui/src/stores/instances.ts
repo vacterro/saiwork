@@ -88,7 +88,7 @@ setPermissionAutoAcceptFamilyRootResolver((instanceId, sessionId) => {
 })
 
 // Server is authoritative for Yolo state; mirror toggles (incl. from other
-// clients) arriving over the CodeNomad server event stream into the local
+// clients) arriving over the SaiWork server event stream into the local
 // projection so the badge/switch stay in sync.
 serverEvents.on("yolo.stateChanged", (event) => {
   if (event.type !== "yolo.stateChanged") return

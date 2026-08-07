@@ -6,6 +6,9 @@ import MessageSection from "../message-section"
 import { messageStoreBus } from "../../stores/message-v2/bus"
 import PromptInput from "../prompt-input"
 import PromptAttachmentsBar from "../prompt-input/PromptAttachmentsBar"
+import PromptQueuePanel from "../prompt-queue-panel"
+import SaipenBar from "../saipen-bar"
+import { dequeuePrompt, enqueuePrompt, getQueueLength, isQueuePaused } from "../../stores/prompt-queue"
 import { getAttachments, removeAttachment } from "../../stores/attachments"
 import { instances, waitForInstanceWorkspaceMetadataHydration } from "../../stores/instances"
 import { loadMessages, sendMessage, forkSession, renameSession, isSessionMessagesLoading, getSessionMessagesLoadError, markSessionIdleSeen, ensureSessionAncestorsExpanded, setActiveSessionFromList, runShellCommand, abortSession } from "../../stores/sessions"
@@ -19,6 +22,7 @@ import type { PromptInputApi, PromptInsertMode } from "../prompt-input/types"
 import { clearConversationPlaybackForSession } from "../../stores/conversation-speech"
 import { useConfig } from "../../stores/preferences"
 import { closeSessionPreview, getSessionPreview, showSessionChat } from "../../stores/session-previews"
+import { showSaipenBar } from "../../stores/ui"
 import { SessionPreviewView } from "../session-preview-view"
 import { isSnapshotAutoFollowing } from "../virtual-follow-behavior"
 import { getSubmitBottomPinTargetCount, resolveSessionBottomPinIntent, shouldClearSessionBottomPinIntent, type SessionBottomPinIntent } from "./session-bottom-pin-intent"
@@ -384,6 +388,59 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   async function handleRunShell(command: string) {
     await runShellCommand(props.instanceId, props.sessionId, command)
   }
+
+  function handleQueuePrompt(prompt: string, attachments: Attachment[]) {
+    enqueuePrompt(props.instanceId, props.sessionId, prompt, attachments)
+  }
+
+  /**
+   * Sends the head of the queue.
+   *
+   * `draining` is a plain flag rather than a signal on purpose: it guards
+   * against re-entry inside a single tick, and making it reactive would feed
+   * the effect below back into itself.
+   */
+  let draining = false
+
+  async function drainQueueHead() {
+    if (draining) return
+    const next = dequeuePrompt(props.instanceId, props.sessionId)
+    if (!next) return
+
+    draining = true
+    try {
+      await handleSendMessage(next.text, next.attachments)
+    } catch (error) {
+      log.error("Failed to send queued prompt:", error)
+      // Put it back at the front rather than losing what the user typed.
+      enqueuePrompt(props.instanceId, props.sessionId, next.text, next.attachments)
+      showAlertDialog(t("promptInput.send.errorFallback"), {
+        title: t("promptInput.send.errorTitle"),
+        detail: error instanceof Error ? error.message : String(error),
+        variant: "error",
+      })
+    } finally {
+      draining = false
+    }
+  }
+
+  // Drains one entry each time the session settles into idle. One per idle
+  // transition, not a loop: the next send flips the session back to working,
+  // which re-arms this effect for the entry after it.
+  createEffect(
+    on(
+      () => ({
+        busy: sessionBusy(),
+        needsInput: sessionNeedsInput(),
+        pending: getQueueLength(props.instanceId, props.sessionId),
+        paused: isQueuePaused(props.instanceId, props.sessionId),
+      }),
+      (state) => {
+        if (state.busy || state.needsInput || state.paused || state.pending === 0) return
+        void drainQueueHead()
+      },
+    ),
+  )
  
   async function handleAbortSession() {
     const currentSession = session()
@@ -578,6 +635,21 @@ export const SessionView: Component<SessionViewProps> = (props) => {
               />
             </Show>
 
+            <Show when={showSaipenBar()}>
+              <SaipenBar
+                folder={props.instanceFolder}
+                onRunShortcut={(shortcut) => void handleSendMessage(shortcut, [])}
+                onInsertShortcut={(text) => promptInputApi?.setPromptText(text, { focus: true })}
+              />
+            </Show>
+
+            <PromptQueuePanel
+              instanceId={props.instanceId}
+              sessionId={activeSession.id}
+              sessionBusy={sessionBusy()}
+              onSendNext={() => void drainQueueHead()}
+            />
+
             <PromptInput
               instanceId={props.instanceId}
               instanceFolder={props.instanceFolder}
@@ -585,6 +657,8 @@ export const SessionView: Component<SessionViewProps> = (props) => {
               isActive={props.isActive}
               compactLayout={props.compactPromptLayout}
               onSend={handleSendMessage}
+              onQueue={handleQueuePrompt}
+              queuedCount={getQueueLength(props.instanceId, activeSession.id)}
               onRunShell={handleRunShell}
               escapeInDebounce={props.escapeInDebounce}
               isSessionBusy={sessionBusy()}

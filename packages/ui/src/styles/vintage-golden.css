@@ -1,0 +1,427 @@
+/*
+ * SAIWORK -- Vintage Golden
+ *
+ * The saipen UI palette (saipen/UI.md) applied as an override layer on top of
+ * the upstream token file. Upstream `tokens.css` is left untouched so that
+ * merges from `upstream/dev` stay reviewable; everything below re-points the
+ * existing token names at the eighteen Vintage Golden values.
+ *
+ * Selector list covers every theme selector upstream defines, so the palette is
+ * the same whether the user sits on system, light, or dark. Vintage Golden is
+ * not one option among several -- it is what SAIWORK looks like.
+ */
+
+:root,
+:root:not([data-theme]),
+:root[data-theme="dark"],
+:root[data-theme="light"] {
+  color-scheme: dark;
+
+  /* ---- The eighteen. Source of truth: saipen/UI.md ---- */
+  --background: #342012;
+  --backgroundSoft: #3a2616;
+  --surface: #4a341b;
+  --surfaceRaised: #5a4324;
+  --surfaceAlt: #634b2b;
+
+  --borderDark: #1c1208;
+  --borderHighlight: #d3b57a;
+  --borderMuted: #665033;
+
+  --textPrimary: #e2ca95;
+  --textSecondary: #c5ab6e;
+  --textMuted: #95804c;
+
+  --accentTeal: #008080;
+  --accentTealDeep: #006060;
+
+  --success: #5b9630;
+  --warning: #969630;
+  --danger: #963030;
+
+  --selection: #5a4324;
+  --compareBack: #24170c;
+
+  /* ---- Role tokens this implementation adds (UI.md "Extending it") ---- */
+  --bevel-width: 2px;
+  --titlebar-height: 20px;
+  --row-height: 18px;
+
+  /* ---- Upstream surfaces ---- */
+  --surface-base: var(--background);
+  --surface-primary: var(--background);
+  --surface-secondary: var(--surface);
+  --surface-muted: var(--backgroundSoft);
+  --surface-code: var(--compareBack);
+  --surface-hover: var(--surfaceAlt);
+  --markdown-table-row-odd: var(--background);
+  --markdown-table-row-even: var(--backgroundSoft);
+
+  /* ---- Borders ---- */
+  --border-base: var(--borderMuted);
+  --border-secondary: var(--borderMuted);
+  --border-muted: var(--borderMuted);
+  --border-strong: var(--borderHighlight);
+  --border-critical: var(--danger);
+
+  /* ---- Text ---- */
+  --text-primary: var(--textPrimary);
+  --text-secondary: var(--textSecondary);
+  --text-muted: var(--textMuted);
+  --text-inverted: var(--background);
+  --text-on-accent: var(--textPrimary);
+
+  /* ---- Accent ---- */
+  --accent-primary: var(--accentTeal);
+  --accent-hover: var(--accentTealDeep);
+
+  /* ---- Status ---- */
+  --status-success: var(--success);
+  --status-error: var(--danger);
+  --status-warning: var(--warning);
+
+  /* ---- Messages ---- */
+  --message-user-bg: var(--surfaceRaised);
+  --message-user-border: var(--accentTeal);
+  --message-assistant-bg: var(--backgroundSoft);
+  --message-assistant-border: var(--borderHighlight);
+  --message-tool-bg: var(--backgroundSoft);
+  --message-tool-border: var(--borderMuted);
+  --message-part-header-type: var(--textMuted);
+  --message-part-header-title: var(--textPrimary);
+  --message-error-bg: var(--compareBack);
+  --message-error-bg-strong: var(--compareBack);
+
+  /* ---- Session list / status pills. Iron law 2: no transparency. ---- */
+  --session-user-active-bg: var(--selection);
+  --session-assistant-active-bg: var(--selection);
+  --session-status-working-fg: var(--warning);
+  --session-status-working-bg: var(--surfaceRaised);
+  --session-status-compacting-fg: var(--textSecondary);
+  --session-status-compacting-bg: var(--surfaceRaised);
+  --session-status-idle-fg: var(--success);
+  --session-status-idle-bg: var(--surfaceRaised);
+  --session-status-permission-fg: var(--danger);
+  --session-status-permission-bg: var(--surfaceRaised);
+  --status-ready-fg: var(--success);
+  --status-ready-bg: var(--surfaceRaised);
+  --status-starting-fg: var(--warning);
+  --status-starting-bg: var(--surfaceRaised);
+  --status-error-fg: var(--danger);
+  --status-error-bg: var(--surfaceRaised);
+  --status-stopped-fg: var(--textMuted);
+  --status-stopped-bg: var(--surfaceRaised);
+  --status-success-ring: var(--success);
+
+  /* ---- Lists, chips, badges ---- */
+  --list-item-highlight-bg: var(--selection);
+  --list-item-highlight-bg-solid: var(--selection);
+  --list-item-highlight-border: var(--borderHighlight);
+  --attachment-chip-bg: var(--surfaceRaised);
+  --attachment-chip-text: var(--textPrimary);
+  --attachment-chip-ring: var(--borderMuted);
+  --badge-neutral-bg: var(--surfaceRaised);
+  --badge-neutral-text: var(--textPrimary);
+  --badge-success-bg: var(--surfaceRaised);
+  --env-vars-bg: var(--surfaceRaised);
+  --env-vars-border: var(--borderMuted);
+  --env-vars-text: var(--textPrimary);
+  --dropdown-highlight-bg: var(--selection);
+  --dropdown-highlight-text: var(--textPrimary);
+  --selection-highlight-bg: var(--selection);
+  --selection-highlight-strong-bg: var(--surfaceAlt);
+  --control-ghost-bg: var(--surfaceRaised);
+  --danger-soft-bg: var(--surfaceRaised);
+  --danger-soft-bg-strong: var(--surfaceAlt);
+
+  /* ---- Overlays. Solid, never blurred or translucent. ---- */
+  --overlay-scrim: var(--compareBack);
+  --folder-overlay-bg: var(--compareBack);
+
+  /* ---- Iron law 2: zero shadow ---- */
+  --folder-card-shadow: none;
+  --scroll-elevation-shadow: none;
+  --panel-shadow: none;
+  --panel-shadow-strong: none;
+  --popover-shadow: none;
+  --timeline-segment-active-ring: none;
+  --code-block-header-bg: var(--surface);
+
+  /* ---- Timeline ---- */
+  --timeline-segment-active-bg: var(--accentTealDeep);
+  --timeline-segment-active-text: var(--textPrimary);
+
+  /* ---- Buttons, tabs, kbd ---- */
+  --button-primary-bg: var(--surfaceRaised);
+  --button-primary-hover-bg: var(--surfaceAlt);
+  --button-primary-text: var(--textPrimary);
+  --button-danger-bg: var(--danger);
+  --button-danger-hover-bg: var(--danger);
+  --button-danger-active-bg: var(--danger);
+  --button-danger-text: var(--textPrimary);
+  --kbd-bg: var(--surfaceRaised);
+  --kbd-border: var(--borderDark);
+  --kbd-text: var(--textPrimary);
+  --tab-active-bg: var(--surface);
+  --tab-active-hover-bg: var(--surface);
+  --tab-active-text: var(--textPrimary);
+  --tab-inactive-bg: var(--surfaceRaised);
+  --tab-inactive-hover-bg: var(--surfaceAlt);
+  --tab-inactive-text: var(--textSecondary);
+  --new-tab-bg: var(--surfaceRaised);
+  --new-tab-hover-bg: var(--surfaceAlt);
+  --new-tab-text: var(--textSecondary);
+  --session-tab-active-bg: var(--surface);
+  --session-tab-active-text: var(--textPrimary);
+  --session-tab-inactive-text: var(--textMuted);
+  --session-tab-hover-bg: var(--surfaceAlt);
+
+  /* ---- Logs ---- */
+  --log-level-error: var(--danger);
+  --log-level-warn: var(--warning);
+  --log-level-debug: var(--textMuted);
+  --log-level-default: var(--textPrimary);
+
+  /* ---- Focus ---- */
+  --focus-ring-color: var(--textPrimary);
+  --focus-ring-offset: var(--background);
+
+  /* ---- Iron law 2: zero rounded corners ---- */
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-full: 0;
+  --button-radius: 0;
+  --chip-radius: 0;
+  --pill-radius: 0;
+  --folder-card-radius: 0;
+
+  /* ---- Compact vertical rhythm ---- */
+  --space-2xs: 1px;
+  --space-xs: 2px;
+  --space-sm: 4px;
+  --space-md: 8px;
+  --space-lg: 12px;
+  --space-xl: 16px;
+  --button-padding-y: 2px;
+  --button-padding-x: 6px;
+
+  /* ---- Typography. Sizes only 10/11/12/14/16. ---- */
+  --font-family-sans: Verdana_m1, Verdana, Geneva, sans-serif;
+  --font-family-mono: Verdana_m1, Verdana, Geneva, sans-serif;
+  --font-family-code: Consolas, "Liberation Mono", monospace;
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-base: 12px;
+  --font-size-lg: 14px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 16px;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.25;
+  --line-height-relaxed: 1.35;
+}
+
+/*
+ * Iron laws 1 and 2. `!important` is mandated by UI.md for the font rules;
+ * the rest carries it because Tailwind preflight and SUID's emotion layer are
+ * both injected after this file and would otherwise re-round every corner.
+ */
+*,
+*::before,
+*::after {
+  font-family: var(--font-family-sans) !important;
+  -webkit-font-smoothing: none !important;
+  -moz-osx-font-smoothing: unset !important;
+  text-rendering: optimizeSpeed !important;
+  border-radius: 0 !important;
+  transition: none !important;
+  animation: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+
+/*
+ * Type scale clamp: 10/11/12/14/16 and nothing else.
+ *
+ * Tailwind's text-* utilities are rem-based and land on 18px, 20px, 22.5px and
+ * up. Fixing each call site would leave the next upstream merge free to
+ * reintroduce an off-scale size with no signal, so the utilities themselves are
+ * pinned here instead -- one place to read, one place to audit.
+ */
+.text-xs {
+  font-size: var(--font-size-xs) !important;
+}
+
+.text-sm {
+  font-size: var(--font-size-sm) !important;
+}
+
+.text-base {
+  font-size: var(--font-size-base) !important;
+}
+
+.text-lg {
+  font-size: var(--font-size-lg) !important;
+}
+
+.text-xl,
+.text-2xl,
+.text-3xl,
+.text-4xl,
+.text-5xl {
+  font-size: var(--font-size-xl) !important;
+}
+
+/* Alignment-critical surfaces keep a real fixed-width face (UI.md: monospace
+ * only where a technical value needs it). Diffs and code blocks qualify. */
+code,
+pre,
+kbd,
+samp,
+.diff-viewer,
+.diff-viewer *,
+[class*="monaco"],
+[class*="monaco"] * {
+  font-family: var(--font-family-code) !important;
+}
+
+/* Markdown sizes inline code in `em`, which lands off-scale next to 12px body
+ * text. Pin it, same as the utilities above. */
+code,
+pre,
+kbd,
+samp {
+  font-size: var(--font-size-base) !important;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--textPrimary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: none;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+#root {
+  background: var(--background);
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--textPrimary);
+}
+
+/* ---- Depth is 2px bevel only ---- */
+
+.raised {
+  border: var(--bevel-width) solid;
+  border-color: var(--borderHighlight) var(--borderDark) var(--borderDark) var(--borderHighlight);
+  background: var(--surfaceRaised);
+}
+
+.sunken {
+  border: var(--bevel-width) solid;
+  border-color: var(--borderDark) var(--borderHighlight) var(--borderHighlight) var(--borderDark);
+  background: var(--surface);
+}
+
+button:not(.no-bevel),
+[role="button"]:not(.no-bevel) {
+  border: var(--bevel-width) solid;
+  border-color: var(--borderHighlight) var(--borderDark) var(--borderDark) var(--borderHighlight);
+  background: var(--surfaceRaised);
+  color: var(--textPrimary);
+  padding: var(--button-padding-y) var(--button-padding-x);
+  min-width: 24px;
+  min-height: 20px;
+  cursor: pointer;
+}
+
+button:not(.no-bevel):hover,
+[role="button"]:not(.no-bevel):hover {
+  background: var(--surfaceAlt);
+}
+
+/* The one sanctioned movement in the whole interface. */
+button:not(.no-bevel):active,
+[role="button"]:not(.no-bevel):active {
+  border-color: var(--borderDark) var(--borderHighlight) var(--borderHighlight) var(--borderDark);
+  background: var(--surface);
+  transform: translate(1px, 1px);
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 1px dotted var(--textPrimary);
+  outline-offset: -4px;
+}
+
+/* Disabled stays visible and keeps its border; only the label goes quiet.
+ * Never `opacity` -- that fails the accessibility floor and vanishes in
+ * screenshots. */
+button:disabled,
+button[aria-disabled="true"],
+[role="button"][aria-disabled="true"] {
+  color: var(--textMuted) !important;
+  opacity: 1 !important;
+  cursor: default;
+}
+
+input,
+select,
+textarea {
+  border: var(--bevel-width) solid;
+  border-color: var(--borderDark) var(--borderHighlight) var(--borderHighlight) var(--borderDark);
+  background: var(--compareBack);
+  color: var(--textPrimary);
+  padding: 1px 3px;
+}
+
+textarea {
+  resize: none;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--borderDark);
+  border-bottom: 1px solid var(--borderHighlight);
+}
+
+/* Scrollbars: bevelled, no rounding, no fade. */
+* {
+  scrollbar-color: var(--surfaceRaised) var(--background);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surfaceRaised);
+  border: 2px solid;
+  border-color: var(--borderHighlight) var(--borderDark) var(--borderDark) var(--borderHighlight);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--background);
+}

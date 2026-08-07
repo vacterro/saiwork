@@ -156,7 +156,7 @@ export class OpenCodeUpdateService {
 
 export async function fetchLatestOpenCodeVersion(): Promise<string> {
   const response = await fetch(OPENCODE_LATEST_URL, {
-    headers: { Accept: "application/json", "User-Agent": "CodeNomad-CLI" },
+    headers: { Accept: "application/json", "User-Agent": "SaiWork-CLI" },
     signal: AbortSignal.timeout(10_000),
   })
   if (!response.ok) {

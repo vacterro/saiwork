@@ -26,7 +26,7 @@ import {
 } from "./process-identity"
 
 const SENSITIVE_ENV_KEY = /(PASSWORD|TOKEN|SECRET)/i
-const WSL_PID_MARKER = "__CODENOMAD_WSL_PID__:"
+const WSL_PID_MARKER = "__SAIWORK_WSL_PID__:"
 
 function redactEnvironment(env: Record<string, string | undefined>): Record<string, string | undefined> {
   const redacted: Record<string, string | undefined> = {}

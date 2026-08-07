@@ -12,7 +12,7 @@ import type { Logger } from "../../logger"
 import { RemoteProxySessionManager } from "../remote-proxy"
 import { resolveHttpsOptions } from "../tls"
 
-const sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codenomad-remote-proxy-test-"))
+const sharedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-remote-proxy-test-"))
 const sharedTls = resolveHttpsOptions({ enabled: true, configDir: sharedTempDir, host: "127.0.0.1", logger: createStubLogger() })
 if (!sharedTls) throw new Error("Failed to generate HTTPS options for remote proxy tests")
 const sharedHttpsOptions = sharedTls.httpsOptions
@@ -37,7 +37,7 @@ describe("RemoteProxySessionManager", () => {
       const session2 = await createSession(manager, `${upstreamBaseUrl}/base`)
       const blocked = await proxyFetch(`${session1.proxyOrigin}/status`)
       assert.equal(blocked.status, 403)
-      const wrongTokenResponse = await proxyFetch(`${session1.proxyOrigin}/__codenomad/api/auth/token`, {
+      const wrongTokenResponse = await proxyFetch(`${session1.proxyOrigin}/__saiwork/api/auth/token`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token: session2.token }),
@@ -286,7 +286,7 @@ async function createSession(manager: RemoteProxySessionManager, baseUrl: string
 }
 
 async function activateSession(session: { proxyOrigin: string; token: string }) {
-  const response = await proxyFetch(`${session.proxyOrigin}/__codenomad/api/auth/token`, {
+  const response = await proxyFetch(`${session.proxyOrigin}/__saiwork/api/auth/token`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ token: session.token }),

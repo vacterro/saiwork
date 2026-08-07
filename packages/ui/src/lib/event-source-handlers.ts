@@ -49,7 +49,7 @@ export function attachEventSourceHandlers(source: EventSource, options: EventSou
     handleDisconnect("EventSource closed")
   })
 
-  source.addEventListener("codenomad.client.ping", (event: MessageEvent) => {
+  source.addEventListener("saiwork.client.ping", (event: MessageEvent) => {
     try {
       const payload = event.data ? (JSON.parse(event.data) as { ts?: number }) : {}
       options.onPing?.(payload)

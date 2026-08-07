@@ -1,5 +1,5 @@
 export const loadingScreenMessages = {
-  "loadingScreen.logoAlt": "CodeNomad Logo",
+  "loadingScreen.logoAlt": "SAIWORK Logo",
   "loadingScreen.status.issue": "Ein Problem ist aufgetreten",
   "loadingScreen.actions.showAnother": "Noch eine anzeigen",
   "loadingScreen.errors.missingRoot": "Lade-Root-Element nicht gefunden",

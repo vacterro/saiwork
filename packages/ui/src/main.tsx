@@ -9,6 +9,9 @@ import { storage } from "./lib/storage"
 import { initializeClientState } from "./stores/client-state"
 import "./index.css"
 import "@git-diff-view/solid/styles/diff-view-pure.css"
+// Vintage Golden loads last on purpose: it has to win over Tailwind preflight
+// and the diff-view stylesheet, both of which re-round corners otherwise.
+import "./styles/vintage-golden.css"
 
 const root = document.getElementById("root")
 

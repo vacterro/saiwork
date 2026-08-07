@@ -61,7 +61,7 @@ describe("buildWindowsSpawnSpec", () => {
   })
 
   it("resolves a bare cmd shim from a quoted PATH entry and wraps its absolute path", { skip: process.platform !== "win32" }, () => {
-    const root = mkdtempSync(path.join(tmpdir(), "codenomad-spawn-"))
+    const root = mkdtempSync(path.join(tmpdir(), "saiwork-spawn-"))
     const cwd = path.join(root, "workspace")
     const bin = path.join(root, "bin with spaces")
     mkdirSync(cwd)
@@ -85,7 +85,7 @@ describe("buildWindowsSpawnSpec", () => {
   })
 
   it("honors PATHEXT precedence when both native and shim files exist", { skip: process.platform !== "win32" }, () => {
-    const root = mkdtempSync(path.join(tmpdir(), "codenomad-spawn-"))
+    const root = mkdtempSync(path.join(tmpdir(), "saiwork-spawn-"))
     writeFileSync(path.join(root, "opencode.cmd"), "@echo off\r\n")
     writeFileSync(path.join(root, "opencode.exe"), "")
 
@@ -121,12 +121,12 @@ describe("buildWindowsSpawnSpec", () => {
       {
         cwd: String.raw`\\wsl.localhost\Ubuntu\home\dev\workspace`,
         env: {
-          OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugin: ["file:///C:/Users/dev/AppData/Roaming/CodeNomad/plugin.tgz"] }),
-          CODENOMAD_INSTANCE_ID: "workspace-123",
+          OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugin: ["file:///C:/Users/dev/AppData/Roaming/SaiWork/plugin.tgz"] }),
+          SAIWORK_INSTANCE_ID: "workspace-123",
           OPENCODE_SERVER_BASE_URL: "https://127.0.0.1:4321/workspaces/workspace-123/instance",
           OPENCODE_SERVER_PASSWORD: "secret",
         },
-        propagateEnvKeys: ["OPENCODE_CONFIG_CONTENT", "CODENOMAD_INSTANCE_ID", "OPENCODE_SERVER_BASE_URL", "OPENCODE_SERVER_PASSWORD"],
+        propagateEnvKeys: ["OPENCODE_CONFIG_CONTENT", "SAIWORK_INSTANCE_ID", "OPENCODE_SERVER_BASE_URL", "OPENCODE_SERVER_PASSWORD"],
       },
     )
 
@@ -143,7 +143,7 @@ describe("buildWindowsSpawnSpec", () => {
       "0",
     ])
     assert.equal(spec.cwd, undefined)
-    assert.equal(spec.env?.WSLENV, "OPENCODE_CONFIG_CONTENT:CODENOMAD_INSTANCE_ID:OPENCODE_SERVER_BASE_URL:OPENCODE_SERVER_PASSWORD")
+    assert.equal(spec.env?.WSLENV, "OPENCODE_CONFIG_CONTENT:SAIWORK_INSTANCE_ID:OPENCODE_SERVER_BASE_URL:OPENCODE_SERVER_PASSWORD")
   })
 
   it("preserves non-path OPENCODE_CONFIG_CONTENT WSLENV entries", () => {
@@ -152,14 +152,14 @@ describe("buildWindowsSpawnSpec", () => {
       ["serve"],
       {
         env: {
-          OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugin: ["file:///C:/Users/dev/AppData/Roaming/CodeNomad/plugin.tgz"] }),
-          WSLENV: "OPENCODE_CONFIG_CONTENT:CODENOMAD_INSTANCE_ID/u",
+          OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugin: ["file:///C:/Users/dev/AppData/Roaming/SaiWork/plugin.tgz"] }),
+          WSLENV: "OPENCODE_CONFIG_CONTENT:SAIWORK_INSTANCE_ID/u",
         },
-        propagateEnvKeys: ["OPENCODE_CONFIG_CONTENT", "CODENOMAD_INSTANCE_ID"],
+        propagateEnvKeys: ["OPENCODE_CONFIG_CONTENT", "SAIWORK_INSTANCE_ID"],
       },
     )
 
-    assert.equal(spec.env?.WSLENV, "OPENCODE_CONFIG_CONTENT:CODENOMAD_INSTANCE_ID/u")
+    assert.equal(spec.env?.WSLENV, "OPENCODE_CONFIG_CONTENT:SAIWORK_INSTANCE_ID/u")
   })
 
   it("rewrites packaged plugin paths for WSL before launching", () => {
@@ -170,7 +170,7 @@ describe("buildWindowsSpawnSpec", () => {
         env: {
           OPENCODE_CONFIG_CONTENT: JSON.stringify({
             plugin: [
-              "@codenomad/codenomad-opencode-plugin@file:C:/Users/dev/AppData/Roaming/CodeNomad/codenomad-opencode-plugin.tgz",
+              "@saiwork/opencode-plugin@file:C:/Users/dev/AppData/Roaming/SaiWork/saiwork-opencode-plugin.tgz",
             ],
           }),
         },
@@ -179,11 +179,11 @@ describe("buildWindowsSpawnSpec", () => {
     )
 
     assert.equal(spec.command, "wsl.exe")
-    assert.equal(spec.env?.CODENOMAD_OPENCODE_PLUGIN_WSL_PATH, String.raw`C:\Users\dev\AppData\Roaming\CodeNomad\codenomad-opencode-plugin.tgz`)
-    assert.match(spec.env?.OPENCODE_CONFIG_CONTENT ?? "", /__CODENOMAD_OPENCODE_PLUGIN_WSL_PATH__/)
-    assert.equal(spec.env?.WSLENV, "OPENCODE_CONFIG_CONTENT:CODENOMAD_OPENCODE_PLUGIN_WSL_PATH/p")
+    assert.equal(spec.env?.SAIWORK_OPENCODE_PLUGIN_WSL_PATH, String.raw`C:\Users\dev\AppData\Roaming\SaiWork\saiwork-opencode-plugin.tgz`)
+    assert.match(spec.env?.OPENCODE_CONFIG_CONTENT ?? "", /__SAIWORK_OPENCODE_PLUGIN_WSL_PATH__/)
+    assert.equal(spec.env?.WSLENV, "OPENCODE_CONFIG_CONTENT:SAIWORK_OPENCODE_PLUGIN_WSL_PATH/p")
     assert.deepEqual(spec.args.slice(0, 4), ["--distribution", "Ubuntu", "--exec", "sh"])
-    assert.match(spec.args[5] ?? "", /CODENOMAD_OPENCODE_PLUGIN_WSL_PATH/)
+    assert.match(spec.args[5] ?? "", /SAIWORK_OPENCODE_PLUGIN_WSL_PATH/)
   })
 
   it("propagates inherited known path variables even when they are not explicitly requested", () => {
@@ -217,7 +217,7 @@ describe("buildWindowsSpawnSpec", () => {
       "sh",
       "-lc",
       'cd "$(wslpath -au "$1")" && shift && exec "$@"',
-      "codenomad-wsl-launch",
+      "saiwork-wsl-launch",
       String.raw`C:\Users\dev\workspace`,
       "/home/dev/.opencode/bin/opencode",
       "serve",
@@ -243,7 +243,7 @@ describe("buildWindowsSpawnSpec", () => {
       "sh",
       "-lc",
       'cd "$(wslpath -au "$1")" && shift && exec "$@"',
-      "codenomad-wsl-launch",
+      "saiwork-wsl-launch",
       String.raw`\\server\share\workspace`,
       "/home/dev/.opencode/bin/opencode",
       "serve",
@@ -256,7 +256,7 @@ describe("buildWindowsSpawnSpec", () => {
       ["serve"],
       {
         cwd: String.raw`\\wsl.localhost\Ubuntu\home\dev\workspace`,
-        wslPidMarker: "__CODENOMAD_WSL_PID__:",
+        wslPidMarker: "__SAIWORK_WSL_PID__:",
       },
     )
 
@@ -267,13 +267,13 @@ describe("buildWindowsSpawnSpec", () => {
       "--exec",
       "sh",
       "-lc",
-      `codenomad_pgid=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]'); codenomad_start=$(awk '{print $22}' "/proc/$$/stat" 2>/dev/null); codenomad_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null); test -n "$codenomad_pgid" && test -n "$codenomad_start" && test -n "$codenomad_boot" && printf '%s%s:%s:%s:%s\\n' '__CODENOMAD_WSL_PID__:' "$$" "$codenomad_pgid" "$codenomad_start" "$codenomad_boot" && cd "$1" && shift && exec "$@"`,
-      "codenomad-wsl-launch",
+      `saiwork_pgid=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]'); saiwork_start=$(awk '{print $22}' "/proc/$$/stat" 2>/dev/null); saiwork_boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null); test -n "$saiwork_pgid" && test -n "$saiwork_start" && test -n "$saiwork_boot" && printf '%s%s:%s:%s:%s\\n' '__SAIWORK_WSL_PID__:' "$$" "$saiwork_pgid" "$saiwork_start" "$saiwork_boot" && cd "$1" && shift && exec "$@"`,
+      "saiwork-wsl-launch",
       "/home/dev/workspace",
       "/home/dev/.opencode/bin/opencode",
       "serve",
     ])
-    assert.equal(spec.wsl?.pidMarker, "__CODENOMAD_WSL_PID__:")
+    assert.equal(spec.wsl?.pidMarker, "__SAIWORK_WSL_PID__:")
   })
 
 })

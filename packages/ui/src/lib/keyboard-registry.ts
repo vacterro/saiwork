@@ -65,6 +65,11 @@ class KeyboardRegistry {
     )
   }
 
+  /** Every registered shortcut, in registration order. */
+  list(): KeyboardShortcut[] {
+    return Array.from(this.shortcuts.values())
+  }
+
   getByContext(context: string): KeyboardShortcut[] {
     return Array.from(this.shortcuts.values()).filter((s) => !s.context || s.context === context)
   }

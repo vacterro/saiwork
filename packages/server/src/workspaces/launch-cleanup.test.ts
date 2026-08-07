@@ -9,7 +9,7 @@ const result = (stdout: string): SpawnSyncReturns<string> => ({ pid: 1, output: 
 describe("launch cleanup token adapter", () => {
   it("passes the exact token to the bounded Linux environ probe", () => {
     const token = "a".repeat(64), calls: any[] = []
-    const run = ((command: string, args: string[], options: object) => { calls.push(command, args, options); return result("CODENOMAD_PROCESS|5000|1|4242|150|boot-a|150\n") }) as unknown as Spawn
+    const run = ((command: string, args: string[], options: object) => { calls.push(command, args, options); return result("SAIWORK_PROCESS|5000|1|4242|150|boot-a|150\n") }) as unknown as Spawn
     const probe = probeLaunchCleanupToken(run, token, 25)
     assert.equal(probe.ok && probe.processes.get(5000)?.startOrder, "150")
     assert.equal(calls[0], "sh")
@@ -24,7 +24,7 @@ describe("launch cleanup token adapter", () => {
   })
 
   it("signals every exact-token target and rejects malformed records", () => {
-    const rows = "CODENOMAD_TARGET|4242|1|4242|100|boot-a|100\nCODENOMAD_TARGET|5000|1|4242|150|boot-a|150\nCODENOMAD_RESULT|1\n"
+    const rows = "SAIWORK_TARGET|4242|1|4242|100|boot-a|100\nSAIWORK_TARGET|5000|1|4242|150|boot-a|150\nSAIWORK_RESULT|1\n"
     const run = ((() => result(rows)) as unknown) as Spawn
     const cleanup = signalLaunchCleanupToken(run, "b".repeat(64), "SIGKILL", 25)
     assert.deepEqual([cleanup.ok, cleanup.targets.map(({ pid }) => pid)], [true, [4242, 5000]])

@@ -35,7 +35,7 @@ fn candidate_resource_roots() -> Vec<PathBuf> {
             candidates.push(dir.join("../Resources"));
             candidates.push(dir.join("../Resources/resources"));
 
-            let linux_resource_roots = [dir.join("../lib/CodeNomad"), dir.join("../lib/codenomad")];
+            let linux_resource_roots = [dir.join("../lib/SaiWork"), dir.join("../lib/saiwork")];
             for root in linux_resource_roots {
                 candidates.push(root.clone());
                 candidates.push(root.join("resources"));

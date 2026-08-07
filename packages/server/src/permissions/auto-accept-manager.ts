@@ -40,6 +40,12 @@ interface AutoAcceptManagerDeps {
   logger: Logger
   replier: PermissionReplier
   persistence?: AutoAcceptPersistence
+  /**
+   * Whether a session the user has never touched auto-approves permissions.
+   * Production passes `true` (see resolveYoloDefault); left off here so the
+   * upstream tests keep exercising opt-in behaviour.
+   */
+  defaultEnabled?: boolean
 }
 
 export interface PersistedAutoAcceptSession extends AutoAcceptSessionInfo {
@@ -59,7 +65,7 @@ const SESSION_REMOVE_TYPES = new Set(["session.deleted"])
 
 export class AutoAcceptManager {
   private static readonly MAX_REPLY_ATTEMPTS = 3
-  private readonly store = new AutoAcceptStore()
+  private readonly store: AutoAcceptStore
   /** instanceId:permissionId entries currently being replied, to dedupe re-emissions */
   private readonly inFlight = new Set<string>()
   /** instanceId -> (permissionId -> pending permission) awaiting a reply */
@@ -74,7 +80,9 @@ export class AutoAcceptManager {
   private readonly mutations = new Map<string, Promise<boolean>>()
   private unsubscribe?: () => void
 
-  constructor(private readonly deps: AutoAcceptManagerDeps) {}
+  constructor(private readonly deps: AutoAcceptManagerDeps) {
+    this.store = new AutoAcceptStore({ defaultEnabled: deps.defaultEnabled })
+  }
 
   start(): void {
     if (this.unsubscribe) return
@@ -140,11 +148,24 @@ export class AutoAcceptManager {
         if (session.workspaceId) workspaces.set(session.id, session.workspaceId)
       }
       this.sessionWorkspaces.set(instanceId, workspaces)
+      const defaultEnabled = this.deps.defaultEnabled ?? false
       for (const session of sessions) {
-        if (!session.yoloEnabled || this.store.familyRoot(instanceId, session.id) !== session.id) continue
-        this.store.setEnabled(instanceId, session.id, true)
-        this.deps.eventBus.publish({ type: "yolo.stateChanged", instanceId, sessionId: session.id, enabled: true })
-        this.drainPending(instanceId, session.id)
+        if (this.store.familyRoot(instanceId, session.id) !== session.id) continue
+        // Both values are restored, not just `true`. Yolo defaults to on here,
+        // so skipping the `false` entries would silently re-enable a session
+        // the user had deliberately turned off before the last restart.
+        this.store.setEnabled(instanceId, session.id, session.yoloEnabled)
+        // Only a departure from the default is news. Announcing every session
+        // that merely matches the default would flood the bus on startup.
+        if (session.yoloEnabled !== defaultEnabled) {
+          this.deps.eventBus.publish({
+            type: "yolo.stateChanged",
+            instanceId,
+            sessionId: session.id,
+            enabled: session.yoloEnabled,
+          })
+        }
+        if (session.yoloEnabled) this.drainPending(instanceId, session.id)
       }
       this.hydratedInstances.add(instanceId)
       hydrated = true

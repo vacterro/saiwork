@@ -1,16 +1,16 @@
 ---
-name: codenomad-architecture-guide
+name: saiwork-architecture-guide
 description: |
-  Comprehensive architecture and SDK navigation guide for the CodeNomad codebase.
+  Comprehensive architecture and SDK navigation guide for the SaiWork codebase.
   
-  **When to use:** Load this skill when you need to navigate the CodeNomad monorepo, understand cross-package dependencies, work with the OpenCode SDK V2, or ensure you don't miss related code when implementing features or fixing bugs. This skill covers the 6 functional areas (ServerBackend, UserInterface, DesktopClient, SpeechAndAudio, BuildAndPackaging, CloudflareDeployment), OpenCode SDK V2 integration patterns, critical schema behaviors, and feature traces with decision branches.
+  **When to use:** Load this skill when you need to navigate the SaiWork monorepo, understand cross-package dependencies, work with the OpenCode SDK V2, or ensure you don't miss related code when implementing features or fixing bugs. This skill covers the 6 functional areas (ServerBackend, UserInterface, DesktopClient, SpeechAndAudio, BuildAndPackaging, CloudflareDeployment), OpenCode SDK V2 integration patterns, critical schema behaviors, and feature traces with decision branches.
   
-  **Trigger contexts:** Working on CodeNomad features, debugging cross-area issues, integrating OpenCode SDK APIs, adding UI components, implementing server routes, or navigating the monorepo structure.
+  **Trigger contexts:** Working on SaiWork features, debugging cross-area issues, integrating OpenCode SDK APIs, adding UI components, implementing server routes, or navigating the monorepo structure.
   
   **Permission required:** Agent must explicitly request or be granted permission to load this skill.
 ---
 
-# CodeNomad Architecture & SDK Navigation Skill
+# SaiWork Architecture & SDK Navigation Skill
 
 ## Quick Start (by contribution frequency)
 
@@ -22,7 +22,7 @@ description: |
 
 ## 1. Architecture Overview
 
-CodeNomad is a multi-platform desktop application with a Fastify backend and SolidJS frontend.
+SaiWork is a multi-platform desktop application with a Fastify backend and SolidJS frontend.
 
 ### 6 Functional Areas (from RPG analysis)
 
@@ -75,8 +75,8 @@ Use grep and file search tools to navigate:
 **SDK Note:** The OpenCode SDK is an external package (`@opencode-ai/sdk/v2/client`). Its implementation lives outside this repository.
 
 - After `npm install`, you can inspect types in `node_modules/@opencode-ai/sdk/v2/client.d.ts`
-- **Fallback:** Read the actual usage patterns in CodeNomad code (see `references/sdk-api-reference.md` for file locations)
-- When in doubt, check how the SDK is imported and used in existing CodeNomad files
+- **Fallback:** Read the actual usage patterns in SaiWork code (see `references/sdk-api-reference.md` for file locations)
+- When in doubt, check how the SDK is imported and used in existing SaiWork files
 
 This skill provides navigation and patterns, not definitive schemas.
 

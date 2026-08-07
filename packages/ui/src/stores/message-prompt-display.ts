@@ -1,7 +1,7 @@
 import type { PromptDisplayMetadata } from "../lib/prompt-display-metadata"
 
-const STORAGE_KEY = "codenomad:prompt-display:v3"
-const LEGACY_STORAGE_KEY = "codenomad:prompt-display:v2"
+const STORAGE_KEY = "saiwork:prompt-display:v3"
+const LEGACY_STORAGE_KEY = "saiwork:prompt-display:v2"
 
 let loaded = false
 const promptDisplayOverrides = new Map<string, PromptDisplayMetadata>()

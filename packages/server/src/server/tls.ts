@@ -97,7 +97,7 @@ function ensureGeneratedTls(args: ResolveHttpsOptionsArgs): ResolvedHttpsOptions
     const { caKeyPem, caCertPem } = generateCaCertificate()
     writePemFile(caKeyPath, caKeyPem, 0o600)
     writePemFile(caCertPath, caCertPem, 0o644)
-    args.logger.info({ caCertPath }, "Generated self-signed CodeNomad CA certificate")
+    args.logger.info({ caCertPath }, "Generated self-signed SaiWork CA certificate")
   }
 
   if (shouldRotateLeaf() || !fs.existsSync(keyPath)) {
@@ -113,7 +113,7 @@ function ensureGeneratedTls(args: ResolveHttpsOptionsArgs): ResolvedHttpsOptions
 
     writePemFile(keyPath, keyPem, 0o600)
     writePemFile(certPath, certPem, 0o644)
-    args.logger.info({ certPath }, "Generated CodeNomad HTTPS certificate")
+    args.logger.info({ certPath }, "Generated SaiWork HTTPS certificate")
   }
 
   const key = fs.readFileSync(keyPath, "utf-8")
@@ -156,7 +156,7 @@ function generateCaCertificate(): { caKeyPem: string; caCertPem: string } {
   cert.validity.notBefore = notBefore
   cert.validity.notAfter = notAfter
 
-  const attrs = [{ name: "commonName", value: "CodeNomad Local CA" }]
+  const attrs = [{ name: "commonName", value: "SaiWork Local CA" }]
   cert.setSubject(attrs)
   cert.setIssuer(attrs)
 

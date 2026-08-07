@@ -92,7 +92,7 @@ const ollamaCloud: UsageProvider = {
     if (!cookie) return notConfigured(this.id, this.name)
     return safeFetch(this.id, this.name, async () => {
       const response = await fetch("https://ollama.com/settings", {
-        headers: { Cookie: cookie, "User-Agent": "CodeNomad usage provider" },
+        headers: { Cookie: cookie, "User-Agent": "SaiWork usage provider" },
         redirect: "manual",
         signal: AbortSignal.timeout(15_000),
       })
@@ -130,7 +130,7 @@ const openCodeGo: UsageProvider = {
     if (!workspaceId || !authCookie) return notConfigured(this.id, this.name)
     return safeFetch(this.id, this.name, async () => {
       const response = await fetch(`https://opencode.ai/workspace/${encodeURIComponent(workspaceId)}/go`, {
-        headers: { Cookie: `auth=${authCookie.replace(/^auth=/, "")}`, "User-Agent": "CodeNomad usage provider" },
+        headers: { Cookie: `auth=${authCookie.replace(/^auth=/, "")}`, "User-Agent": "SaiWork usage provider" },
         redirect: "manual",
         signal: AbortSignal.timeout(15_000),
       })

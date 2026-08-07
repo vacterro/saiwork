@@ -33,25 +33,22 @@ interface ResolvedPaletteColors {
   divider: string
 }
 
-const lightPaletteFallbacks: ResolvedPaletteColors = {
-  backgroundDefault: "#ffffff",
-  backgroundPaper: "#f5f5f5",
-  primary: "#0066ff",
-  primaryContrast: "#ffffff",
-  textPrimary: "#1a1a1a",
-  textSecondary: "#666666",
-  divider: "#e0e0e0",
+// Both fallback sets are Vintage Golden. SAIWORK has one palette, so a missing
+// CSS variable must not be able to drag half the UI back to a blue-on-white
+// theme -- it degrades to the same colours the stylesheet would have supplied.
+const vintageGoldenFallbacks: ResolvedPaletteColors = {
+  backgroundDefault: "#342012",
+  backgroundPaper: "#4a341b",
+  primary: "#008080",
+  primaryContrast: "#e2ca95",
+  textPrimary: "#e2ca95",
+  textSecondary: "#c5ab6e",
+  divider: "#665033",
 }
 
-const darkPaletteFallbacks: ResolvedPaletteColors = {
-  backgroundDefault: "#1a1a1a",
-  backgroundPaper: "#2a2a2a",
-  primary: "#0080ff",
-  primaryContrast: "#1a1a1a",
-  textPrimary: "#cfd4dc",
-  textSecondary: "#999999",
-  divider: "#3a3a3a",
-}
+const lightPaletteFallbacks: ResolvedPaletteColors = vintageGoldenFallbacks
+
+const darkPaletteFallbacks: ResolvedPaletteColors = vintageGoldenFallbacks
 
 const readCssVar = (token: string, fallback: string, rootStyle: CSSStyleDeclaration | null) => {
   if (!rootStyle) return fallback
@@ -161,7 +158,8 @@ export function ThemeProvider(props: { children: JSX.Element }) {
         fontFamily: "var(--font-family-sans)",
       },
       shape: {
-        borderRadius: 8,
+        // Vintage Golden iron law 2: zero rounded corners.
+        borderRadius: 0,
       },
       components: {
         MuiIconButton: {
@@ -169,8 +167,10 @@ export function ThemeProvider(props: { children: JSX.Element }) {
             root: {
               color: "inherit",
               "&.Mui-disabled": {
+                // A disabled control keeps its border and its place; only the
+                // label colour drops. Opacity would fade it out of screenshots.
                 color: "var(--text-muted)",
-                opacity: 0.55,
+                opacity: 1,
               },
             },
           },
@@ -197,7 +197,8 @@ export function ThemeProvider(props: { children: JSX.Element }) {
         MuiToolbar: {
           styleOverrides: {
             root: {
-              minHeight: "56px",
+              // Compact by default: 56px of chrome is a whole row of tabs.
+              minHeight: "28px",
             },
           },
         },

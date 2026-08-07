@@ -4,6 +4,7 @@ import { Toaster } from "solid-toast"
 import useMediaQuery from "@suid/material/useMediaQuery"
 import { Minimize2 } from "lucide-solid"
 import AlertDialog from "./components/alert-dialog"
+import ShortcutsOverlay from "./components/shortcuts-overlay"
 import FolderSelectionView from "./components/folder-selection-view"
 import { showConfirmDialog } from "./stores/alerts"
 import InstanceTabs from "./components/instance-tabs"
@@ -789,6 +790,7 @@ const App: Component = () => {
         <SettingsScreen />
         <SideCarPickerDialog open={sidecarPickerOpen()} onClose={() => setSidecarPickerOpen(false)} onOpenSidecar={handleOpenSidecar} />
         <AlertDialog />
+        <ShortcutsOverlay />
 
         <Toaster
           position="top-right"

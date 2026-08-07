@@ -39,7 +39,7 @@ function targetFromTriple(triple) {
 function resolveTarget(explicitTarget) {
   return (
     explicitTarget ||
-    process.env.CODENOMAD_NODE_TARGET ||
+    process.env.SAIWORK_NODE_TARGET ||
     targetFromTriple(process.env.TAURI_ENV_TARGET_TRIPLE) ||
     targetFromTriple(process.env.TAURI_TARGET_TRIPLE) ||
     targetFromTriple(process.env.CARGO_BUILD_TARGET) ||
@@ -151,7 +151,7 @@ async function prepareBundledNodeRuntime(options) {
   const nodeRoot = path.join(resourcesRoot, "node")
   const runtimeRoot = path.join(nodeRoot, target)
   const runtimeBinary = path.join(runtimeRoot, spec.binary)
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), `codenomad-node-${target}-`))
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), `saiwork-node-${target}-`))
   const archivePath = path.join(tempRoot, spec.archive)
   const extractRoot = path.join(tempRoot, "extract")
 

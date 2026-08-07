@@ -8,8 +8,8 @@ export const messagingMessages = {
   "messageListHeader.connection.connecting": "Wird verbunden...",
   "messageListHeader.connection.disconnected": "Getrennt",
 
-  "messageSection.empty.logoAlt": "CodeNomad Logo",
-  "messageSection.empty.brandTitle": "CodeNomad",
+  "messageSection.empty.logoAlt": "SAIWORK Logo",
+  "messageSection.empty.brandTitle": "SAIWORK",
   "messageSection.empty.title": "Eine Unterhaltung beginnen",
   "messageSection.empty.description": "Geben Sie unten eine Nachricht ein oder öffnen Sie die Befehlspalette:",
   "messageSection.empty.tips.commandPalette": "Befehlspalette",

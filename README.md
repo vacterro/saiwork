@@ -1,188 +1,160 @@
-# CodeNomad
+# SAIWORK
 
-## The AI Coding Cockpit for OpenCode
+**Version 0.0.1** — a SAIPEN-native fork of [CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad) 0.18.0.
 
-CodeNomad transforms OpenCode from a terminal tool into a **premium desktop workspace** — built for developers who live inside AI coding sessions for hours and need control, speed, and clarity.
-
-> OpenCode gives you the engine. CodeNomad gives you the cockpit.
-
-![Multi-instance workspace](docs/screenshots/newSession.png)
-
----
-
-## Features
-
-- **🚀 Multi-Instance Workspace**
-- **🌐 Remote Access**
-- **🧠 Session Management**
-- **🎙️ Voice Input & Speech**
-- **🌳 Git Worktrees**
-- **💬 Rich Message Experience**
-- **🧩 SideCars**
-- **⌨️ Command Palette**
-- **📁 File System Browser**
-- **🔐 Authentication & Security**
-- **🔔 Notifications**
-- **🎨 Theming**
-- **🌍 Internationalization**
+CodeNomad turns OpenCode from a terminal tool into a desktop workspace. SAIWORK
+keeps that and adds the three things a saipen operator needs: the protocol
+loaded before the first token, a prompt queue that survives a long run, and an
+interface that obeys `saipen/UI.md`.
 
 ---
 
-## Getting Started
+## What this fork changes
 
-### 🖥️ Desktop App
+### SAIPEN Core is loaded before the session starts
 
-Available as both Electron and Tauri builds — choose based on your preference.
+Every workspace SAIWORK opens gets `BOOT.md` and `STYLE.md` injected into
+OpenCode's `instructions`, so the cold-start kernel and the voice contract are
+in context before the agent's first token.
 
-Download the latest installer for your platform from [Releases](https://github.com/shantur/CodeNomad/releases).
+The protocol is read from the live install, never vendored. The install root is
+resolved in this order, first hit wins:
 
-| Platform | Formats |
-|----------|---------|
-| macOS | DMG, ZIP (Universal: Intel + Apple Silicon) |
-| Windows | NSIS Installer, ZIP (x64, ARM64) |
-| Linux | Tauri deb, Electron portable tar.gz (x64) |
+1. `saipen_home:` in the opened project's `.saipen/STATE.md`
+2. the `saipen.home` setting in the SAIWORK server config
+3. the `SAIPEN_HOME` environment variable
+4. `~/saipen`, then `~/.saipen`
 
-The Tauri deb is currently built and installation-tested on Ubuntu 24.04. Compatibility with older Debian-based distributions is not yet guaranteed.
+Both protocol layouts are supported: `<home>/saipen/BOOT.md` and
+`<home>/BOOT.md`. If neither exists, SAIWORK logs why and starts the session
+without injection rather than guessing.
 
-### 💻 CodeNomad Server
+`GET /api/saipen/status?folder=<path>` reports exactly which files a session
+will receive, plus the state of every sub-agent in the project.
 
-Run as a local server and access via browser. Perfect for remote development.
+### SAIPEN command bar
 
-```bash
-npx @neuralnomads/codenomad --password <your-password> --launch
-```
+The `CORE.md` §1.10 shortcut table as buttons, above the prompt:
 
-> **Authentication required:** The server requires a password on first run. You can pass it via `--password`, the `CODENOMAD_SERVER_PASSWORD` environment variable, or create an `auth.json` file (see [Server Documentation](packages/server/README.md)).
+`gg` `hh` `cc` `ccc` `ss` `sss` `dd` `aa` `qq` `qqq` `ee` `eee` `pp` `tt` `sc`
 
-> **Self-signed certificate:** On first launch with HTTPS enabled (the default), your browser will show a "Your connection is not private" warning. This is expected — the server generates a local self-signed certificate automatically. Click **Advanced → Proceed to localhost** to continue. For local-only use without the warning, run with `--https=false --http=true`.
+Argument-less shortcuts send on click. `gg` and `dd` need text, so they land in
+the prompt for you to finish instead of firing bare. Expanding the bar shows the
+phase, ticket and timestamp each sub-agent last wrote to its own `STATE.md` —
+so "is the wiki fresh, are the docs translated" is answered from the record
+rather than from memory.
 
-See [Server Documentation](packages/server/README.md) for flags, TLS, auth, and remote access.
+Toggle with `Ctrl/Cmd+Shift+K`.
 
-### 🧪 Dev Releases
+### Prompt queue
 
-Bleeding-edge builds from the `dev` branch:
+Stack prompts while the agent works; each one is sent when the session goes
+idle.
 
-```bash
-npx @neuralnomads/codenomad-dev --password <your-password> --launch
-```
+- `Alt+Enter` queues instead of sending
+- reorder, edit, and delete entries in place
+- pause and resume (`Ctrl/Cmd+Shift+Q`) — a paused queue sends nothing
+- send the head immediately without waiting for idle
+- a failed send goes back to the front of the queue instead of vanishing
+- queues persist across restarts, per session
+
+Shell commands and slash commands are never queued: both resolve against state
+that may have moved by the time the queue drains.
+
+### Vintage Golden
+
+The whole interface follows `saipen/UI.md`: Verdana without antialiasing, 2px
+bevels, zero rounded corners, zero shadows, zero animation, one palette in every
+theme mode. The upstream token file is left untouched and overridden by
+`packages/ui/src/styles/vintage-golden.css`, so merges from upstream stay
+reviewable.
+
+`F1` opens the keyboard reference, which reads the live shortcut registry rather
+than a hand-written list.
 
 ---
 
-## SideCars
+## Everything upstream does, SAIWORK still does
 
-SideCars let you open local web tools inside CodeNomad as tabs.
-
-<details>
-<summary><strong>Configuration</strong></summary>
-
-- **Name**: Display name used in CodeNomad
-- **Port**: Local HTTP or HTTPS service running on `127.0.0.1:<port>`
-- **Base path**: Mounted under `/sidecars/:id`
-- **Prefix mode**:
-  - **Preserve prefix** forwards the full `/sidecars/:id/...` path upstream
-  - **Strip prefix** removes `/sidecars/:id` before forwarding the request upstream
-
-</details>
-
-<details>
-<summary><strong>VSCode (OpenVSCode Server)</strong></summary>
-
-Run with Docker:
-
-```bash
-docker run -it --init -p 8000:3000 -v "${HOME}:${HOME}:cached" -e HOME=${HOME} gitpod/openvscode-server --server-base-path /sidecars/vscode
-```
-
-Add SideCar as:
-
-- **Name**: `VSCode`
-- **Port**: `http://127.0.0.1:8000`
-- **Base path**: `/sidecars/vscode`
-- **Prefix mode**: `Preserve prefix`
-
-</details>
-
-<details>
-<summary><strong>Terminal (ttyd)</strong></summary>
-
-Run with:
-
-```bash
-ttyd --writable zsh
-```
-
-Add SideCar as:
-
-- **Name**: `Terminal`
-- **Port**: `http://127.0.0.1:7681`
-- **Base path**: `/sidecars/terminal`
-- **Prefix mode**: `Strip prefix`
-
-</details>
+Multi-instance workspaces, remote access, session management, voice input, git
+worktrees, SideCars, command palette, file browser, auth, notifications, and
+i18n all work as they do in CodeNomad.
 
 ---
 
 ## Requirements
 
-- **[OpenCode CLI](https://opencode.ai)** — must be installed and in your `PATH`
-- **Node.js 18+** — for server mode or building from source
+- **[OpenCode CLI](https://opencode.ai)** in your `PATH`
+- **Node.js 18+**
+- A saipen install, if you want the protocol injection (clone
+  `github.com/vacterro/saipen`)
 
----
+## Running it
 
-## Development
+**Double-click `START.bat`** (Windows) or run `./START.sh` (macOS, Linux).
 
-CodeNomad is a monorepo built with:
+It checks Node, warns if `opencode` is missing, installs dependencies on the
+first run, and starts the desktop app. Nothing else to configure.
 
-| Package | Description |
-|---------|-------------|
-| **[packages/server](packages/server/README.md)** | Core logic & CLI — workspaces, OpenCode proxy, API, auth, speech |
-| **[packages/ui](packages/ui/README.md)** | SolidJS frontend — reactive, fast, beautiful |
-| **[packages/electron-app](packages/electron-app/README.md)** | Desktop shell — process management, IPC, native dialogs |
-| **[packages/tauri-app](packages/tauri-app)** | Tauri desktop shell (experimental) |
-
-### Quick Start
+Same thing by hand, if you prefer:
 
 ```bash
-git clone https://github.com/NeuralNomadsAI/CodeNomad.git
-cd CodeNomad
 npm install
 npm run dev
 ```
 
----
+Electron is the primary shell for 0.0.1. The Tauri shell still compiles but is
+not polished.
 
-## Troubleshooting
-
-<details>
-<summary><strong>macOS: "CodeNomad.app is damaged and can't be opened"</strong></summary>
-
-Gatekeeper flag due to missing notarization. Clear the quarantine attribute:
+### Portable build
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/CodeNomad.app
+npm run build:win --workspace @saiwork/electron-app
 ```
 
-On Intel Macs, also check **System Settings → Privacy & Security** on first launch.
-</details>
+Produces `SAIWORK-portable-x64-0.0.1.exe` in `packages/electron-app/release/` —
+one file, no installer, no registry writes. It keeps its settings, sessions and
+window state in a `saiwork-data` folder beside itself, so the whole thing moves
+with a USB stick.
 
-<details>
-<summary><strong>Linux (Wayland + NVIDIA): Tauri App closes immediately</strong></summary>
+The same applies to any build: drop an empty `saiwork-data` folder next to the
+executable and SAIWORK stores everything there instead of in your profile.
+`SAIWORK_DATA_DIR` overrides the location outright.
 
-WebKitGTK DMA-BUF/GBM issue. Run with:
+### Server mode
+
+For browser or remote access:
 
 ```bash
-WEBKIT_DISABLE_DMABUF_RENDERER=1 codenomad-tauri
+npm run build --workspace @saiwork/saiwork
+node packages/server/dist/bin.js --password <your-password>
 ```
 
-See full workaround in the original README.
-</details>
+There are no published npm packages yet — build from source.
 
 ---
 
-## Community
+## Layout
 
-[![Star History](https://api.star-history.com/svg?repos=NeuralNomadsAI/CodeNomad&type=Date)](https://star-history.com/#NeuralNomadsAI/CodeNomad&Date)
+| Package | Description |
+|---------|-------------|
+| `packages/server` | Core logic and CLI: workspaces, OpenCode proxy, API, auth, speech, SAIPEN resolution |
+| `packages/ui` | SolidJS frontend |
+| `packages/electron-app` | Desktop shell |
+| `packages/tauri-app` | Tauri shell (experimental) |
+
+## Staying current with upstream
+
+The `upstream` remote points at CodeNomad. Fork-specific code is kept in its own
+files (`saipen/core.ts`, `prompt-queue.ts`, `saipen-bar.tsx`,
+`vintage-golden.css`, `shortcuts/saiwork.ts`) so a merge touches as little
+shared code as possible.
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
 
 ---
 
-**Built with ♥ by [Neural Nomads](https://github.com/NeuralNomadsAI)** · [MIT License](LICENSE)
+[MIT License](LICENSE) · upstream CodeNomad by [Neural Nomads](https://github.com/NeuralNomadsAI)

@@ -41,9 +41,9 @@ use windows_sys::Win32::System::JobObjects::{
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
-const MISSING_NODE_PREFIX: &str = "CODENOMAD_MISSING_NODE:";
+const MISSING_NODE_PREFIX: &str = "SAIWORK_MISSING_NODE:";
 #[cfg(windows)]
-const CLI_SHUTDOWN_COMMAND: &[u8] = b"codenomad:shutdown\n";
+const CLI_SHUTDOWN_COMMAND: &[u8] = b"saiwork:shutdown\n";
 
 #[cfg(windows)]
 #[derive(Debug)]
@@ -171,7 +171,7 @@ fn workspace_root() -> Option<PathBuf> {
     })
 }
 
-const SESSION_COOKIE_NAME_PREFIX: &str = "codenomad_session";
+const SESSION_COOKIE_NAME_PREFIX: &str = "saiwork_session";
 
 #[cfg(not(windows))]
 const CLI_STOP_GRACE_SECS: u64 = 30;
@@ -194,7 +194,7 @@ fn configure_posix_process_group(command: &mut Command) {
 }
 
 #[cfg(windows)]
-const WINDOWS_CLI_LAUNCHER_ARG: &str = "--codenomad-internal-cli-launcher";
+const WINDOWS_CLI_LAUNCHER_ARG: &str = "--saiwork-internal-cli-launcher";
 
 #[cfg(windows)]
 fn wait_for_windows_cli_launch_gate(mut reader: impl Read) -> bool {
@@ -443,7 +443,7 @@ fn navigate_main(manager: &CliProcessManager, generation: u64, app: &AppHandle, 
 }
 
 fn augment_launch_url(base_url: &str) -> String {
-    let launch_query = std::env::var("CODENOMAD_UI_LAUNCH_QUERY")
+    let launch_query = std::env::var("SAIWORK_UI_LAUNCH_QUERY")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
@@ -574,7 +574,7 @@ fn generate_transport_connection_id() -> String {
     format!("tauri-{}-{:?}", ts, tid)
 }
 
-const DEFAULT_CONFIG_PATH: &str = "~/.config/codenomad/config.json";
+const DEFAULT_CONFIG_PATH: &str = "~/.config/saiwork/config.json";
 
 #[derive(Debug, Deserialize)]
 struct PreferencesConfig {
@@ -926,7 +926,7 @@ impl CliProcessManager {
 
         if !use_user_shell && which::which(&resolution.node_binary).is_err() {
             return Err(anyhow::anyhow!(
-                "Node binary '{}' not found. CodeNomad desktop currently requires Node.js installed on the system, or set NODE_BINARY to a valid runtime path.",
+                "Node binary '{}' not found. SaiWork desktop currently requires Node.js installed on the system, or set NODE_BINARY to a valid runtime path.",
                 resolution.node_binary
             ));
         }
@@ -1202,7 +1202,7 @@ impl CliProcessManager {
         let mut buffer = String::new();
         let local_url_regex =
             Regex::new(r"^Local\s+Connection\s+URL\s*:\s*(https?://\S+)\s*$").ok();
-        let token_prefix = "CODENOMAD_BOOTSTRAP_TOKEN:";
+        let token_prefix = "SAIWORK_BOOTSTRAP_TOKEN:";
 
         loop {
             buffer.clear();
@@ -1238,7 +1238,7 @@ impl CliProcessManager {
                                 let mut locked = manager.status.lock();
                                 if locked.error.is_none() {
                                     locked.error = Some(format!(
-                                        "Node binary '{}' not found in the desktop shell environment. CodeNomad desktop currently requires Node.js installed on the system, or set NODE_BINARY to a valid runtime path.",
+                                        "Node binary '{}' not found in the desktop shell environment. SaiWork desktop currently requires Node.js installed on the system, or set NODE_BINARY to a valid runtime path.",
                                         node_binary.trim()
                                     ));
                                 }
@@ -1413,7 +1413,7 @@ impl CliEntry {
         }
 
         Err(anyhow::anyhow!(
-            "Unable to locate the packaged CodeNomad server entrypoint (dist/bin.js). Please rebuild the desktop bundle."
+            "Unable to locate the packaged SaiWork server entrypoint (dist/bin.js). Please rebuild the desktop bundle."
         ))
     }
 
@@ -1564,7 +1564,7 @@ fn prod_entry_candidates(
         candidates.push(Some(resources.join("server/dist/bin.js")));
         candidates.push(Some(resources.join("resources/server/dist/bin.js")));
 
-        let linux_resource_roots = [dir.join("../lib/CodeNomad"), dir.join("../lib/codenomad")];
+        let linux_resource_roots = [dir.join("../lib/SaiWork"), dir.join("../lib/saiwork")];
         for root in linux_resource_roots {
             candidates.push(Some(root.join("server/dist/bin.js")));
             candidates.push(Some(root.join("resources/server/dist/bin.js")));
@@ -1699,8 +1699,8 @@ mod tests {
 
     #[test]
     fn prod_entry_candidates_prefer_exe_relative_before_workspace_fallback() {
-        let exe_dir = PathBuf::from("/opt/codenomad/bin");
-        let workspace = PathBuf::from("/workspace/codenomad");
+        let exe_dir = PathBuf::from("/opt/saiwork/bin");
+        let workspace = PathBuf::from("/workspace/saiwork");
 
         let candidates = prod_entry_candidates(Some(exe_dir.clone()), Some(workspace.clone()))
             .into_iter()
@@ -1720,22 +1720,22 @@ mod tests {
     #[test]
     fn augment_launch_url_trims_leading_fragment_marker() {
         let _guard = ENV_LOCK.lock().expect("env lock poisoned");
-        std::env::set_var("CODENOMAD_UI_LAUNCH_QUERY", "#debug=true");
+        std::env::set_var("SAIWORK_UI_LAUNCH_QUERY", "#debug=true");
 
         let augmented = augment_launch_url("http://127.0.0.1:3000");
 
-        std::env::remove_var("CODENOMAD_UI_LAUNCH_QUERY");
+        std::env::remove_var("SAIWORK_UI_LAUNCH_QUERY");
         assert_eq!(augmented, "http://127.0.0.1:3000?debug=true");
     }
 
     #[test]
     fn augment_launch_url_trims_fragment_marker_when_query_exists() {
         let _guard = ENV_LOCK.lock().expect("env lock poisoned");
-        std::env::set_var("CODENOMAD_UI_LAUNCH_QUERY", "#debug=true");
+        std::env::set_var("SAIWORK_UI_LAUNCH_QUERY", "#debug=true");
 
         let augmented = augment_launch_url("http://127.0.0.1:3000?existing=true");
 
-        std::env::remove_var("CODENOMAD_UI_LAUNCH_QUERY");
+        std::env::remove_var("SAIWORK_UI_LAUNCH_QUERY");
         assert_eq!(augmented, "http://127.0.0.1:3000?existing=true&debug=true");
     }
 
@@ -1802,13 +1802,13 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn windows_launcher_preserves_the_shutdown_control_channel() {
-        let mut control = std::io::Cursor::new(b"\x01codenomad:shutdown\n");
+        let mut control = std::io::Cursor::new(b"\x01saiwork:shutdown\n");
         let mut node_stdin = Vec::new();
 
         assert!(wait_for_windows_cli_launch_gate(&mut control));
         relay_windows_cli_control(&mut control, &mut node_stdin).unwrap();
 
-        assert_eq!(node_stdin, b"codenomad:shutdown\n");
+        assert_eq!(node_stdin, b"saiwork:shutdown\n");
     }
 
     #[cfg(windows)]
@@ -1816,7 +1816,7 @@ mod tests {
     fn windows_stop_writes_the_exact_shutdown_command() {
         let mut control = Vec::new();
         request_windows_cli_shutdown(&mut control).unwrap();
-        assert_eq!(control, b"codenomad:shutdown\n");
+        assert_eq!(control, b"saiwork:shutdown\n");
     }
 
     #[cfg(windows)]

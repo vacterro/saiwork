@@ -1,6 +1,6 @@
 import { spawn } from "child_process"
 
-const CODENOMAD_PACKAGE_NAME = "@neuralnomads/codenomad"
+const SAIWORK_PACKAGE_NAME = "@saiwork/saiwork"
 
 export type SupportedPackageManager = "npm" | "pnpm" | "bun"
 
@@ -28,7 +28,7 @@ export function buildUpgradeCommand(
   packageManager: SupportedPackageManager = detectPackageManager(),
 ): UpgradeCommand {
   const targetVersion = (version ?? "").trim() || "latest"
-  const packageSpec = `${CODENOMAD_PACKAGE_NAME}@${targetVersion}`
+  const packageSpec = `${SAIWORK_PACKAGE_NAME}@${targetVersion}`
   const args = packageManager === "bun" ? ["add", "-g", packageSpec] : ["install", "-g", packageSpec]
 
   return {
@@ -44,7 +44,7 @@ export function formatUpgradeCommand(command: UpgradeCommand): string {
 
 export function runCliUpgrade(version?: string, env: NodeJS.ProcessEnv = process.env): Promise<number> {
   const upgrade = buildUpgradeCommand(version, detectPackageManager(env))
-  console.log(`Upgrading CodeNomad with: ${formatUpgradeCommand(upgrade)}`)
+  console.log(`Upgrading SaiWork with: ${formatUpgradeCommand(upgrade)}`)
 
   return new Promise((resolve) => {
     const child = spawn(upgrade.command, upgrade.args, {

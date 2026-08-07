@@ -6,7 +6,7 @@ import { after, test } from "node:test"
 import { searchWorkspaceFiles } from "../search"
 import { getWorkspaceCandidates } from "../search-cache"
 
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "codenomad-search-"))
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-search-"))
 
 after(() => fs.rmSync(workspace, { recursive: true, force: true }))
 
@@ -35,7 +35,7 @@ test("finds a matching file after more than 8000 non-matching entries", () => {
 })
 
 test("does not revisit directory links", () => {
-  const cyclicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "codenomad-search-cycle-"))
+  const cyclicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-search-cycle-"))
   try {
     fs.symlinkSync(cyclicWorkspace, path.join(cyclicWorkspace, "cycle"), process.platform === "win32" ? "junction" : "dir")
     assert.deepEqual(searchWorkspaceFiles(cyclicWorkspace, "not-present", { refresh: true }), [])
@@ -45,7 +45,7 @@ test("does not revisit directory links", () => {
 })
 
 test("indexes both real and linked directory paths", () => {
-  const linkedWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "codenomad-search-link-"))
+  const linkedWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-search-link-"))
   try {
     const realDirectory = path.join(linkedWorkspace, "b")
     fs.mkdirSync(realDirectory)

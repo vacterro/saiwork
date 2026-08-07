@@ -119,7 +119,7 @@ async function build(platform) {
 
   try {
     console.log("📦 Step 1/3: Building CLI dependency...\n")
-    await run(npmCmd, ["run", "build", "--workspace", "@neuralnomads/codenomad"], {
+    await run(npmCmd, ["run", "build", "--workspace", "@saiwork/saiwork"], {
       cwd: workspaceRoot,
       env: { NODE_PATH: workspaceNodeModulesPath },
     })
@@ -138,7 +138,7 @@ async function build(platform) {
       await run(process.execPath, [join(appDir, "scripts", "prepare-resources.js")], {
         cwd: workspaceRoot,
         shell: false,
-        env: { NODE_PATH: workspaceNodeModulesPath, CODENOMAD_NODE_TARGET: job.nodeTarget },
+        env: { NODE_PATH: workspaceNodeModulesPath, SAIWORK_NODE_TARGET: job.nodeTarget },
       })
 
       console.log(`\n🔎 Validating resources for ${job.nodeTarget}...\n`)
@@ -157,7 +157,7 @@ async function build(platform) {
 
       console.log(`\n📦 Packaging ${job.nodeTarget}...\n`)
       await run(npxCmd, ["electron-builder", "--publish=never", ...job.args], {
-        env: { CODENOMAD_NODE_TARGET: job.nodeTarget },
+        env: { SAIWORK_NODE_TARGET: job.nodeTarget },
       })
     }
 
@@ -173,7 +173,7 @@ const platform = process.argv[2] || "mac"
 
 console.log(`
 ╔════════════════════════════════════════╗
-║   CodeNomad - Binary Builder          ║
+║   SaiWork - Binary Builder          ║
 ╚════════════════════════════════════════╝
 `)
 

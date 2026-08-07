@@ -90,7 +90,7 @@ export interface ProviderUsageResponse {
 export type WorktreeKind = "root" | "worktree"
 
 export interface WorktreeDescriptor {
-  /** Stable identifier used by CodeNomad + clients ("root" for the selected workspace folder). */
+  /** Stable identifier used by SaiWork + clients ("root" for the selected workspace folder). */
   slug: string
   /** Absolute directory path on the server host. */
   directory: string
@@ -574,6 +574,25 @@ export interface BackgroundProcessOutputResponse {
   content: string
   truncated: boolean
   sizeBytes: number
+}
+
+export interface SaipenSubState {
+  name: string
+  phase: string | null
+  task: string | null
+  agent: string | null
+  updated: string | null
+  nextAction: string | null
+}
+
+export interface SaipenStatusResponse {
+  enabled: boolean
+  home: string | null
+  protocolDir: string | null
+  instructions: string[]
+  missing: string[]
+  error: string | null
+  subs: SaipenSubState[]
 }
 
 export type {

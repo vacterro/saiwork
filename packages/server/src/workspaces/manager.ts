@@ -14,7 +14,7 @@ import { WorkspaceRuntime, ProcessExitInfo } from "./runtime"
 import { Logger } from "../logger"
 import {
   buildOpencodeConfigContent,
-  getCodeNomadPluginUrl,
+  getSaiWorkPluginUrl,
   resolveExistingOpencodeConfigContent,
 } from "../opencode-plugin.js"
 import {
@@ -24,6 +24,7 @@ import {
   OPENCODE_SERVER_USERNAME_ENV,
   resolveOpencodeServerAuth,
 } from "./opencode-auth"
+import { resolveSaipenCore } from "../saipen/core"
 import { resolveWorkspaceIdentity } from "./workspace-identity"
 import { parseWslUncPath } from "./spawn"
 import { LOOPBACK_HOST } from "./loopback"
@@ -60,7 +61,7 @@ interface WorkspaceManagerOptions {
   eventBus: EventBus
   logger: Logger
   getServerBaseUrl: () => string
-  /** Optional CA bundle path to trust CodeNomad HTTPS certs. */
+  /** Optional CA bundle path to trust SaiWork HTTPS certs. */
   nodeExtraCaCertsPath?: string
   runtime?: Pick<WorkspaceRuntime, "launch" | "stop">
   shutdownTimeoutMs?: number
@@ -138,12 +139,12 @@ export class WorkspaceManager {
   private readonly cancelledCreationRequests = new Set<string>()
   private shuttingDown = false
   private readonly runtime: Pick<WorkspaceRuntime, "launch" | "stop">
-  private readonly codeNomadPluginUrl: string
+  private readonly saiWorkPluginUrl: string
   private readonly opencodeAuth = new Map<string, { username: string; password: string; authorization: string }>()
 
   constructor(private readonly options: WorkspaceManagerOptions) {
     this.runtime = options.runtime ?? new WorkspaceRuntime(this.options.eventBus, this.options.logger)
-    this.codeNomadPluginUrl = getCodeNomadPluginUrl()
+    this.saiWorkPluginUrl = getSaiWorkPluginUrl()
   }
   list(): WorkspaceDescriptor[] {
     return Array.from(this.workspaces.values())
@@ -395,9 +396,19 @@ export class WorkspaceManager {
       const serverConfig = this.options.settings.getOwner("config", "server")
       const envVars = (serverConfig as any)?.environmentVariables
       const userEnvironment = envVars && typeof envVars === "object" && !Array.isArray(envVars) ? (envVars as any) : {}
+      const saipen = resolveSaipenCore((serverConfig as any)?.saipen, { workspaceFolder: workspacePath })
+      if (saipen.enabled && saipen.error) {
+        this.options.logger.warn({ workspaceId: id, error: saipen.error }, "SAIPEN Core not injected")
+      } else if (saipen.enabled && saipen.instructions.length > 0) {
+        this.options.logger.info(
+          { workspaceId: id, protocolDir: saipen.protocolDir, instructions: saipen.instructions },
+          "SAIPEN Core injected",
+        )
+      }
       const opencodeConfigContent = buildOpencodeConfigContent(
         resolveExistingOpencodeConfigContent(userEnvironment),
-        this.codeNomadPluginUrl,
+        this.saiWorkPluginUrl,
+        saipen.instructions,
       )
       const serverBaseUrl = this.options.getServerBaseUrl()
       const normalizedServerBaseUrl = serverBaseUrl.replace(/\/+$/, "")
@@ -416,8 +427,8 @@ export class WorkspaceManager {
         ...userEnvironment,
         OPENCODE_CONFIG_CONTENT: opencodeConfigContent,
         OPENCODE_EXPERIMENTAL_WORKSPACES: "true",
-        CODENOMAD_INSTANCE_ID: id,
-        CODENOMAD_BASE_URL: serverBaseUrl,
+        SAIWORK_INSTANCE_ID: id,
+        SAIWORK_BASE_URL: serverBaseUrl,
         ...(this.options.nodeExtraCaCertsPath ? { NODE_EXTRA_CA_CERTS: this.options.nodeExtraCaCertsPath } : {}),
         [OPENCODE_SERVER_BASE_URL_ENV]: `${normalizedServerBaseUrl}${proxyPath}`,
         [OPENCODE_SERVER_USERNAME_ENV]: opencodeUsername,

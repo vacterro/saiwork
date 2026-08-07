@@ -25,6 +25,10 @@ export interface PromptInputProps {
   // Phone/tablet layouts should keep the expanded prompt more compact.
   compactLayout?: boolean
   onSend: (prompt: string, attachments: Attachment[]) => Promise<void>
+  /** Adds the current prompt to the session queue instead of sending it. */
+  onQueue?: (prompt: string, attachments: Attachment[]) => void
+  /** Pending prompts for this session; drives the queue button label. */
+  queuedCount?: number
   onCommand?: (commandName: string, args: string) => Promise<void>
   onRunShell?: (command: string) => Promise<void>
   disabled?: boolean

@@ -4,7 +4,7 @@
 
 ### SDK Manager
 
-CodeNomad creates and manages `OpencodeClient` instances through `SDKManager`:
+SaiWork creates and manages `OpencodeClient` instances through `SDKManager`:
 
 ```typescript
 // packages/ui/src/lib/sdk-manager.ts
@@ -44,7 +44,7 @@ export function getOrCreateWorktreeClient(
 // packages/ui/src/lib/sdk-manager.ts
 export function buildInstanceBaseUrl(proxyPath: string): string {
   const normalized = normalizeProxyPath(proxyPath)
-  const base = stripTrailingSlashes(CODENOMAD_API_BASE)
+  const base = stripTrailingSlashes(SAIWORK_API_BASE)
   return `${base}${normalized}/`
 }
 ```

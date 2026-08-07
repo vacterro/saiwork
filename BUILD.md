@@ -1,6 +1,6 @@
-# Building CodeNomad Binaries
+# Building SaiWork Binaries
 
-This guide explains how to build distributable binaries for CodeNomad.
+This guide explains how to build distributable binaries for SaiWork.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ This guide explains how to build distributable binaries for CodeNomad.
 All commands now run inside the workspace packages. From the repo root you can target the Electron app package directly:
 
 ```bash
-npm run build --workspace @neuralnomads/codenomad-electron-app
+npm run build --workspace @saiwork/electron-app
 ```
 
 ### Build for Current Platform (macOS default)
@@ -57,10 +57,10 @@ bun run build:win-arm64
 
 ```bash
 # Portable Electron archive (x64)
-npm run build:linux --workspace @neuralnomads/codenomad-electron-app
+npm run build:linux --workspace @saiwork/electron-app
 
 # Tauri Debian package (x64)
-npm exec --workspace @codenomad/tauri-app -- tauri build --bundles deb
+npm exec --workspace @saiwork/tauri-app -- tauri build --bundles deb
 ```
 
 **Release formats:** Electron `.tar.gz` portable archive and Tauri `.deb` installer.
@@ -77,7 +77,7 @@ bun run build:all
 
 The build script performs these steps:
 
-1. **Build @neuralnomads/codenomad** → Produces the CLI `dist/` bundle (also rebuilds the UI assets it serves)
+1. **Build @saiwork/saiwork** → Produces the CLI `dist/` bundle (also rebuilds the UI assets it serves)
 2. **Compile TypeScript + bundle with Vite** → Electron main, preload, and renderer output in `dist/`
 3. **Package with electron-builder** → Platform-specific binaries
 
@@ -87,17 +87,17 @@ Build artifacts are generated in package-specific output directories:
 
 ```
 packages/electron-app/release/
-└── CodeNomad-Electron-linux-x64-0.18.0.tar.gz
+└── SaiWork-Electron-linux-x64-0.18.0.tar.gz
 
 packages/tauri-app/target/release/bundle/deb/
-└── CodeNomad_0.18.0_amd64.deb
+└── SaiWork_0.18.0_amd64.deb
 ```
 
 ## File Naming Convention
 
 ```
-CodeNomad-Electron-{os}-{arch}-{version}.{ext}
-CodeNomad-Tauri-{os}-{arch}-{version}.{ext}
+SaiWork-Electron-{os}-{arch}-{version}.{ext}
+SaiWork-Tauri-{os}-{arch}-{version}.{ext}
 ```
 
 - **version**: From package.json (e.g., `0.18.0`)
@@ -124,7 +124,7 @@ The Tauri build directory uses Tauri's native Debian filename. CI renames the pa
 ### Linux
 
 - **Build on:** Linux x64
-- **Electron portable:** extract the tar.gz and run the `CodeNomad` executable
+- **Electron portable:** extract the tar.gz and run the `SaiWork` executable
 - **Tauri deb:** built and installation-tested on Ubuntu 24.04; older distributions are not yet guaranteed
 
 ## Troubleshooting
@@ -219,13 +219,13 @@ See [electron-builder docs](https://www.electron.build/) for details.
 
 ## Brand Assets
 
-- `images/CodeNomad-Icon.png` — primary asset for in-app logo placements and the 1024×1024 master icon used to generate packaged app icons
+- `images/SaiWork-Icon.png` — primary asset for in-app logo placements and the 1024×1024 master icon used to generate packaged app icons
 
 To update the binaries:
 
-1. Run `node scripts/generate-icons.js images/CodeNomad-Icon.png electron/resources` to round the corners and emit fresh `icon.icns`, `icon.ico`, and `icon.png` files.
+1. Run `node scripts/generate-icons.js images/SaiWork-Icon.png electron/resources` to round the corners and emit fresh `icon.icns`, `icon.ico`, and `icon.png` files.
 2. (Optional) Pass `--radius` to tweak the corner curvature or `--name` to change the filename prefix.
-3. If you prefer manual control, export `images/CodeNomad-Icon.png` with your tool of choice and place the generated files in `electron/resources/`.
+3. If you prefer manual control, export `images/SaiWork-Icon.png` with your tool of choice and place the generated files in `electron/resources/`.
 
 ## Clean Build
 

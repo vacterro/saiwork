@@ -114,7 +114,7 @@ describe("config file routes", () => {
 })
 
 function createTempDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codenomad-config-files-test-"))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-config-files-test-"))
   tempDirs.add(dir)
   return dir
 }

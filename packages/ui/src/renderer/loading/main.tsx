@@ -2,11 +2,12 @@ import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
 import { Show, createSignal, onCleanup, onMount } from "solid-js"
 import { render } from "solid-js/web"
-import iconUrl from "../../images/CodeNomad-Icon.png"
+import iconUrl from "../../images/SaiWork-Icon.png"
 import { tGlobal } from "../../lib/i18n"
 import { runtimeEnv, isTauriHost } from "../../lib/runtime-env"
 import "../../index.css"
 import "./loading.css"
+import "../../styles/vintage-golden.css"
 
 const phraseKeys = [
   "loadingScreen.phrases.neurons",
@@ -122,14 +123,16 @@ function LoadingApp() {
     <div class="loading-wrapper" role="status" aria-live="polite">
       <img src={iconUrl} alt={tGlobal("loadingScreen.logoAlt")} class="loading-logo" width="180" height="180" />
       <div class="loading-heading">
-        <h1 class="loading-title">CodeNomad</h1>
+        <h1 class="loading-title">SAIWORK</h1>
         <Show when={statusKey()}>
           {(key) => <p class="loading-status">{tGlobal(key())}</p>}
         </Show>
       </div>
       <div class="loading-card">
         <div class="loading-row">
-          <div class="spinner" aria-hidden="true" />
+          {/* Static, not a spinner: UI.md bans motion, and "..." carries the
+              same "not dead" signal without an animation frame. */}
+          <span class="loading-ellipsis" aria-hidden="true">...</span>
           <span>{tGlobal(phraseKey())}</span>
         </div>
         <div class="phrase-controls">

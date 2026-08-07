@@ -11,7 +11,7 @@ fn stream_config(connection_id: &str) -> DesktopEventStreamConfig {
         events_url: "http://127.0.0.1:4096/api/events".to_string(),
         client_id: "tauri-test".to_string(),
         connection_id: connection_id.to_string(),
-        cookie_name: "codenomad_session".to_string(),
+        cookie_name: "saiwork_session".to_string(),
         session_cookie: Some("cookie-value".to_string()),
     }
 }

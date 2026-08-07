@@ -18,12 +18,12 @@ const { copyPackagedServerResources } = require(path.join(workspaceRoot, "script
 const serverInstallCommand =
   "npm install --omit=dev --ignore-scripts --workspaces=false --package-lock=false --install-strategy=shallow --fund=false --audit=false"
 const serverDevInstallCommand =
-  "npm install --workspace @neuralnomads/codenomad --include-workspace-root=false --install-strategy=nested --fund=false --audit=false"
+  "npm install --workspace @saiwork/saiwork --include-workspace-root=false --install-strategy=nested --fund=false --audit=false"
 const pluginDevInstallCommand =
-  "npm install --workspace @codenomad/codenomad-opencode-plugin --include-workspace-root=false --install-strategy=nested --fund=false --audit=false"
+  "npm install --workspace @saiwork/opencode-plugin --include-workspace-root=false --install-strategy=nested --fund=false --audit=false"
 const uiDevInstallCommand =
-  "npm install --workspace @codenomad/ui --include-workspace-root=false --install-strategy=nested --fund=false --audit=false"
-const serverPrepareUiCommand = "npm run prepare-ui --workspace @neuralnomads/codenomad"
+  "npm install --workspace @saiwork/ui --include-workspace-root=false --install-strategy=nested --fund=false --audit=false"
+const serverPrepareUiCommand = "npm run prepare-ui --workspace @saiwork/saiwork"
 
 const envWithRootBin = {
   ...process.env,
@@ -72,7 +72,7 @@ function ensureServerBuild() {
   const distPath = path.join(serverRoot, "dist")
   const publicPath = path.join(serverRoot, "public")
   console.log("[prebuild] rebuilding server workspace for desktop packaging...")
-  execSync("npm --workspace @neuralnomads/codenomad run build", {
+  execSync("npm --workspace @saiwork/saiwork run build", {
     cwd: workspaceRoot,
     stdio: "inherit",
     env: {
@@ -93,7 +93,7 @@ function ensureUiBuild() {
   }
 
   console.log("[prebuild] ui build missing; running workspace build...")
-  execSync("npm --workspace @codenomad/ui run build", {
+  execSync("npm --workspace @saiwork/ui run build", {
     cwd: workspaceRoot,
     stdio: "inherit",
   })

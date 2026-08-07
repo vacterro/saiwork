@@ -7,11 +7,11 @@ describe("mapOpenCodeWorkspacesToWorktreeSlugs", () => {
   it("matches POSIX worktree directories case-sensitively", () => {
     const result = mapOpenCodeWorkspacesToWorktreeSlugs(
       [
-        { slug: "feature", directory: "/Users/dev/Repo/.codenomad/worktrees/Feature" },
-        { slug: "feature-lower", directory: "/Users/dev/Repo/.codenomad/worktrees/feature" },
+        { slug: "feature", directory: "/Users/dev/Repo/.saiwork/worktrees/Feature" },
+        { slug: "feature-lower", directory: "/Users/dev/Repo/.saiwork/worktrees/feature" },
       ],
       [
-        { id: "wrk_exact", directory: "/Users/dev/Repo/.codenomad/worktrees/Feature" },
+        { id: "wrk_exact", directory: "/Users/dev/Repo/.saiwork/worktrees/Feature" },
       ],
     )
 
@@ -22,10 +22,10 @@ describe("mapOpenCodeWorkspacesToWorktreeSlugs", () => {
   it("matches Windows drive paths case-insensitively and normalizes slashes", () => {
     const result = mapOpenCodeWorkspacesToWorktreeSlugs(
       [
-        { slug: "test2", directory: String.raw`C:\Users\Dev\Repo\.codenomad\worktrees\test2` },
+        { slug: "test2", directory: String.raw`C:\Users\Dev\Repo\.saiwork\worktrees\test2` },
       ],
       [
-        { id: "wrk_test2", directory: "c:/users/dev/repo/.codenomad/worktrees/test2/" },
+        { id: "wrk_test2", directory: "c:/users/dev/repo/.saiwork/worktrees/test2/" },
       ],
     )
 
@@ -35,10 +35,10 @@ describe("mapOpenCodeWorkspacesToWorktreeSlugs", () => {
   it("matches Windows UNC paths case-insensitively and normalizes slashes", () => {
     const result = mapOpenCodeWorkspacesToWorktreeSlugs(
       [
-        { slug: "unc", directory: String.raw`\\server\Share\Repo\.codenomad\worktrees\unc` },
+        { slug: "unc", directory: String.raw`\\server\Share\Repo\.saiwork\worktrees\unc` },
       ],
       [
-        { id: "wrk_unc", directory: "//SERVER/share/repo/.codenomad/worktrees/unc" },
+        { id: "wrk_unc", directory: "//SERVER/share/repo/.saiwork/worktrees/unc" },
       ],
     )
 

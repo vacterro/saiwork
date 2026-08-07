@@ -16,7 +16,7 @@ declare global {
   }
 
   interface Window {
-    __CODENOMAD_WINDOW_CONTEXT__?: WindowContextKind
+    __SAIWORK_WINDOW_CONTEXT__?: WindowContextKind
     electronAPI?: ElectronAPI
     __TAURI__?: {
       core?: TauriCoreModule
@@ -29,11 +29,11 @@ function detectWindowContext(): WindowContextKind {
     return "remote"
   }
 
-  if (window.__CODENOMAD_WINDOW_CONTEXT__ === "remote") {
+  if (window.__SAIWORK_WINDOW_CONTEXT__ === "remote") {
     return "remote"
   }
 
-  if (window.__CODENOMAD_WINDOW_CONTEXT__ === "local") {
+  if (window.__SAIWORK_WINDOW_CONTEXT__ === "local") {
     return "local"
   }
 
@@ -54,7 +54,7 @@ function detectHost(): HostRuntime {
     return "web"
   }
 
-  const explicitHost = window.__CODENOMAD_RUNTIME_HOST__
+  const explicitHost = window.__SAIWORK_RUNTIME_HOST__
   if (explicitHost) {
     return explicitHost
   }

@@ -547,6 +547,40 @@ export default function PromptInput(props: PromptInputProps) {
     }
   }
 
+  /**
+   * Queues the current prompt instead of sending it.
+   *
+   * Slash commands and shell mode are deliberately excluded: both are resolved
+   * against state that may have moved on by the time the queue drains (the
+   * command list, the shell's working directory), so queueing them would send
+   * something other than what the user saw when they typed it.
+   */
+  function handleQueue() {
+    if (!props.onQueue) return
+    const text = prompt().trim()
+    const currentAttachments = attachments()
+    if (props.disabled || (!text && currentAttachments.length === 0)) return
+    if (mode() === "shell" || text.startsWith("/")) return
+
+    const submission = preparePromptSubmission({
+      mode: "message",
+      text,
+      attachments: currentAttachments,
+    })
+
+    props.onQueue(submission.submitPrompt, currentAttachments)
+
+    setExpandState("normal")
+    setInputHeight(null)
+    clearPrompt()
+    clearHistoryDraft()
+    clearAttachments(props.instanceId, props.sessionId)
+    syncAttachmentCounters("")
+    setIgnoredAtPositions(new Set<number>())
+    void recordHistoryEntry(submission.historyEntry)
+    textareaRef?.focus()
+  }
+
   function handleAbort() {
     if (!props.onAbortSession || !props.isSessionBusy) return
     void props.onAbortSession()
@@ -700,6 +734,13 @@ export default function PromptInput(props: PromptInputProps) {
   }
 
   const canStop = () => Boolean(props.isSessionBusy && props.onAbortSession)
+  // Shell commands and slash commands are never queued -- see handleQueue.
+  const canQueue = () =>
+    Boolean(props.onQueue) &&
+    !props.disabled &&
+    mode() !== "shell" &&
+    !prompt().trim().startsWith("/") &&
+    (prompt().trim().length > 0 || attachments().length > 0)
 
   const hasHistory = () => history().length > 0
   const canHistoryGoPrevious = () => hasHistory() && (historyIndex() === -1 || historyIndex() < history().length - 1)
@@ -736,6 +777,7 @@ export default function PromptInput(props: PromptInputProps) {
     removeAttachment: (attachmentId) => removeAttachment(props.instanceId, props.sessionId, attachmentId),
     submitOnEnter,
     onSend: () => void handleSend(),
+    onQueue: props.onQueue ? () => handleQueue() : undefined,
     selectPreviousHistory: (force) =>
       selectPreviousHistory({ force, isPickerOpen: showPicker(), getTextarea: () => textareaRef ?? null }),
     selectNextHistory: (force) =>
@@ -1064,6 +1106,23 @@ export default function PromptInput(props: PromptInputProps) {
               <rect x="4" y="4" width="12" height="12" rx="2" />
             </svg>
           </button>
+          <Show when={props.onQueue}>
+            <button
+              type="button"
+              class="queue-button"
+              onClick={handleQueue}
+              disabled={!canQueue()}
+              aria-label={t("promptInput.queue.ariaLabel")}
+              title={t("promptInput.queue.title")}
+            >
+              <span class="queue-button-label">
+                {t("promptInput.queue.label")}
+                <Show when={(props.queuedCount ?? 0) > 0}>
+                  <span class="queue-button-count"> {props.queuedCount}</span>
+                </Show>
+              </span>
+            </button>
+          </Show>
           <button
             type="button"
             class={`send-button ${mode() === "shell" ? "shell-mode" : ""}`}

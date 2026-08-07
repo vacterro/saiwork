@@ -26,7 +26,7 @@ describe("resolveOpencodeServerAuth", () => {
       generatePassword: () => "generated",
     })
 
-    assert.deepEqual(auth, { username: "codenomad", password: "process-secret" })
+    assert.deepEqual(auth, { username: "saiwork", password: "process-secret" })
   })
 
   it("falls back to generated credentials", () => {
@@ -36,6 +36,6 @@ describe("resolveOpencodeServerAuth", () => {
       generatePassword: () => "generated",
     })
 
-    assert.deepEqual(auth, { username: "codenomad", password: "generated" })
+    assert.deepEqual(auth, { username: "saiwork", password: "generated" })
   })
 })

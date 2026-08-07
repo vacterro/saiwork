@@ -127,13 +127,13 @@ export function setupCliIPC(mainWindow: BrowserWindow, cliManager: CliProcessMan
       payload: { id: string; name: string; baseUrl: string; skipTlsVerify: boolean },
     ): Promise<{ ok: boolean }> => {
       const opener = (mainWindow as BrowserWindow & {
-        __codenomadOpenRemoteWindow?: (payload: {
+        __saiworkOpenRemoteWindow?: (payload: {
           id: string
           name: string
           baseUrl: string
           skipTlsVerify: boolean
         }) => Promise<void>
-      }).__codenomadOpenRemoteWindow
+      }).__saiworkOpenRemoteWindow
       if (!opener) {
         throw new Error("Remote window opening is not available")
       }
@@ -149,7 +149,7 @@ export function setupCliIPC(mainWindow: BrowserWindow, cliManager: CliProcessMan
         return { ok: false, reason: "unsupported" }
       }
 
-      const title = typeof payload?.title === "string" ? payload.title : "CodeNomad"
+      const title = typeof payload?.title === "string" ? payload.title : "SaiWork"
       const body = typeof payload?.body === "string" ? payload.body : ""
       try {
         const notification = new Notification({ title, body })

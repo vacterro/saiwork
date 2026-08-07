@@ -110,12 +110,12 @@ fn resolve_election_directory_for(
     let home = configured_home(platform, &environment, fallback_home)?;
     Some(if platform == "windows" {
         format!(
-            "{}\\.codenomad\\client-state\\election",
+            "{}\\.saiwork\\client-state\\election",
             home.trim_end_matches(['\\', '/'])
         )
     } else {
         format!(
-            "{}/.codenomad/client-state/election",
+            "{}/.saiwork/client-state/election",
             home.trim_end_matches('/')
         )
     })
@@ -129,12 +129,12 @@ fn resolve_state_path_for(
     let home = configured_home(platform, &environment, fallback_home)?;
     Some(if platform == "windows" {
         format!(
-            "{}\\.codenomad\\client-state\\client-state.json",
+            "{}\\.saiwork\\client-state\\client-state.json",
             home.trim_end_matches(['\\', '/'])
         )
     } else {
         format!(
-            "{}/.codenomad/client-state/client-state.json",
+            "{}/.saiwork/client-state/client-state.json",
             home.trim_end_matches('/')
         )
     })
@@ -150,17 +150,17 @@ fn resolve_legacy_electron_data_directory_for(
         let root = environment("APPDATA")
             .and_then(|value| valid_home(value, platform))
             .unwrap_or_else(|| format!("{}\\AppData\\Roaming", home.trim_end_matches(['\\', '/'])));
-        Some(format!("{}\\CodeNomad", root.trim_end_matches(['\\', '/'])))
+        Some(format!("{}\\SaiWork", root.trim_end_matches(['\\', '/'])))
     } else if platform == "macos" {
         Some(format!(
-            "{}/Library/Application Support/CodeNomad",
+            "{}/Library/Application Support/SaiWork",
             home.trim_end_matches('/')
         ))
     } else {
         let root = environment("XDG_CONFIG_HOME")
             .and_then(|value| valid_home(value, platform))
             .unwrap_or_else(|| format!("{}/.config", home.trim_end_matches('/')));
-        Some(format!("{}/CodeNomad", root.trim_end_matches('/')))
+        Some(format!("{}/SaiWork", root.trim_end_matches('/')))
     }
 }
 
@@ -734,7 +734,7 @@ fn expected_electron_process(pid: u32) -> Option<bool> {
         .to_ascii_lowercase();
     Some(matches!(
         name.as_str(),
-        "codenomad" | "codenomad.exe" | "electron" | "electron.exe"
+        "saiwork" | "saiwork.exe" | "electron" | "electron.exe"
     ))
 }
 
@@ -1425,7 +1425,7 @@ mod tests {
         };
         assert_eq!(
             resolve("linux", HashMap::from([("HOME", "/home/dev")]), "/fallback"),
-            "/home/dev/.codenomad/client-state/election"
+            "/home/dev/.saiwork/client-state/election"
         );
         assert_eq!(
             resolve(
@@ -1433,7 +1433,7 @@ mod tests {
                 HashMap::from([("USERPROFILE", ""), ("HOME", "D:\\Home")]),
                 "C:\\Fallback"
             ),
-            "D:\\Home\\.codenomad\\client-state\\election"
+            "D:\\Home\\.saiwork\\client-state\\election"
         );
         let resolve_state = |platform: &str, values: HashMap<&str, &str>, fallback: &str| {
             resolve_state_path_for(
@@ -1449,11 +1449,11 @@ mod tests {
                 HashMap::from([("HOME", "/Users/dev")]),
                 "/fallback"
             ),
-            "/Users/dev/.codenomad/client-state/client-state.json"
+            "/Users/dev/.saiwork/client-state/client-state.json"
         );
         assert_eq!(
             resolve_state("linux", HashMap::from([("HOME", "/home/dev")]), "/fallback"),
-            "/home/dev/.codenomad/client-state/client-state.json"
+            "/home/dev/.saiwork/client-state/client-state.json"
         );
         assert_eq!(
             resolve_state(
@@ -1461,7 +1461,7 @@ mod tests {
                 HashMap::from([("USERPROFILE", ""), ("HOME", "D:\\Home")]),
                 "C:\\Fallback"
             ),
-            "D:\\Home\\.codenomad\\client-state\\client-state.json"
+            "D:\\Home\\.saiwork\\client-state\\client-state.json"
         );
     }
 }

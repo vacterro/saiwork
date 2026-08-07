@@ -14,3 +14,6 @@
 @import "./components/settings-info.css";
 @import "./components/config-files-settings.css";
 @import "./components/provider-auth.css";
+@import "./components/prompt-queue.css";
+@import "./components/saipen-bar.css";
+@import "./components/shortcuts-overlay.css";

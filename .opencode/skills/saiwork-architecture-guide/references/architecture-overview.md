@@ -8,7 +8,7 @@
 | `packages/ui/` | SolidJS frontend | `src/components/`, `src/stores/`, `src/lib/`, `src/types/` |
 | `packages/electron-app/` | Electron desktop wrapper | `electron/main/`, `electron/preload/`, `electron/resources/` |
 | `packages/tauri-app/` | Tauri desktop wrapper | `src-tauri/src/`, `src-tauri/capabilities/` |
-| `packages/opencode-plugin/` | OpenCode plugin integration | `plugin/lib/`, `plugin/codenomad.ts` |
+| `packages/opencode-plugin/` | OpenCode plugin integration | `plugin/lib/`, `plugin/saiwork.ts` |
 | `packages/cloudflare/` | Edge deployment | `src/`, `scripts/` |
 
 ## Functional Areas (from RPG)
@@ -53,7 +53,7 @@
 | UI Bootstrap | `packages/ui/src/main.tsx` | Initializes SolidJS app, mounts to DOM |
 | Electron Main | `packages/electron-app/electron/main/main.ts` | Creates window, starts CLI process |
 | Tauri Main | `packages/tauri-app/src-tauri/src/main.rs` | Rust entry, sets up window and CLI |
-| Plugin Entry | `packages/opencode-plugin/plugin/codenomad.ts` | Initializes CodeNomad plugin tools |
+| Plugin Entry | `packages/opencode-plugin/plugin/saiwork.ts` | Initializes SaiWork plugin tools |
 
 ## Inter-Area Dependencies
 

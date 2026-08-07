@@ -4,10 +4,10 @@ import { requestData } from "../lib/opencode-api"
 import { sessions, withSession } from "./session-state"
 import { shouldReplaceSessionMetadata } from "./session-metadata-completeness"
 
-const CODENOMAD_METADATA_KEY = "codenomad"
-const CODENOMAD_METADATA_VERSION = 1
+const SAIWORK_METADATA_KEY = "saiwork"
+const SAIWORK_METADATA_VERSION = 1
 
-export interface CodeNomadSessionMetadata {
+export interface SaiWorkSessionMetadata {
   version: 1
   worktreeSlug?: string
 }
@@ -22,9 +22,9 @@ function normalizeMetadata(value: unknown): MetadataRecord {
   return isRecord(value) ? { ...value } : {}
 }
 
-function normalizeCodeNomadMetadata(value: unknown): CodeNomadSessionMetadata {
+function normalizeSaiWorkMetadata(value: unknown): SaiWorkSessionMetadata {
   const source = isRecord(value) ? value : {}
-  const metadata: CodeNomadSessionMetadata = { version: CODENOMAD_METADATA_VERSION }
+  const metadata: SaiWorkSessionMetadata = { version: SAIWORK_METADATA_VERSION }
   if (typeof source.worktreeSlug === "string" && source.worktreeSlug.trim()) {
     metadata.worktreeSlug = source.worktreeSlug
   }
@@ -35,8 +35,8 @@ export function getSessionMetadata(instanceId: string, sessionId: string): Metad
   return normalizeMetadata(sessions().get(instanceId)?.get(sessionId)?.metadata)
 }
 
-export function getCodeNomadSessionMetadata(instanceId: string, sessionId: string): CodeNomadSessionMetadata {
-  return normalizeCodeNomadMetadata(getSessionMetadata(instanceId, sessionId)[CODENOMAD_METADATA_KEY])
+export function getSaiWorkSessionMetadata(instanceId: string, sessionId: string): SaiWorkSessionMetadata {
+  return normalizeSaiWorkMetadata(getSessionMetadata(instanceId, sessionId)[SAIWORK_METADATA_KEY])
 }
 
 export async function hydrateSessionMetadataWithClient(

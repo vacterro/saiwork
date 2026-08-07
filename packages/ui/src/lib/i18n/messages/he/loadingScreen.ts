@@ -1,5 +1,5 @@
 export const loadingScreenMessages = {
-  "loadingScreen.logoAlt": "לוגו CodeNomad",
+  "loadingScreen.logoAlt": "לוגו SAIWORK",
   "loadingScreen.status.issue": "נתקלנו בבעיה",
   "loadingScreen.actions.showAnother": "הצג עוד",
   "loadingScreen.errors.missingRoot": "אלמנט השורש לטעינה לא נמצא",

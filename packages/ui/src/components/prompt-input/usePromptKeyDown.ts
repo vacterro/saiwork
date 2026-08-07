@@ -27,6 +27,12 @@ export type UsePromptKeyDownOptions = {
 
   submitOnEnter: Accessor<boolean>
   onSend: () => void
+  /**
+   * Alt+Enter adds the prompt to the queue instead of sending it. Alt is the
+   * only Enter modifier left: Ctrl/Cmd and Shift both already mean something
+   * here and their meaning flips with the submit-on-Enter preference.
+   */
+  onQueue?: () => void
 
   selectPreviousHistory: (force?: boolean) => boolean
   selectNextHistory: (force?: boolean) => boolean
@@ -237,6 +243,16 @@ export function usePromptKeyDown(options: UsePromptKeyDownOptions) {
 
     if (e.key === "Enter") {
       const isModified = e.metaKey || e.ctrlKey
+
+      if (e.altKey && options.onQueue) {
+        e.preventDefault()
+        e.stopPropagation()
+        if (options.isPickerOpen()) {
+          options.closePicker()
+        }
+        options.onQueue()
+        return
+      }
 
       // If the picker is open, Enter should select from it.
       if (!isModified && options.isPickerOpen()) {

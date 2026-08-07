@@ -5,6 +5,43 @@ const [selectedFolder, setSelectedFolder] = createSignal<string | null>(null)
 const [isSelectingFolder, setIsSelectingFolder] = createSignal(false)
 const [showFolderSelection, setShowFolderSelection] = createSignal(false)
 
+/**
+ * SAIWORK panel visibility. Persisted so the layout the user left is the layout
+ * they come back to -- a panel that silently reappears is the same surprise as
+ * one that silently vanishes.
+ */
+const SAIPEN_BAR_KEY = "saiwork.saipen-bar.visible"
+const SHORTCUTS_OVERLAY_KEY = "saiwork.shortcuts-overlay.visible"
+
+function readPersistedFlag(key: string, fallback: boolean): boolean {
+  if (typeof localStorage === "undefined") return fallback
+  const raw = localStorage.getItem(key)
+  if (raw === null) return fallback
+  return raw === "true"
+}
+
+function writePersistedFlag(key: string, value: boolean) {
+  if (typeof localStorage === "undefined") return
+  localStorage.setItem(key, String(value))
+}
+
+const [showSaipenBar, setShowSaipenBarSignal] = createSignal(readPersistedFlag(SAIPEN_BAR_KEY, true))
+
+function setShowSaipenBar(value: boolean) {
+  setShowSaipenBarSignal(value)
+  writePersistedFlag(SAIPEN_BAR_KEY, value)
+}
+
+function toggleSaipenBar() {
+  setShowSaipenBar(!showSaipenBar())
+}
+
+const [showShortcutsOverlay, setShowShortcutsOverlay] = createSignal(false)
+
+function toggleShortcutsOverlay() {
+  setShowShortcutsOverlay(!showShortcutsOverlay())
+}
+
 const [instanceTabOrder, setInstanceTabOrder] = createSignal<string[]>([])
 const [sessionTabOrder, setSessionTabOrder] = createSignal<Map<string, string[]>>(new Map())
 
@@ -35,4 +72,10 @@ export {
   setSessionTabOrder,
   reorderInstanceTabs,
   reorderSessionTabs,
+  showSaipenBar,
+  setShowSaipenBar,
+  toggleSaipenBar,
+  showShortcutsOverlay,
+  setShowShortcutsOverlay,
+  toggleShortcutsOverlay,
 }

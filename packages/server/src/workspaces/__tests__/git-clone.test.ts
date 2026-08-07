@@ -26,7 +26,7 @@ async function expectCloneError(
 
 describe("cloneGitRepository", () => {
   it("clones into a missing destination", async () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "codenomad-git-clone-"))
+    const temp = mkdtempSync(path.join(tmpdir(), "saiwork-git-clone-"))
     const sourceRepo = path.join(temp, "source.git")
     const destinationPath = path.join(temp, "cloned-repo")
 
@@ -46,7 +46,7 @@ describe("cloneGitRepository", () => {
   })
 
   it("rejects non-empty destinations when cleanup is not enabled", async () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "codenomad-git-clone-"))
+    const temp = mkdtempSync(path.join(tmpdir(), "saiwork-git-clone-"))
     const sourceRepo = path.join(temp, "source.git")
     const destinationPath = path.join(temp, "existing-destination")
     const sentinelPath = path.join(destinationPath, "keep.txt")
@@ -69,7 +69,7 @@ describe("cloneGitRepository", () => {
   })
 
   it("preserves the existing destination when cleanup is enabled but clone fails", async () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "codenomad-git-clone-"))
+    const temp = mkdtempSync(path.join(tmpdir(), "saiwork-git-clone-"))
     const missingRepo = path.join(temp, "missing.git")
     const destinationPath = path.join(temp, "existing-destination")
     const sentinelPath = path.join(destinationPath, "keep.txt")
@@ -92,7 +92,7 @@ describe("cloneGitRepository", () => {
   })
 
   it("replaces the existing destination only after a successful cleanup clone", async () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "codenomad-git-clone-"))
+    const temp = mkdtempSync(path.join(tmpdir(), "saiwork-git-clone-"))
     const sourceRepo = path.join(temp, "source.git")
     const destinationPath = path.join(temp, "existing-destination")
     const sentinelPath = path.join(destinationPath, "keep.txt")
@@ -117,7 +117,7 @@ describe("cloneGitRepository", () => {
   })
 
   it("rejects filesystem root destinations", async () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "codenomad-git-clone-"))
+    const temp = mkdtempSync(path.join(tmpdir(), "saiwork-git-clone-"))
     const sourceRepo = path.join(temp, "source.git")
 
     try {
@@ -139,7 +139,7 @@ describe("cloneGitRepository", () => {
   })
 
   it("rejects home directory destinations", async () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "codenomad-git-clone-"))
+    const temp = mkdtempSync(path.join(tmpdir(), "saiwork-git-clone-"))
     const sourceRepo = path.join(temp, "source.git")
 
     try {
@@ -161,11 +161,11 @@ describe("cloneGitRepository", () => {
   })
 
   it("supports destinations directly under a safe parent", async () => {
-    const temp = mkdtempSync(path.join(tmpdir(), "codenomad-git-clone-"))
+    const temp = mkdtempSync(path.join(tmpdir(), "saiwork-git-clone-"))
     const sourceRepo = path.join(temp, "source.git")
     const root = path.parse(process.cwd()).root
     const parentPath = process.platform === "win32" ? root : temp
-    const destinationPath = path.join(parentPath, `codenomad-git-clone-root-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    const destinationPath = path.join(parentPath, `saiwork-git-clone-root-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 
     try {
       createBareRepository(sourceRepo)

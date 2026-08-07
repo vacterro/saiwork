@@ -21,7 +21,7 @@ const noopLogger: Logger = {
 let tempRoot: string
 
 beforeEach(() => {
-  tempRoot = mkdtempSync(path.join(os.tmpdir(), "codenomad-ui-test-"))
+  tempRoot = mkdtempSync(path.join(os.tmpdir(), "saiwork-ui-test-"))
 })
 
 afterEach(() => {

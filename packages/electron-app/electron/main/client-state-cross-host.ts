@@ -43,7 +43,7 @@ export function resolveCrossHostElectionDirectory(
   const configured = platform === "win32"
     ? validHome(environment.USERPROFILE, platform) ?? validHome(environment.HOME, platform)
     : validHome(environment.HOME, platform)
-  return pathApi.join(configured ?? fallbackHome, ".codenomad", "client-state", "election")
+  return pathApi.join(configured ?? fallbackHome, ".saiwork", "client-state", "election")
 }
 
 export function resolveCrossHostStatePath(
@@ -55,7 +55,7 @@ export function resolveCrossHostStatePath(
   const configured = platform === "win32"
     ? validHome(environment.USERPROFILE, platform) ?? validHome(environment.HOME, platform)
     : validHome(environment.HOME, platform)
-  return pathApi.join(configured ?? fallbackHome, ".codenomad", "client-state", "client-state.json")
+  return pathApi.join(configured ?? fallbackHome, ".saiwork", "client-state", "client-state.json")
 }
 
 export function resolveLegacyTauriDataDirectory(
@@ -72,7 +72,7 @@ export function resolveLegacyTauriDataDirectory(
     : platform === "darwin"
       ? pathApi.join(home, "Library", "Application Support")
       : validHome(environment.XDG_DATA_HOME, platform) ?? pathApi.join(home, ".local", "share")
-  return pathApi.join(root, "ai.neuralnomads.codenomad.client")
+  return pathApi.join(root, "ai.saipen.saiwork.client")
 }
 
 export function createCrossHostOwner(): ProcessOwner | undefined {

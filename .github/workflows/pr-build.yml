@@ -99,7 +99,7 @@ jobs:
         run: npm run typecheck
 
       - name: Test Electron client state
-        run: npm run test:native --workspace @neuralnomads/codenomad-electron-app
+        run: npm run test:native --workspace @saiwork/electron-app
 
       - name: Test changed runnable UI behavior
         run: >-
@@ -142,7 +142,7 @@ jobs:
 
       - name: Prepare Tauri test resources
         run: >-
-          npm run dev:prep --workspace @codenomad/tauri-app &&
+          npm run dev:prep --workspace @saiwork/tauri-app &&
           node -e "require('fs').mkdirSync('packages/tauri-app/src-tauri/resources/server',{recursive:true})"
 
       - name: Test Tauri crate
@@ -176,7 +176,7 @@ jobs:
 
       - name: Prepare Tauri test resources
         run: >-
-          npm run dev:prep --workspace @codenomad/tauri-app &&
+          npm run dev:prep --workspace @saiwork/tauri-app &&
           node -e "require('fs').mkdirSync('packages/tauri-app/src-tauri/resources/server',{recursive:true})"
 
       - name: Test Tauri crate on Windows

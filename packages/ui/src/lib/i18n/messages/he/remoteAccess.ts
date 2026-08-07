@@ -1,7 +1,7 @@
 export const remoteAccessMessages = {
   "remoteAccess.eyebrow": "גישה מרוחקת",
-  "remoteAccess.title": "התחבר ל-CodeNomad מרחוק",
-  "remoteAccess.subtitle": "השתמש בכתובות למטה כדי לפתוח את CodeNomad ממכשיר אחר.",
+  "remoteAccess.title": "התחבר ל-SAIWORK מרחוק",
+  "remoteAccess.subtitle": "השתמש בכתובות למטה כדי לפתוח את SAIWORK ממכשיר אחר.",
   "remoteAccess.close": "סגור גישה מרוחקת",
   "remoteAccess.refresh": "רענן",
 

@@ -45,12 +45,12 @@ use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
 
 const ZOOM_STEP: f64 = 0.1;
-const RELEASES_URL: &str = "https://github.com/NeuralNomadsAI/CodeNomad/releases/latest";
-const LOCAL_WINDOW_CONTEXT_SCRIPT: &str = "window.__CODENOMAD_WINDOW_CONTEXT__ = 'local';";
-const REMOTE_WINDOW_CONTEXT_SCRIPT: &str = "window.__CODENOMAD_WINDOW_CONTEXT__ = 'remote';";
+const RELEASES_URL: &str = "https://github.com/vacterro/saiwork/releases/latest";
+const LOCAL_WINDOW_CONTEXT_SCRIPT: &str = "window.__SAIWORK_WINDOW_CONTEXT__ = 'local';";
+const REMOTE_WINDOW_CONTEXT_SCRIPT: &str = "window.__SAIWORK_WINDOW_CONTEXT__ = 'remote';";
 
 #[cfg(windows)]
-const WINDOWS_APP_USER_MODEL_ID: &str = "ai.neuralnomads.codenomad.client";
+const WINDOWS_APP_USER_MODEL_ID: &str = "ai.saipen.saiwork.client";
 
 pub struct AppState {
     pub manager: CliProcessManager,
@@ -178,9 +178,9 @@ fn wake_lock_start(
         .display(config.display)
         .idle(config.idle)
         .sleep(config.sleep)
-        .reason("CodeNomad active session")
-        .app_name("CodeNomad")
-        .app_reverse_domain("ai.neuralnomads.codenomad.client");
+        .reason("SaiWork active session")
+        .app_name("SaiWork")
+        .app_reverse_domain("ai.saipen.saiwork.client");
 
     let wake_lock = builder.create().map_err(|err| err.to_string())?;
     let mut state_lock = state.wake_lock.lock().map_err(|err| err.to_string())?;
@@ -398,7 +398,7 @@ fn needs_local_certificate_install() -> Result<bool, String> {
             format!("Failed to load the local HTTPS certificate for the remote proxy window: {err}")
         })?;
         return cert_manager::needs_trust_in_store(&local_cert.ca_cert_der).map_err(|err| {
-            format!("Failed to inspect the local CodeNomad certificate trust state: {err}")
+            format!("Failed to inspect the local SaiWork certificate trust state: {err}")
         });
     }
 
@@ -425,7 +425,7 @@ async fn open_remote_window(app: AppHandle, payload: RemoteWindowPayload) -> Res
             })?;
             if let Err(err) = cert_manager::trust_cert_in_store(&local_cert.ca_cert_der) {
                 return Err(format!(
-                    "Failed to trust the local CodeNomad CA certificate. Accept the certificate installation prompt and try again: {err}"
+                    "Failed to trust the local SaiWork CA certificate. Accept the certificate installation prompt and try again: {err}"
                 ));
             }
         }
@@ -503,7 +503,7 @@ fn force_reload_main_window(app_handle: &AppHandle) {
                     let existing_pairs: Vec<(String, String)> = url
                         .query_pairs()
                         .into_owned()
-                        .filter(|(key, _)| key != "__codenomad_force_reload")
+                        .filter(|(key, _)| key != "__saiwork_force_reload")
                         .collect();
 
                     {
@@ -512,7 +512,7 @@ fn force_reload_main_window(app_handle: &AppHandle) {
                         for (key, value) in existing_pairs {
                             pairs.append_pair(&key, &value);
                         }
-                        pairs.append_pair("__codenomad_force_reload", &reload_token);
+                        pairs.append_pair("__saiwork_force_reload", &reload_token);
                     }
 
                     return window
@@ -855,7 +855,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<()> {
     let mut submenus = Vec::new();
     let about_item = PredefinedMenuItem::about(
         app,
-        Some("About CodeNomad"),
+        Some("About SaiWork"),
         Some(build_about_metadata(
             &app.package_info().version.to_string(),
             cfg!(target_os = "linux"),
@@ -863,15 +863,15 @@ fn build_menu(app: &AppHandle) -> tauri::Result<()> {
     )?;
     let get_updates_item =
         MenuItem::with_id(app, "get_updates", "Get Updates...", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "Quit CodeNomad", true, Some("CmdOrCtrl+Q"))?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit SaiWork", true, Some("CmdOrCtrl+Q"))?;
 
     // App menu (macOS only)
     if is_mac {
-        let app_menu = SubmenuBuilder::new(app, "CodeNomad")
+        let app_menu = SubmenuBuilder::new(app, "SaiWork")
             .item(&about_item)
             .item(&get_updates_item)
             .separator()
-            .text("hide", "Hide CodeNomad")
+            .text("hide", "Hide SaiWork")
             .text("hide_others", "Hide Others")
             .text("show_all", "Show All")
             .separator()
@@ -1040,13 +1040,13 @@ async fn run_update_with_fallback(
 
 fn open_releases_page(app_handle: &AppHandle) {
     if let Err(err) = app_handle.opener().open_url(RELEASES_URL, None::<&str>) {
-        eprintln!("[tauri] failed to open the CodeNomad releases page: {err}");
+        eprintln!("[tauri] failed to open the SaiWork releases page: {err}");
     }
 }
 
 fn build_about_metadata(version: &str, include_update_link: bool) -> AboutMetadata<'static> {
     AboutMetadata {
-        name: Some("CodeNomad".to_string()),
+        name: Some("SaiWork".to_string()),
         version: Some(version.to_string()),
         authors: Some(vec!["Neural Nomads AI".to_string()]),
         comments: Some("A desktop workspace for OpenCode.".to_string()),
@@ -1078,7 +1078,7 @@ mod menu_tests {
     fn about_metadata_includes_version_and_supported_update_link() {
         let metadata = build_about_metadata("1.2.3", true);
 
-        assert_eq!(metadata.name.as_deref(), Some("CodeNomad"));
+        assert_eq!(metadata.name.as_deref(), Some("SaiWork"));
         assert_eq!(metadata.version.as_deref(), Some("1.2.3"));
         assert_eq!(metadata.website.as_deref(), Some(RELEASES_URL));
         assert_eq!(metadata.website_label.as_deref(), Some("Get updates"));

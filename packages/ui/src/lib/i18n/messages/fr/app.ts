@@ -15,8 +15,8 @@ export const appMessages = {
   "app.stopInstance.cancelLabel": "Laisser tourner",
   "app.stopInstance.toast.error": "Impossible d'arrêter l'espace de travail.",
 
-  "emptyState.logoAlt": "Logo CodeNomad",
-  "emptyState.brandTitle": "CodeNomad",
+  "emptyState.logoAlt": "Logo SAIWORK",
+  "emptyState.brandTitle": "SAIWORK",
   "emptyState.tagline": "Sélectionnez un dossier pour commencer à coder avec l'IA",
   "emptyState.actions.selectFolder": "Sélectionner un dossier",
   "emptyState.actions.selecting": "Sélection...",
@@ -25,8 +25,8 @@ export const appMessages = {
   "emptyState.multipleInstances": "Vous pouvez avoir plusieurs instances du même dossier",
 
   "releases.upgradeRequired.title": "Mise à jour requise",
-  "releases.upgradeRequired.message.withVersion": "Mettez à jour vers CodeNomad {version} pour utiliser la dernière UI.",
-  "releases.upgradeRequired.message.noVersion": "Mettez à jour CodeNomad pour utiliser la dernière UI.",
+  "releases.upgradeRequired.message.withVersion": "Mettez à jour vers SAIWORK {version} pour utiliser la dernière UI.",
+  "releases.upgradeRequired.message.noVersion": "Mettez à jour SAIWORK pour utiliser la dernière UI.",
   "releases.upgradeRequired.action.getUpdate": "Obtenir la mise à jour",
 
   "releases.uiUpdated.title": "UI mise à jour",

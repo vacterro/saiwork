@@ -31,16 +31,16 @@ function isJsonPath(filePath: string): boolean {
 }
 
 /**
- * Resolve CodeNomad's config location into a stable base directory + derived file paths.
+ * Resolve SaiWork's config location into a stable base directory + derived file paths.
  *
  * Supported inputs:
- * - Directory: "~/.config/codenomad"
- * - YAML file: "~/.config/codenomad/config.yaml" (or any *.yml/*.yaml)
- * - Legacy JSON file: "~/.config/codenomad/config.json"
+ * - Directory: "~/.config/saiwork"
+ * - YAML file: "~/.config/saiwork/config.yaml" (or any *.yml/*.yaml)
+ * - Legacy JSON file: "~/.config/saiwork/config.json"
  */
 export function resolveConfigLocation(raw: string): ConfigLocation {
   const trimmed = (raw ?? "").trim()
-  const fallback = "~/.config/codenomad/config.json"
+  const fallback = "~/.config/saiwork/config.json"
   const input = trimmed.length > 0 ? trimmed : fallback
 
   const resolvedInput = resolvePath(input)

@@ -5,10 +5,10 @@ import { createOpencodeYoloPersistence, hasPersistedYolo, mergePersistedYolo } f
 describe("OpenCode Yolo metadata", () => {
   it("preserves unrelated metadata while replacing Yolo state", () => {
     assert.deepEqual(
-      mergePersistedYolo({ thirdParty: { keep: true }, codenomad: { version: 1, worktreeSlug: "feature" } }, "root", true),
+      mergePersistedYolo({ thirdParty: { keep: true }, saiwork: { version: 1, worktreeSlug: "feature" } }, "root", true),
       {
         thirdParty: { keep: true },
-        codenomad: { version: 1, worktreeSlug: "feature", yolo: { enabled: true, rootSessionId: "root" } },
+        saiwork: { version: 1, worktreeSlug: "feature", yolo: { enabled: true, rootSessionId: "root" } },
       },
     )
   })
@@ -55,7 +55,7 @@ describe("OpenCode Yolo metadata", () => {
     ])
     assert.deepEqual(metadata, {
       thirdParty: true,
-      codenomad: { version: 1, yolo: { enabled: true, rootSessionId: "root" }, worktreeSlug: "feature" },
+      saiwork: { version: 1, yolo: { enabled: true, rootSessionId: "root" }, worktreeSlug: "feature" },
     })
   })
 })

@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron")
 
 function resolveWindowContext() {
-  const prefix = "--codenomad-window-context="
+  const prefix = "--saiwork-window-context="
   const arg = process.argv.find((value) => typeof value === "string" && value.startsWith(prefix))
   const context = arg ? arg.slice(prefix.length) : "local"
   return context === "remote" ? "remote" : "local"
@@ -55,5 +55,5 @@ contextBridge.exposeInMainWorld(
   "electronAPI",
   windowContext === "local" ? localElectronAPI : remoteElectronAPI,
 )
-contextBridge.exposeInMainWorld("__CODENOMAD_WINDOW_CONTEXT__", windowContext)
-contextBridge.exposeInMainWorld("__CODENOMAD_RUNTIME_HOST__", resolveRuntimeHost(windowContext))
+contextBridge.exposeInMainWorld("__SAIWORK_WINDOW_CONTEXT__", windowContext)
+contextBridge.exposeInMainWorld("__SAIWORK_RUNTIME_HOST__", resolveRuntimeHost(windowContext))

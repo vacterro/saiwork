@@ -14,7 +14,7 @@ function controller(win: ReturnType<typeof window>, manager: { isPrimary: boolea
   return new ClientStateNavigationController(win as never, { clientStateManager: manager, isTrustedOrigin: () => true, reportFlushError: report })
 }
 function managerHarness(t: test.TestContext) {
-  const directory = mkdtempSync(join(tmpdir(), "codenomad-navigation-"))
+  const directory = mkdtempSync(join(tmpdir(), "saiwork-navigation-"))
   const manager = new ClientStateManager(directory, undefined, { crossHostElectionDirectory: join(directory, "election") })
   t.after(async () => { await manager.drainAndReleasePrimary().catch(() => {}); rmSync(directory, { recursive: true, force: true }) })
   return manager

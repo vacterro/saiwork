@@ -15,8 +15,8 @@ export const appMessages = {
   "app.stopInstance.cancelLabel": "実行を続ける",
   "app.stopInstance.toast.error": "ワークスペースの停止に失敗しました。",
 
-  "emptyState.logoAlt": "CodeNomad ロゴ",
-  "emptyState.brandTitle": "CodeNomad",
+  "emptyState.logoAlt": "SAIWORK ロゴ",
+  "emptyState.brandTitle": "SAIWORK",
   "emptyState.tagline": "フォルダを選択して AI でコーディングを開始",
   "emptyState.actions.selectFolder": "フォルダを選択",
   "emptyState.actions.selecting": "選択中...",
@@ -25,8 +25,8 @@ export const appMessages = {
   "emptyState.multipleInstances": "同じフォルダのインスタンスを複数作成できます",
 
   "releases.upgradeRequired.title": "アップグレードが必要です",
-  "releases.upgradeRequired.message.withVersion": "最新の UI を使うには CodeNomad {version} に更新してください。",
-  "releases.upgradeRequired.message.noVersion": "最新の UI を使うには CodeNomad を更新してください。",
+  "releases.upgradeRequired.message.withVersion": "最新の UI を使うには SAIWORK {version} に更新してください。",
+  "releases.upgradeRequired.message.noVersion": "最新の UI を使うには SAIWORK を更新してください。",
   "releases.upgradeRequired.action.getUpdate": "更新を取得",
 
   "releases.uiUpdated.title": "UI を更新しました",

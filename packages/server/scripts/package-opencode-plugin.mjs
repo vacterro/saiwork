@@ -10,8 +10,8 @@ const serverRoot = path.resolve(__dirname, "..")
 const workspaceRoot = path.resolve(serverRoot, "../..")
 const pluginRoot = path.resolve(serverRoot, "../opencode-plugin")
 const targetDir = path.resolve(serverRoot, "dist/opencode-plugin")
-const targetTarballName = "codenomad-opencode-plugin.tgz"
-const pluginWorkspace = "@codenomad/codenomad-opencode-plugin"
+const targetTarballName = "saiwork-opencode-plugin.tgz"
+const pluginWorkspace = "@saiwork/opencode-plugin"
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm"
 
 function run(command, args, options) {

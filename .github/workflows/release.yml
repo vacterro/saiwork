@@ -14,5 +14,5 @@ jobs:
     uses: ./.github/workflows/reusable-release.yml
     with:
       dist_tag: latest
-      npm_package_name: "@neuralnomads/codenomad"
+      npm_package_name: "@saiwork/saiwork"
     secrets: inherit

@@ -19,18 +19,18 @@ describe("app session reconciliation", () => {
   it("keeps saved order while a restored workspace is still starting", () => {
     const saved = [
       { kind: "workspace", folderPath: "D:/DreamX-World" },
-      { kind: "workspace", folderPath: "D:/CodeNomad" },
+      { kind: "workspace", folderPath: "D:/SaiWork" },
       { kind: "workspace", folderPath: "D:/stale" },
     ]
     const live = [
-      { id: "codenomad", folderPath: "D:/CodeNomad", status: "ready" },
+      { id: "saiwork", folderPath: "D:/SaiWork", status: "ready" },
       { id: "dreamx", folderPath: "D:/DreamX-World", status: "starting" },
       { id: "stale", folderPath: "D:/stale", status: "stopped" },
     ] as const
 
     assert.deepEqual(
       reconcileWorkspaceTabs(saved, live).map(({ existingWorkspaceId }) => existingWorkspaceId),
-      ["dreamx", "codenomad", null],
+      ["dreamx", "saiwork", null],
     )
   })
   it("reconciles only workspaces missing from a refresh and not owned by restore cleanup", () => {

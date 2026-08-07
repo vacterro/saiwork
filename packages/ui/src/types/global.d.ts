@@ -75,13 +75,13 @@ declare global {
   }
 
   interface Window {
-      __CODENOMAD_API_BASE__?: string
-      __CODENOMAD_EVENTS_URL__?: string
-       __CODENOMAD_RUNTIME_HOST__?: "electron" | "tauri" | "web"
-       __CODENOMAD_WINDOW_CONTEXT__?: "local" | "remote"
-       __CODENOMAD_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__?: () => Promise<void>
+      __SAIWORK_API_BASE__?: string
+      __SAIWORK_EVENTS_URL__?: string
+       __SAIWORK_RUNTIME_HOST__?: "electron" | "tauri" | "web"
+       __SAIWORK_WINDOW_CONTEXT__?: "local" | "remote"
+       __SAIWORK_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__?: () => Promise<void>
        electronAPI?: ElectronAPI
       __TAURI__?: TauriBridge
-      codenomadLogger?: LoggerControls
+      saiworkLogger?: LoggerControls
    }
  }

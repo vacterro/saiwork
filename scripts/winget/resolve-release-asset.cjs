@@ -71,7 +71,7 @@ function buildMatcher({ version, assetNameTemplate, assetRegex }) {
     }
   }
 
-  const template = assetNameTemplate || "CodeNomad-Tauri-windows-x64-{version}.zip"
+  const template = assetNameTemplate || "SaiWork-Tauri-windows-x64-{version}.zip"
   if (!template.includes("{version}")) {
     throw new Error("asset-name-template must include the {version} placeholder")
   }
@@ -88,7 +88,7 @@ async function githubJson(url, token) {
   const response = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
-      "User-Agent": "CodeNomad-winget-release-automation",
+      "User-Agent": "SaiWork-winget-release-automation",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   })

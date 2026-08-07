@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>CodeNomad needs microphone access for speech-to-text prompt input.</string>
+  <string>SaiWork needs microphone access for speech-to-text prompt input.</string>
   <key>NSLocalNetworkUsageDescription</key>
-  <string>CodeNomad needs local network access to connect to locally hosted AI and speech services.</string>
+  <string>SaiWork needs local network access to connect to locally hosted AI and speech services.</string>
 </dict>
 </plist>

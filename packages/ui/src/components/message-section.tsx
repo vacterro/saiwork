@@ -32,7 +32,7 @@ const QUOTE_SELECTION_MAX_LENGTH = 2000
 const STREAMING_TEXT_HOLD_TOP_THRESHOLD_PX = 8
 const SEARCH_DEBOUNCE_MS = 250
 const SEARCH_MIN_CHARS = 3
-const OPEN_SESSION_SEARCH_EVENT = "codenomad:open-session-search"
+const OPEN_SESSION_SEARCH_EVENT = "saiwork:open-session-search"
 
 export interface MessageSectionProps {
   instanceId: string

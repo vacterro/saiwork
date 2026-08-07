@@ -15,8 +15,8 @@ export const appMessages = {
   "app.stopInstance.cancelLabel": "המשך להריץ",
   "app.stopInstance.toast.error": "עצירת סביבת העבודה נכשלה.",
 
-  "emptyState.logoAlt": "לוגו CodeNomad",
-  "emptyState.brandTitle": "CodeNomad",
+  "emptyState.logoAlt": "לוגו SAIWORK",
+  "emptyState.brandTitle": "SAIWORK",
   "emptyState.tagline": "בחר תיקייה כדי להתחיל לתכנת עם AI",
   "emptyState.actions.selectFolder": "בחר תיקייה",
   "emptyState.actions.selecting": "בוחר...",
@@ -25,8 +25,8 @@ export const appMessages = {
   "emptyState.multipleInstances": "ניתן לפתוח מספר מופעים של אותה תיקייה",
 
   "releases.upgradeRequired.title": "נדרש שדרוג",
-  "releases.upgradeRequired.message.withVersion": "שדרג ל-CodeNomad {version} כדי להשתמש בממשק המעודכן.",
-  "releases.upgradeRequired.message.noVersion": "שדרג את CodeNomad כדי להשתמש בממשק המעודכן.",
+  "releases.upgradeRequired.message.withVersion": "שדרג ל-SAIWORK {version} כדי להשתמש בממשק המעודכן.",
+  "releases.upgradeRequired.message.noVersion": "שדרג את SAIWORK כדי להשתמש בממשק המעודכן.",
   "releases.upgradeRequired.action.getUpdate": "קבל עדכון",
 
   "releases.uiUpdated.title": "הממשק עודכן",

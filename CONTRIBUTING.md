@@ -1,4 +1,4 @@
-# Contributing to CodeNomad
+# Contributing to SaiWork
 
 Thank you for your interest in contributing! This guide will help you get started.
 
@@ -10,15 +10,15 @@ Thank you for your interest in contributing! This guide will help you get starte
 ## Quick Start
 
 ```bash
-git clone https://github.com/NeuralNomadsAI/CodeNomad.git
-cd CodeNomad
+git clone https://github.com/vacterro/saiwork.git
+cd SaiWork
 npm install
 npm run dev
 ```
 
 ## Finding Issues to Work On
 
-Browse [open issues](https://github.com/NeuralNomadsAI/CodeNomad/issues) and look for these labels:
+Browse [open issues](https://github.com/vacterro/saiwork/issues) and look for these labels:
 
 | Label | Meaning |
 |---|---|
@@ -35,11 +35,11 @@ Browse [open issues](https://github.com/NeuralNomadsAI/CodeNomad/issues) and loo
 
 ```bash
 # Fork the repo on GitHub, then clone your fork
-git clone https://github.com/YOUR_USERNAME/CodeNomad.git
-cd CodeNomad
+git clone https://github.com/YOUR_USERNAME/SaiWork.git
+cd SaiWork
 
 # Add the upstream remote
-git remote add upstream https://github.com/NeuralNomadsAI/CodeNomad.git
+git remote add upstream https://github.com/vacterro/saiwork.git
 
 # Create a branch from upstream/dev
 git fetch upstream
@@ -68,7 +68,7 @@ npm install
 npm run dev
 
 # Run type checking
-npm run typecheck --workspace @codenomad/ui
+npm run typecheck --workspace @saiwork/ui
 ```
 
 ### 4. Commit
@@ -123,8 +123,8 @@ Then open a pull request on GitHub targeting the `dev` branch.
 | `packages/ui/src/components/session/session-view.tsx` | Main session view |
 | `packages/ui/src/lib/i18n/messages/` | Translation files (en, es, fr, ja, ru, he, zh-Hans) |
 
-> For a comprehensive map of all six functional areas (server, UI, desktop, speech/audio, build, Cloudflare), SDK integration patterns, and feature traces, load the `codenomad-architecture-guide` skill:  
-> `.opencode/skills/codenomad-architecture-guide/SKILL.md`
+> For a comprehensive map of all six functional areas (server, UI, desktop, speech/audio, build, Cloudflare), SDK integration patterns, and feature traces, load the `saiwork-architecture-guide` skill:  
+> `.opencode/skills/saiwork-architecture-guide/SKILL.md`
 
 ### Styling
 
@@ -149,6 +149,6 @@ Then open a pull request on GitHub targeting the `dev` branch.
 
 ## Need Help?
 
-- Check existing [issues](https://github.com/NeuralNomadsAI/CodeNomad/issues) and [PRs](https://github.com/NeuralNomadsAI/CodeNomad/pulls)
+- Check existing [issues](https://github.com/vacterro/saiwork/issues) and [PRs](https://github.com/vacterro/saiwork/pulls)
 - Ask in the issue you're working on
 - Review the [server documentation](packages/server/README.md) for CLI flags and configuration

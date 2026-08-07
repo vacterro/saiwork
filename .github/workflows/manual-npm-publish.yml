@@ -13,9 +13,9 @@ on:
         default: dev
         type: string
       package_name:
-        description: "Package name to publish (e.g. @neuralnomads/codenomad-dev)"
+        description: "Package name to publish (e.g. @saiwork/saiwork-dev)"
         required: false
-        default: "@neuralnomads/codenomad"
+        default: "@saiwork/saiwork"
         type: string
   workflow_call:
     inputs:
@@ -33,7 +33,7 @@ on:
       package_name:
         required: false
         type: string
-        default: "@neuralnomads/codenomad"
+        default: "@saiwork/saiwork"
     secrets:
       NPM_TOKEN:
         required: false

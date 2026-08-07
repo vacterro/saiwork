@@ -3,7 +3,7 @@ import type { WorktreeDescriptor, WorktreeMap } from "../../../server/src/api-ty
 import { serverApi } from "../lib/api-client"
 import { getSessionRoot, sessions } from "./session-state"
 import { getLogger } from "../lib/logger"
-import { getCodeNomadSessionMetadata, setSessionWorktreeSlug } from "./session-metadata"
+import { getSaiWorkSessionMetadata, setSessionWorktreeSlug } from "./session-metadata"
 import type { WorktreeReadyEvent } from "../lib/sse-manager"
 
 const log = getLogger("api")
@@ -311,7 +311,7 @@ function getParentSessionId(instanceId: string, sessionId: string): string {
 }
 
 function getWorktreeSlugForParentSession(instanceId: string, parentSessionId: string): string {
-  const metadataSlug = getCodeNomadSessionMetadata(instanceId, parentSessionId).worktreeSlug
+  const metadataSlug = getSaiWorkSessionMetadata(instanceId, parentSessionId).worktreeSlug
   if (metadataSlug) {
     return normalizeWorktreeSlug(instanceId, metadataSlug)
   }
@@ -375,7 +375,7 @@ async function migrateLegacyWorktreeMapToSessionMetadata(instanceId: string): Pr
     for (const [parentSessionId, legacySlug] of entries) {
       const parentSession = sessions().get(instanceId)?.get(parentSessionId)
       if (!parentSession) continue
-      if (getCodeNomadSessionMetadata(instanceId, parentSessionId).worktreeSlug) {
+      if (getSaiWorkSessionMetadata(instanceId, parentSessionId).worktreeSlug) {
         await removeLegacyParentSessionMapping(instanceId, parentSessionId)
         continue
       }

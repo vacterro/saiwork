@@ -1,5 +1,5 @@
-const CLIENT_ID_STORAGE_KEY = "codenomad.client-id"
-const CONNECTION_ID_STORAGE_KEY = "codenomad.connection-id"
+const CLIENT_ID_STORAGE_KEY = "saiwork.client-id"
+const CONNECTION_ID_STORAGE_KEY = "saiwork.connection-id"
 
 let cachedClientId: string | null = null
 let cachedConnectionId: string | null = null

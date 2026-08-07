@@ -33,7 +33,7 @@ export type GuardedSignalResult =
 
 export type TokenSignalResult = { ok: boolean; signalSent: boolean; targets: ProcessIdentity[]; error?: string }
 
-export const LAUNCH_CLEANUP_TOKEN_ENV = "CODENOMAD_LAUNCH_CLEANUP_TOKEN"
+export const LAUNCH_CLEANUP_TOKEN_ENV = "SAIWORK_LAUNCH_CLEANUP_TOKEN"
 
 type SpawnCommand = typeof spawnSync
 const SHELL_DOLLAR = "$"
@@ -76,7 +76,7 @@ shift 5; matched=0; cutoff=; signal_sent=0
 if read_stat "$leader_pid" && test "$boot" = "$leader_boot" && test "$stat_start" = "$leader_start" && test "$stat_group" = "$expected_group"; then
   matched=1
   for stat in /proc/[0-9]*/stat; do
-    directory=${SHELL_DOLLAR}{stat%/stat}; candidate=${SHELL_DOLLAR}{directory##*/}; read_stat "$candidate" && test "$stat_group" = "$expected_group" && emit_linux CODENOMAD_TARGET
+    directory=${SHELL_DOLLAR}{stat%/stat}; candidate=${SHELL_DOLLAR}{directory##*/}; read_stat "$candidate" && test "$stat_group" = "$expected_group" && emit_linux SAIWORK_TARGET
   done
   if kill "-$requested_signal" -- "-$expected_group" 2>/dev/null; then
     signal_sent=1
@@ -88,12 +88,12 @@ else
   while test "$#" -ge 3; do
     expected_pid=$1; expected_start=$2; expected_boot=$3; shift 3
     if read_stat "$expected_pid" && test "$boot" = "$expected_boot" && test "$stat_start" = "$expected_start"; then
-      emit_linux CODENOMAD_TARGET
+      emit_linux SAIWORK_TARGET
       if kill "-$requested_signal" "$expected_pid" 2>/dev/null; then signal_sent=1; fi
     fi
   done
 fi
-printf 'CODENOMAD_RESULT|%s|%s|%s\n' "$matched" "$cutoff" "$signal_sent"
+printf 'SAIWORK_RESULT|%s|%s|%s\n' "$matched" "$cutoff" "$signal_sent"
 `
 
 const POSIX_IDENTITY_FUNCTIONS = String.raw`
@@ -109,7 +109,7 @@ read_identity() {
   current_identity=$(printf '%s\t%s' "$current_start" "$current_command")
 }
 emit_target() {
-  printf 'CODENOMAD_TARGET_B64|%s|%s|%s|' "$current_pid" "$current_ppid" "$current_group"
+  printf 'SAIWORK_TARGET_B64|%s|%s|%s|' "$current_pid" "$current_ppid" "$current_group"
   encode "$current_start"; printf '|'; encode "$current_command"; printf '\n'
 }
 group_pids() { ps -axo pid=,pgid= 2>/dev/null | awk -v group="$1" '$2 == group { print $1 }'; }
@@ -129,13 +129,13 @@ while test "$pass" -lt "$passes"; do
   for environ in /proc/[0-9]*/environ; do
     directory=${SHELL_DOLLAR}{environ%/environ}; pid=${SHELL_DOLLAR}{directory##*/}
     if matches_token "$pid" && read_stat "$pid"; then
-      test -n "$requested_signal" && prefix=CODENOMAD_TARGET || prefix=CODENOMAD_PROCESS
+      test -n "$requested_signal" && prefix=SAIWORK_TARGET || prefix=SAIWORK_PROCESS
       emit_linux "$prefix"
       if test -n "$requested_signal" && matches_token "$pid" && read_stat "$pid" && kill "-$requested_signal" "$pid" 2>/dev/null; then signal_sent=1; fi
     fi
   done
 done
-if test -n "$requested_signal"; then printf 'CODENOMAD_RESULT|%s\n' "$signal_sent"; fi
+if test -n "$requested_signal"; then printf 'SAIWORK_RESULT|%s\n' "$signal_sent"; fi
 exit 0
 `
 
@@ -174,7 +174,7 @@ else
     fi
   done
 fi
-printf 'CODENOMAD_RESULT|%s||%s\n' "$matched" "$signal_sent"
+printf 'SAIWORK_RESULT|%s||%s\n' "$matched" "$signal_sent"
 `
 
 const POSIX_OWNED_GROUP_SIGNAL_SCRIPT = String.raw`${POSIX_IDENTITY_FUNCTIONS}
@@ -189,7 +189,7 @@ if read_identity "$root_pid" && test "$current_group" = "$root_pid"; then
     read_identity "$current_pid" && test "$current_group" = "$root_pid" && emit_target
   done
 fi
-printf 'CODENOMAD_RESULT|%s||%s\n' "$matched" "$signal_sent"
+printf 'SAIWORK_RESULT|%s||%s\n' "$matched" "$signal_sent"
 `
 
 const commandError = (result: SpawnSyncReturns<string>): string =>
@@ -226,7 +226,7 @@ function decodeBase64Field(value: string): string | null {
   }
 }
 
-function parseBase64Snapshot(output: string, prefix = "CODENOMAD_B64|"): Map<number, ProcessIdentity> | null {
+function parseBase64Snapshot(output: string, prefix = "SAIWORK_B64|"): Map<number, ProcessIdentity> | null {
   const processes = new Map<number, ProcessIdentity>()
   for (const line of output.split(/\r?\n/)) {
     if (!line) continue
@@ -303,15 +303,15 @@ function parseGuardedResult(result: SpawnSyncReturns<string>): GuardedSignalResu
   let signalSent = false
   let cutoff: string | undefined
   for (const line of String(result.stdout ?? "").split(/\r?\n/)) {
-    if (line.startsWith("CODENOMAD_TARGET|") || line.startsWith("CODENOMAD_TARGET_B64|")) {
-      const parsed = line.startsWith("CODENOMAD_TARGET_B64|")
-        ? parseBase64Snapshot(line, "CODENOMAD_TARGET_B64|")
-        : parseDelimitedSnapshot(line.slice("CODENOMAD_TARGET|".length))
+    if (line.startsWith("SAIWORK_TARGET|") || line.startsWith("SAIWORK_TARGET_B64|")) {
+      const parsed = line.startsWith("SAIWORK_TARGET_B64|")
+        ? parseBase64Snapshot(line, "SAIWORK_TARGET_B64|")
+        : parseDelimitedSnapshot(line.slice("SAIWORK_TARGET|".length))
       if (!parsed) return failure("guarded signal command returned a malformed target record")
       for (const identity of parsed.values()) signaled.set(identity.pid, identity)
       continue
     }
-    if (line.startsWith("CODENOMAD_RESULT|")) {
+    if (line.startsWith("SAIWORK_RESULT|")) {
       const fields = line.split("|")
       if (fields.length !== 4 || !/^[01]$/.test(fields[1] ?? "") || !/^[01]$/.test(fields[3] ?? "")) {
         return failure("guarded signal command returned a malformed result record")
@@ -375,27 +375,27 @@ function buildWindowsGuardedScript(request: GuardedSignalRequest): string {
     `$leaderPid = ${leaderPid}`,
     `$leaderStart = ${leaderStart}`,
     `$expected = @(${expected})`,
-    "function Get-CodeNomadStart($process) { return ([datetime]$process.CreationDate).ToUniversalTime().Ticks.ToString() }",
+    "function Get-SaiWorkStart($process) { return ([datetime]$process.CreationDate).ToUniversalTime().Ticks.ToString() }",
     "$all = @(Get-CimInstance Win32_Process -ErrorAction Stop)",
     "$byPid = @{}; $all | ForEach-Object { $byPid[[int]$_.ProcessId] = $_ }",
     "$leader = $byPid[$leaderPid]",
-    "$matched = $null -ne $leader -and (Get-CodeNomadStart $leader) -eq $leaderStart",
+    "$matched = $null -ne $leader -and (Get-SaiWorkStart $leader) -eq $leaderStart",
     "$selected = @()",
     "if ($matched) {",
     "  $ids = @($leaderPid); $changed = $true",
     "  while ($changed) { $changed = $false; foreach ($process in $all) { if ($ids -contains [int]$process.ParentProcessId -and $ids -notcontains [int]$process.ProcessId) { $ids += [int]$process.ProcessId; $changed = $true } } }",
     "  $selected = @($all | Where-Object { $ids -contains [int]$_.ProcessId } | Sort-Object ProcessId -Descending)",
     "} else {",
-    "  foreach ($item in $expected) { $process = $byPid[[int]$item.Pid]; if ($null -ne $process -and (Get-CodeNomadStart $process) -eq [string]$item.Start) { $selected += $process } }",
+    "  foreach ($item in $expected) { $process = $byPid[[int]$item.Pid]; if ($null -ne $process -and (Get-SaiWorkStart $process) -eq [string]$item.Start) { $selected += $process } }",
     "}",
     "foreach ($process in $selected) {",
-    "  $start = Get-CodeNomadStart $process",
-    "  '{0}|{1}|0|{2}||{2}' -f [int]$process.ProcessId, [int]$process.ParentProcessId, $start | ForEach-Object { 'CODENOMAD_TARGET|' + $_ }",
+    "  $start = Get-SaiWorkStart $process",
+    "  '{0}|{1}|0|{2}||{2}' -f [int]$process.ProcessId, [int]$process.ParentProcessId, $start | ForEach-Object { 'SAIWORK_TARGET|' + $_ }",
     "}",
     "foreach ($process in $selected) {",
     "  Invoke-CimMethod -InputObject $process -MethodName Terminate -Arguments @{ Reason = 1 } -ErrorAction Stop | Out-Null",
     "}",
-    "'CODENOMAD_RESULT|' + ($(if ($matched) { '1' } else { '0' })) + '||' + ($(if ($selected.Count -gt 0) { '1' } else { '0' }))",
+    "'SAIWORK_RESULT|' + ($(if ($matched) { '1' } else { '0' })) + '||' + ($(if ($selected.Count -gt 0) { '1' } else { '0' }))",
   ].join("; ")
 }
 
@@ -437,7 +437,7 @@ export function probePosixProcesses(spawnCommand: SpawnCommand, timeoutMs: numbe
     const launchGroupProbe = pids.length === 1 && filter?.groupId === Number(pids[0])
     return querySnapshot(
       () => runLinuxScript(spawnCommand, launchGroupProbe ? LINUX_LAUNCH_GROUP_SNAPSHOT_SCRIPT : LINUX_SNAPSHOT_SCRIPT,
-        launchGroupProbe ? pids : [], timeoutMs, "codenomad-posix-identity"),
+        launchGroupProbe ? pids : [], timeoutMs, "saiwork-posix-identity"),
       (output) => parseDelimitedSnapshot(output, true),
       { allowEmpty: Boolean(filter) },
     )
@@ -465,7 +465,7 @@ export function probeWindowsProcesses(spawnCommand: SpawnCommand, timeoutMs: num
 
 export function probeWslProcesses(spawnCommand: SpawnCommand, distro: string, timeoutMs: number): ProcessSnapshot {
   return querySnapshot(
-    () => runLinuxScript(spawnCommand, LINUX_SNAPSHOT_SCRIPT, [], timeoutMs, "codenomad-wsl-identity", distro),
+    () => runLinuxScript(spawnCommand, LINUX_SNAPSHOT_SCRIPT, [], timeoutMs, "saiwork-wsl-identity", distro),
     (output) => parseDelimitedSnapshot(output, true),
   )
 }
@@ -475,7 +475,7 @@ export function signalPosixProcesses(spawnCommand: SpawnCommand, request: Guarde
   const linux = platform === "linux"
   return runGuardedCommand(() => spawnCommand(
     "sh",
-    ["-c", linux ? LINUX_GUARDED_SIGNAL_SCRIPT : POSIX_GUARDED_SIGNAL_SCRIPT, "codenomad-guarded-signal", ...shellGuardArgs(request, linux)],
+    ["-c", linux ? LINUX_GUARDED_SIGNAL_SCRIPT : POSIX_GUARDED_SIGNAL_SCRIPT, "saiwork-guarded-signal", ...shellGuardArgs(request, linux)],
     { encoding: "utf8", timeout: timeoutMs },
   ))
 }
@@ -484,7 +484,7 @@ export function signalOwnedPosixProcessGroup(spawnCommand: SpawnCommand, rootPid
   signal: NodeJS.Signals, timeoutMs: number): GuardedSignalResult {
   return runGuardedCommand(() => spawnCommand(
     "sh",
-    ["-c", POSIX_OWNED_GROUP_SIGNAL_SCRIPT, "codenomad-owned-group-cleanup", String(rootPid), signalName(signal)],
+    ["-c", POSIX_OWNED_GROUP_SIGNAL_SCRIPT, "saiwork-owned-group-cleanup", String(rootPid), signalName(signal)],
     { encoding: "utf8", timeout: timeoutMs },
   ))
 }
@@ -496,7 +496,7 @@ export function signalWslProcesses(spawnCommand: SpawnCommand, distro: string,
       LINUX_GUARDED_SIGNAL_SCRIPT,
       shellGuardArgs(request, true),
       timeoutMs,
-      "codenomad-wsl-guarded-signal",
+      "saiwork-wsl-guarded-signal",
       distro,
   ))
 }
@@ -518,10 +518,10 @@ export function probeLaunchCleanupToken(spawnCommand: SpawnCommand, token: strin
       LINUX_TOKEN_SCRIPT,
       [LAUNCH_CLEANUP_TOKEN_ENV, token, ""],
       timeoutMs,
-      "codenomad-token-cleanup",
+      "saiwork-token-cleanup",
       distro,
     ),
-    (output) => parsePrefixedSnapshot(output, "CODENOMAD_PROCESS|"),
+    (output) => parsePrefixedSnapshot(output, "SAIWORK_PROCESS|"),
     {
       allowEmpty: true,
       malformedError: "launch cleanup probe returned malformed or unexpected output",
@@ -539,18 +539,18 @@ export function signalLaunchCleanupToken(spawnCommand: SpawnCommand, token: stri
       LINUX_TOKEN_SCRIPT,
       [LAUNCH_CLEANUP_TOKEN_ENV, token, signalName(signal)],
       timeoutMs,
-      "codenomad-token-cleanup",
+      "saiwork-token-cleanup",
       distro,
     )
     if (result.status !== 0) return failed(redactToken(commandError(result), token))
     const lines = String(result.stdout ?? "").split(/\r?\n/).filter(Boolean)
-    const resultLines = lines.filter((line) => line.startsWith("CODENOMAD_RESULT|"))
-    if (resultLines.length !== 1 || !/^CODENOMAD_RESULT\|[01]$/.test(resultLines[0] ?? "")) {
+    const resultLines = lines.filter((line) => line.startsWith("SAIWORK_RESULT|"))
+    if (resultLines.length !== 1 || !/^SAIWORK_RESULT\|[01]$/.test(resultLines[0] ?? "")) {
       return failed("launch cleanup signal returned no valid structured result")
     }
     const targets = parsePrefixedSnapshot(
-      lines.filter((line) => !line.startsWith("CODENOMAD_RESULT|")).join("\n"),
-      "CODENOMAD_TARGET|",
+      lines.filter((line) => !line.startsWith("SAIWORK_RESULT|")).join("\n"),
+      "SAIWORK_TARGET|",
     )
     return targets
       ? { ok: true, signalSent: resultLines[0]!.endsWith("1"), targets: Array.from(targets.values()) }

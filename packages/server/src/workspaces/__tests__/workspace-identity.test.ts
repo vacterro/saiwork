@@ -28,7 +28,7 @@ afterEach(async () => {
 })
 
 async function createLinkedWorkspace() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "codenomad-workspace-identity-"))
+  const root = await mkdtemp(path.join(os.tmpdir(), "saiwork-workspace-identity-"))
   temporaryDirectories.push(root)
   const target = path.join(root, "target")
   const link = path.join(root, "link")
@@ -77,9 +77,9 @@ async function createSharedLaunch() {
 
 describe("workspace identity", () => {
   it("normalizes Windows paths without affecting POSIX case", () => {
-    assert.equal(normalizeWorkspaceIdentityPath("C:\\Projects\\CodeNomad\\", "win32"), "c:\\projects\\codenomad\\")
+    assert.equal(normalizeWorkspaceIdentityPath("C:\\Projects\\SaiWork\\", "win32"), "c:\\projects\\saiwork\\")
     assert.equal(normalizeWorkspaceIdentityPath(String.raw`\\Server\Share\Repo`, "win32"), String.raw`\\server\share\repo`)
-    assert.equal(normalizeWorkspaceIdentityPath("/Projects/CodeNomad/", "linux"), "/Projects/CodeNomad/")
+    assert.equal(normalizeWorkspaceIdentityPath("/Projects/SaiWork/", "linux"), "/Projects/SaiWork/")
   })
 
   it("canonicalizes aliases and falls back to an absolute identity for missing paths", async () => {

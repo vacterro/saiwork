@@ -44,31 +44,68 @@ export function resolveFamilyRoot(sessionId: string, getSession: SessionLookup):
   return currentId || sessionId
 }
 
+/**
+ * SAIWORK ships with yolo mode on, decided once at the wiring layer.
+ *
+ * Upstream defaults this off and makes you opt in per session. This fork runs
+ * against trusted local repositories where a prompt per tool call is pure
+ * friction, so production passes `defaultEnabled: true`. The class itself keeps
+ * the upstream default so the existing test suite still describes real
+ * behaviour instead of being rewritten around a global flag.
+ *
+ * `SAIWORK_YOLO_DEFAULT=false` restores opt-in for the whole server.
+ *
+ * What it actually does: every permission request the agent raises is approved
+ * without asking, including file writes, deletions and shell commands.
+ */
+export function resolveYoloDefault(): boolean {
+  const raw = process.env.SAIWORK_YOLO_DEFAULT?.trim().toLowerCase()
+  if (raw === "false" || raw === "0" || raw === "off") return false
+  return true
+}
+
 export class AutoAcceptStore {
-  /** instanceId -> set of enabled family-root session ids */
+  /** instanceId -> set of explicitly enabled family-root session ids */
   private readonly enabled = new Map<string, Set<string>>()
+  /**
+   * instanceId -> set of explicitly disabled family-root session ids.
+   * Needed only because the default is on: without it there would be no way to
+   * distinguish "never touched" from "the user turned this one off".
+   */
+  private readonly disabled = new Map<string, Set<string>>()
   /** instanceId -> (sessionId -> info) */
   private readonly sessions = new Map<string, Map<string, AutoAcceptSessionInfo>>()
 
+  private readonly defaultEnabled: boolean
+
+  constructor(options: { defaultEnabled?: boolean } = {}) {
+    this.defaultEnabled = options.defaultEnabled ?? false
+  }
+
   isEnabled(instanceId: string, sessionId: string): boolean {
     const root = this.familyRoot(instanceId, sessionId)
-    return this.enabled.get(instanceId)?.has(root) ?? false
+    if (this.disabled.get(instanceId)?.has(root)) return false
+    if (this.enabled.get(instanceId)?.has(root)) return true
+    return this.defaultEnabled
   }
 
   setEnabled(instanceId: string, sessionId: string, enabled: boolean): void {
     const root = this.familyRoot(instanceId, sessionId)
-    let roots = this.enabled.get(instanceId)
+    const add = enabled ? this.enabled : this.disabled
+    const remove = enabled ? this.disabled : this.enabled
+
+    let roots = add.get(instanceId)
     if (!roots) {
-      if (!enabled) return
       roots = new Set()
-      this.enabled.set(instanceId, roots)
+      add.set(instanceId, roots)
     }
-    if (enabled) {
-      roots.add(root)
-    } else {
-      roots.delete(root)
-      if (roots.size === 0) {
-        this.enabled.delete(instanceId)
+    roots.add(root)
+
+    const opposite = remove.get(instanceId)
+    if (opposite) {
+      opposite.delete(root)
+      if (opposite.size === 0) {
+        remove.delete(instanceId)
       }
     }
   }
@@ -100,6 +137,7 @@ export class AutoAcceptStore {
   clearInstance(instanceId: string): void {
     this.sessions.delete(instanceId)
     this.enabled.delete(instanceId)
+    this.disabled.delete(instanceId)
   }
 
   /** Resolves the family-root session id for the given session. */
@@ -119,14 +157,30 @@ export class AutoAcceptStore {
    * ancestry discovery.
    */
   private migrateEnabledRoots(instanceId: string): void {
-    const roots = this.enabled.get(instanceId)
-    if (!roots || roots.size === 0) return
-    for (const oldRoot of Array.from(roots)) {
-      const newRoot = this.familyRoot(instanceId, oldRoot)
-      if (newRoot !== oldRoot) {
-        roots.delete(oldRoot)
-        roots.add(newRoot)
+    for (const map of [this.enabled, this.disabled]) {
+      const roots = map.get(instanceId)
+      if (!roots || roots.size === 0) continue
+      for (const oldRoot of Array.from(roots)) {
+        const newRoot = this.familyRoot(instanceId, oldRoot)
+        if (newRoot !== oldRoot) {
+          roots.delete(oldRoot)
+          roots.add(newRoot)
+        }
       }
+    }
+
+    // Migration can land two sessions' markers on the same root -- e.g. a
+    // disabled parent and an enabled child that just discovered its ancestry.
+    // The sets have to stay mutually exclusive, and the enabled marker wins,
+    // because it is the one that just moved onto this root.
+    const enabledRoots = this.enabled.get(instanceId)
+    const disabledRoots = this.disabled.get(instanceId)
+    if (!enabledRoots || !disabledRoots) return
+    for (const root of enabledRoots) {
+      disabledRoots.delete(root)
+    }
+    if (disabledRoots.size === 0) {
+      this.disabled.delete(instanceId)
     }
   }
 }

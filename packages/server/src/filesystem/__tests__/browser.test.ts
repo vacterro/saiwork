@@ -77,7 +77,7 @@ describe("FileSystemBrowser", () => {
 })
 
 function createTempRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codenomad-browser-"))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-browser-"))
   tempRoots.push(root)
   return fs.realpathSync(root)
 }

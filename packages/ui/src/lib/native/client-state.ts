@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core"
 import { isElectronHost, isLocalWindow, isTauriHost } from "../runtime-env"
-const LEGACY_WEB_KEYS = ["codenomad-client-snapshot-v1", "codenomad-client-restore-enabled-v1"]
+const LEGACY_WEB_KEYS = ["saiwork-client-snapshot-v1", "saiwork-client-restore-enabled-v1"]
 export type NativeClientStateLoadResult = {
   isPrimary: boolean
   restoreEnabled: boolean

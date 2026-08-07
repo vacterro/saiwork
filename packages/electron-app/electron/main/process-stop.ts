@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { getProcessStartIdentityAsync, type AsyncProcessStartIdentityLookup } from "./client-state-process-identity"
 
-export const CLI_SHUTDOWN_COMMAND = "codenomad:shutdown\n"
+export const CLI_SHUTDOWN_COMMAND = "saiwork:shutdown\n"
 export const CLI_STOP_DEADLINE_MS = 30_000
 
 interface ExitTrackedChild {
@@ -208,7 +208,7 @@ export async function forceCapturedProcessTree(
       const script = `$source = @'
 using System;
 using System.Runtime.InteropServices;
-public static class CodeNomadProcessHandle {
+public static class SaiWorkProcessHandle {
   [StructLayout(LayoutKind.Sequential)] public struct FileTime { public uint Low; public uint High; }
   [DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr OpenProcess(uint access, bool inherit, uint processId);
   [DllImport("kernel32.dll", SetLastError=true)] public static extern bool GetProcessTimes(IntPtr process, out FileTime creation, out FileTime exit, out FileTime kernel, out FileTime user);
@@ -217,23 +217,23 @@ public static class CodeNomadProcessHandle {
 }
 '@
 Add-Type -TypeDefinition $source
-$handle = [CodeNomadProcessHandle]::OpenProcess(0x1001, $false, ${member.pid})
+$handle = [SaiWorkProcessHandle]::OpenProcess(0x1001, $false, ${member.pid})
 if ($handle -eq [IntPtr]::Zero) { exit 3 }
 try {
-  $creation = [CodeNomadProcessHandle+FileTime]::new()
-  $exit = [CodeNomadProcessHandle+FileTime]::new()
-  $kernel = [CodeNomadProcessHandle+FileTime]::new()
-  $user = [CodeNomadProcessHandle+FileTime]::new()
-  if (-not [CodeNomadProcessHandle]::GetProcessTimes($handle, [ref]$creation, [ref]$exit, [ref]$kernel, [ref]$user)) { exit 4 }
+  $creation = [SaiWorkProcessHandle+FileTime]::new()
+  $exit = [SaiWorkProcessHandle+FileTime]::new()
+  $kernel = [SaiWorkProcessHandle+FileTime]::new()
+  $user = [SaiWorkProcessHandle+FileTime]::new()
+  if (-not [SaiWorkProcessHandle]::GetProcessTimes($handle, [ref]$creation, [ref]$exit, [ref]$kernel, [ref]$user)) { exit 4 }
   $fileTime = ([long]$creation.High -shl 32) -bor $creation.Low
   $nativeTicks = [DateTime]::FromFileTimeUtc($fileTime).Ticks
   $expectedTicks = [long]::Parse('${expectedTicks}')
   $nativeTicks -= $nativeTicks % 10
   if ($nativeTicks -ne $expectedTicks) { 'mismatch'; exit 0 }
-  if (-not [CodeNomadProcessHandle]::TerminateProcess($handle, 1)) { exit 5 }
+  if (-not [SaiWorkProcessHandle]::TerminateProcess($handle, 1)) { exit 5 }
   'terminated'
 } finally {
-  [void][CodeNomadProcessHandle]::CloseHandle($handle)
+  [void][SaiWorkProcessHandle]::CloseHandle($handle)
 }`
       const result = await runTerminate("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
         encoding: "utf8",

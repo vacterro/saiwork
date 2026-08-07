@@ -93,7 +93,7 @@ export class AuthStore {
     }
 
     throw new Error(
-      `No server password configured. Create ${this.authFilePath} or start with --password / CODENOMAD_SERVER_PASSWORD.`,
+      `No server password configured. Create ${this.authFilePath} or start with --password / SAIWORK_SERVER_PASSWORD.`,
     )
   }
 
@@ -113,7 +113,7 @@ export class AuthStore {
   setPassword(params: { password: string; markUserProvided: boolean }): AuthStatus {
     if (this.overrideAuth) {
       throw new Error(
-        "Server password is provided via CLI/env and cannot be changed while running. Restart without --password / CODENOMAD_SERVER_PASSWORD to use auth.json.",
+        "Server password is provided via CLI/env and cannot be changed while running. Restart without --password / SAIWORK_SERVER_PASSWORD to use auth.json.",
       )
     }
 

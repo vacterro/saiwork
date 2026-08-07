@@ -67,7 +67,7 @@ async function probeRemoteServer(baseUrl: string, skipTlsVerify: boolean): Promi
         skipTlsVerify,
         requiresAuth: false,
         authenticated: false,
-        error: "Remote server did not return a valid CodeNomad auth response",
+        error: "Remote server did not return a valid SaiWork auth response",
         errorCode: "invalid_server",
       }
     }

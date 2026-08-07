@@ -2,15 +2,15 @@
 
 ## Overview
 
-CodeNomad uses the OpenCode SDK V2 (`@opencode-ai/sdk/v2/client`) via `createOpencodeClient()`.
+SaiWork uses the OpenCode SDK V2 (`@opencode-ai/sdk/v2/client`) via `createOpencodeClient()`.
 
 **Note:** The SDK implementation lives outside this repository.
 
 - After `npm install`, inspect types in `node_modules/@opencode-ai/sdk/v2/client.d.ts`
-- **Fallback:** Use the CodeNomad wrapper locations documented below as the source of truth
+- **Fallback:** Use the SaiWork wrapper locations documented below as the source of truth
 - When node_modules is unavailable, read how the SDK is imported in existing files
 
-## SDK Methods Used by CodeNomad
+## SDK Methods Used by SaiWork
 
 ### Session
 
@@ -38,7 +38,7 @@ const response = await requestData(
 - `client.session.shell({ sessionID, command })` — Execute shell command
 - `client.session.abort({ sessionID })` — Abort active session
 
-**Note on Message Deletion:** The SDK does not expose a typed method for message deletion. CodeNomad uses a raw client call:
+**Note on Message Deletion:** The SDK does not expose a typed method for message deletion. SaiWork uses a raw client call:
 ```typescript
 // packages/ui/src/stores/session-actions.ts:451-457
 await requestData(
@@ -62,7 +62,7 @@ await requestData(
 
 **⚠️ Constraint:** Message must retain ≥1 part. Delete entire message if removing last part.
 
-**Note on Part Updates:** CodeNomad does not currently use `client.part.update()`. Part modifications are handled through other mechanisms.
+**Note on Part Updates:** SaiWork does not currently use `client.part.update()`. Part modifications are handled through other mechanisms.
 
 ### Permission
 
@@ -101,9 +101,9 @@ await requestData(
 
 ## SDK Categories Not Currently Used
 
-The following SDK categories are available but not actively used by CodeNomad:
+The following SDK categories are available but not actively used by SaiWork:
 
-- `client.find.*` — File/symbol search (CodeNomad uses server routes)
-- `client.global.*` — Global config/health (CodeNomad uses server meta endpoint)
+- `client.find.*` — File/symbol search (SaiWork uses server routes)
+- `client.global.*` — Global config/health (SaiWork uses server meta endpoint)
 - `client.app.*` — App logging/agents
-- `client.worktree.*` — Git worktree management (CodeNomad uses server routes)
+- `client.worktree.*` — Git worktree management (SaiWork uses server routes)

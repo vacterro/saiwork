@@ -1,7 +1,7 @@
 export const remoteAccessMessages = {
   "remoteAccess.eyebrow": "リモート引き継ぎ",
-  "remoteAccess.title": "CodeNomad にリモート接続",
-  "remoteAccess.subtitle": "別のデバイスから CodeNomad を開くには、以下のアドレスを使用してください。",
+  "remoteAccess.title": "SAIWORK にリモート接続",
+  "remoteAccess.subtitle": "別のデバイスから SAIWORK を開くには、以下のアドレスを使用してください。",
   "remoteAccess.close": "リモートアクセスを閉じる",
   "remoteAccess.refresh": "更新",
 

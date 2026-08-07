@@ -37,4 +37,4 @@ runStep(
   "npm version"
 )
 
-runStep(["run", "sync:version", "--workspace", "@codenomad/tauri-app"], "tauri version sync")
+runStep(["run", "sync:version", "--workspace", "@saiwork/tauri-app"], "tauri version sync")

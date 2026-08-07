@@ -1,8 +1,8 @@
 {
-  "name": "codenomad-workspace",
-  "version": "0.18.0",
+  "name": "saiwork-workspace",
+  "version": "0.0.1",
   "private": true,
-  "description": "CodeNomad monorepo workspace",
+  "description": "SaiWork monorepo workspace",
   "license": "MIT",
   "workspaces": {
     "packages": [
@@ -14,15 +14,15 @@
     ]
   },
   "scripts": {
-    "dev": "npm run dev --workspace @neuralnomads/codenomad-electron-app",
-    "dev:electron": "npm run dev --workspace @neuralnomads/codenomad-electron-app",
-    "dev:tauri": "npm run dev --workspace @codenomad/tauri-app",
-    "build": "npm run build --workspace @neuralnomads/codenomad-electron-app",
-    "build:tauri": "npm run build --workspace @codenomad/tauri-app",
-    "build:ui": "npm run build --workspace @codenomad/ui",
-    "build:mac-x64": "npm run build:mac-x64 --workspace @neuralnomads/codenomad-electron-app",
-    "build:binaries": "npm run build:binaries --workspace @neuralnomads/codenomad-electron-app",
-    "typecheck": "npm run typecheck --workspace @codenomad/ui && npm run typecheck --workspace @neuralnomads/codenomad-electron-app",
+    "dev": "npm run dev --workspace @saiwork/electron-app",
+    "dev:electron": "npm run dev --workspace @saiwork/electron-app",
+    "dev:tauri": "npm run dev --workspace @saiwork/tauri-app",
+    "build": "npm run build --workspace @saiwork/electron-app",
+    "build:tauri": "npm run build --workspace @saiwork/tauri-app",
+    "build:ui": "npm run build --workspace @saiwork/ui",
+    "build:mac-x64": "npm run build:mac-x64 --workspace @saiwork/electron-app",
+    "build:binaries": "npm run build:binaries --workspace @saiwork/electron-app",
+    "typecheck": "npm run typecheck --workspace @saiwork/ui && npm run typecheck --workspace @saiwork/electron-app",
     "bumpVersion": "node ./scripts/bump-version.js"
   },
   "dependencies": {

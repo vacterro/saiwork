@@ -42,7 +42,7 @@ export interface RemoteUiOptions {
   logger: Logger
 }
 
-const DEFAULT_MANIFEST_URL = "https://ui.codenomad.neuralnomads.ai/version.json"
+const DEFAULT_MANIFEST_URL = "https://ui.saiwork.neuralnomads.ai/version.json"
 
 const MANIFEST_TIMEOUT_MS = 5_000
 const ZIP_TIMEOUT_MS = 30_000
@@ -190,7 +190,7 @@ function resolveUiCacheRoot(configDir?: string): string {
   if (configDir) {
     return path.join(configDir, "ui")
   }
-  return path.join(os.homedir(), ".config", "codenomad", "ui")
+  return path.join(os.homedir(), ".config", "saiwork", "ui")
 }
 
 async function resolveFromCacheOrBundled(args: {
@@ -329,7 +329,7 @@ async function fetchManifest(url: string, logger: Logger): Promise<RemoteUiManif
       signal: controller.signal,
       headers: {
         Accept: "application/json",
-        "User-Agent": "CodeNomad-CLI",
+        "User-Agent": "SaiWork-CLI",
       },
     })
     if (!response.ok) {
@@ -419,7 +419,7 @@ async function downloadFile(url: string, targetPath: string, logger: Logger) {
       signal: controller.signal,
       headers: {
         Accept: "application/octet-stream",
-        "User-Agent": "CodeNomad-CLI",
+        "User-Agent": "SaiWork-CLI",
       },
     })
     if (!response.ok || !response.body) {

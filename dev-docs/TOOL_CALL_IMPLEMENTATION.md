@@ -1,6 +1,6 @@
 # Tool Call Rendering Implementation
 
-This document describes how tool calls are rendered in the CodeNomad, following the patterns established in the TUI.
+This document describes how tool calls are rendered in the SaiWork, following the patterns established in the TUI.
 
 ## Overview
 

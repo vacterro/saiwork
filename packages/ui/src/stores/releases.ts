@@ -13,8 +13,8 @@ const log = getLogger("actions")
 const [supportInfo, setSupportInfo] = createSignal<SupportMeta | null>(null)
 const [availableUpdate, setAvailableUpdate] = createSignal<ServerMeta["update"] | null | undefined>(undefined)
 
-const UI_VERSION_STORAGE_KEY = "codenomad:lastSeenUiVersion"
-const DEV_RELEASE_STORAGE_KEY = "codenomad:lastSeenDevRelease"
+const UI_VERSION_STORAGE_KEY = "saiwork:lastSeenUiVersion"
+const DEV_RELEASE_STORAGE_KEY = "saiwork:lastSeenDevRelease"
 const META_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
 let initialized = false

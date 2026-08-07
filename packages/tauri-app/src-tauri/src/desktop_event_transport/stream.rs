@@ -233,7 +233,7 @@ fn flush_sse_frame(
         return Ok(());
     };
 
-    if event_name.as_deref() == Some("codenomad.client.ping") {
+    if event_name.as_deref() == Some("saiwork.client.ping") {
         tx.send(ReaderMessage::Ping(payload)).map_err(|_| ())
     } else {
         tx.send(ReaderMessage::Event(payload)).map_err(|_| ())
@@ -264,7 +264,7 @@ mod tests {
         let mut data_lines = Vec::new();
 
         assert!(!handle_sse_line(
-            "event: codenomad.client.ping",
+            "event: saiwork.client.ping",
             &mut event_name,
             &mut data_lines
         ));
@@ -289,7 +289,7 @@ mod tests {
     fn session_cookie_is_attached_to_requests() {
         let request = attach_session_cookie_value(
             Client::new().post("http://localhost/api/client-connections/pong"),
-            "codenomad_session",
+            "saiwork_session",
             Some("cookie-value"),
         )
         .build()
@@ -300,7 +300,7 @@ mod tests {
                 .headers()
                 .get("Cookie")
                 .and_then(|value| value.to_str().ok()),
-            Some("codenomad_session=cookie-value")
+            Some("saiwork_session=cookie-value")
         );
     }
 
@@ -308,7 +308,7 @@ mod tests {
     fn session_cookie_value_is_encoded_before_header_attachment() {
         let request = attach_session_cookie_value(
             Client::new().post("http://localhost/api/client-connections/pong"),
-            "codenomad_session",
+            "saiwork_session",
             Some("safe;\r\nInjected=bad value"),
         )
         .build()
@@ -319,7 +319,7 @@ mod tests {
                 .headers()
                 .get("Cookie")
                 .and_then(|value| value.to_str().ok()),
-            Some("codenomad_session=safe%3B%0D%0AInjected=bad%20value")
+            Some("saiwork_session=safe%3B%0D%0AInjected=bad%20value")
         );
     }
 }

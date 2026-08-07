@@ -41,11 +41,11 @@ function syncCargoLock(version) {
   }
 
   const current = fs.readFileSync(cargoLockPath, "utf8")
-  const packageVersionPattern = /(\[\[package\]\]\r?\nname = "codenomad-tauri"\r?\nversion = ")([^"]+)(")/
+  const packageVersionPattern = /(\[\[package\]\]\r?\nname = "saiwork-tauri"\r?\nversion = ")([^"]+)(")/
   const match = current.match(packageVersionPattern)
 
   if (!match) {
-    throw new Error("Unable to find codenomad-tauri version in packages/tauri-app/Cargo.lock")
+    throw new Error("Unable to find saiwork-tauri version in packages/tauri-app/Cargo.lock")
   }
 
   if (match[2] === version) {

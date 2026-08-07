@@ -1,22 +1,22 @@
 import type { PluginInput } from "@opencode-ai/plugin"
-import { createCodeNomadClient, getCodeNomadConfig } from "./lib/client.js"
+import { createSaiWorkClient, getSaiWorkConfig } from "./lib/client.js"
 import { createBackgroundProcessTools } from "./lib/background-process.js"
 
 let voiceModeEnabled = false
 
-export async function CodeNomadPlugin(input: PluginInput): Promise<{
+export async function SaiWorkPlugin(input: PluginInput): Promise<{
   tool: ReturnType<typeof createBackgroundProcessTools>
-  "chat.message": CodeNomadChatMessageHook
-  event: CodeNomadEventHook
+  "chat.message": SaiWorkChatMessageHook
+  event: SaiWorkEventHook
 }> {
-  const config = getCodeNomadConfig()
-  const client = createCodeNomadClient(config)
+  const config = getSaiWorkConfig()
+  const client = createSaiWorkClient(config)
   const backgroundProcessTools = createBackgroundProcessTools(config, { baseDir: input.directory })
 
   await client.startEvents((event) => {
-    if (event.type === "codenomad.ping") {
+    if (event.type === "saiwork.ping") {
       void client.postEvent({
-        type: "codenomad.pong",
+        type: "saiwork.pong",
         properties: {
           ts: Date.now(),
           pingTs: (event.properties as any)?.ts,
@@ -25,7 +25,7 @@ export async function CodeNomadPlugin(input: PluginInput): Promise<{
       return
     }
 
-    if (event.type === "codenomad.voiceMode") {
+    if (event.type === "saiwork.voiceMode") {
       voiceModeEnabled = Boolean((event.properties as { enabled?: unknown } | undefined)?.enabled)
     }
   })
@@ -49,12 +49,12 @@ export async function CodeNomadPlugin(input: PluginInput): Promise<{
   }
 }
 
-type CodeNomadChatMessageHook = (
+type SaiWorkChatMessageHook = (
   _input: { sessionID: string },
   output: { message: { system?: string } },
 ) => Promise<void>
 
-type CodeNomadEventHook = (input: { event: any }) => Promise<void>
+type SaiWorkEventHook = (input: { event: any }) => Promise<void>
 
 function buildVoiceModePrompt(): string {
   return [

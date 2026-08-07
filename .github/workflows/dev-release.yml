@@ -73,7 +73,7 @@ jobs:
     with:
       ref: ${{ needs.gate.outputs.dev_sha }}
       version_suffix: ${{ needs.gate.outputs.version_suffix }}
-      npm_package_name: "@neuralnomads/codenomad-dev"
+      npm_package_name: "@saiwork/saiwork-dev"
       dist_tag: latest
       prerelease: true
       release_ui: false

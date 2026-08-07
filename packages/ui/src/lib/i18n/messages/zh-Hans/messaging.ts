@@ -8,8 +8,8 @@ export const messagingMessages = {
   "messageListHeader.connection.connecting": "连接中...",
   "messageListHeader.connection.disconnected": "已断开",
 
-  "messageSection.empty.logoAlt": "CodeNomad 徽标",
-  "messageSection.empty.brandTitle": "CodeNomad",
+  "messageSection.empty.logoAlt": "SAIWORK 徽标",
+  "messageSection.empty.brandTitle": "SAIWORK",
   "messageSection.empty.title": "开始对话",
   "messageSection.empty.description": "在下方输入消息，或打开命令面板：",
   "messageSection.empty.tips.commandPalette": "命令面板",

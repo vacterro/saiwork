@@ -67,7 +67,7 @@ function buildDiagnosticReport(
   osDisplay: string,
 ): string {
   const lines: string[] = []
-  lines.push("CodeNomad Diagnostic Report")
+  lines.push("SaiWork Diagnostic Report")
   lines.push("============================")
   lines.push(`Generated: ${new Date().toISOString()}`)
   lines.push(`Server version: ${meta?.serverVersion ?? "unknown"}`)
@@ -191,7 +191,7 @@ export const InfoSettingsSection: Component = () => {
   const handleDownload = () => {
     const report = buildDiagnosticReport(meta() ?? null, osDisplay())
     const ts = new Date().toISOString().replace(/[:.]/g, "-")
-    downloadTextFile(`codenomad-diagnostics-${ts}.txt`, report)
+    downloadTextFile(`saiwork-diagnostics-${ts}.txt`, report)
   }
 
   return (

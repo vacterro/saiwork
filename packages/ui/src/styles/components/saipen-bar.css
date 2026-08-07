@@ -1,0 +1,103 @@
+/* SAIPEN command bar -- Vintage Golden. */
+
+.saipen-bar {
+  border: 2px solid;
+  border-color: var(--borderHighlight) var(--borderDark) var(--borderDark) var(--borderHighlight);
+  background: var(--surface);
+  margin: 0 0 4px 0;
+}
+
+.saipen-bar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  padding: 0 4px;
+  background: var(--surfaceRaised);
+  border-bottom: 1px solid var(--borderDark);
+}
+
+.saipen-bar-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--textPrimary);
+}
+
+.saipen-bar-core {
+  font-size: 10px;
+  color: var(--textSecondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saipen-bar-header-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.saipen-bar-header-actions button {
+  font-size: 10px;
+  min-height: 16px;
+  padding: 0 4px;
+}
+
+.saipen-bar-commands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+}
+
+.saipen-command {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 28px;
+  min-height: 20px;
+  padding: 0 4px;
+}
+
+.saipen-bar-status {
+  border-top: 1px solid var(--borderDark);
+  padding: 4px;
+  background: var(--compareBack);
+}
+
+.saipen-bar-error {
+  font-size: 10px;
+  color: var(--danger);
+  margin-bottom: 4px;
+}
+
+.saipen-bar-empty {
+  font-size: 10px;
+  color: var(--textMuted);
+}
+
+.saipen-subs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.saipen-subs th {
+  text-align: left;
+  padding: 1px 4px;
+  background: var(--surfaceRaised);
+  border: 1px solid var(--borderDark);
+  color: var(--textPrimary);
+  font-weight: 700;
+}
+
+.saipen-subs td {
+  padding: 1px 4px;
+  border: 1px solid var(--borderDark);
+  color: var(--textSecondary);
+  height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}

@@ -1,7 +1,7 @@
 export const remoteAccessMessages = {
   "remoteAccess.eyebrow": "Remote-Übergabe",
-  "remoteAccess.title": "Remote mit CodeNomad verbinden",
-  "remoteAccess.subtitle": "Verwenden Sie die folgenden Adressen, um CodeNomad von einem anderen Gerät aus zu öffnen.",
+  "remoteAccess.title": "Remote mit SAIWORK verbinden",
+  "remoteAccess.subtitle": "Verwenden Sie die folgenden Adressen, um SAIWORK von einem anderen Gerät aus zu öffnen.",
   "remoteAccess.close": "Remote-Zugriff schließen",
   "remoteAccess.refresh": "Aktualisieren",
 

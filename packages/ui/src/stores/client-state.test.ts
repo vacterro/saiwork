@@ -21,7 +21,7 @@ const deferred = <T>() => {
 }
 const installWindow = (api?: NativeApi, storage = new MemoryStorage()) => {
   Object.defineProperty(globalThis, "window", { configurable: true, value: api
-    ? { __CODENOMAD_RUNTIME_HOST__: "electron", __CODENOMAD_WINDOW_CONTEXT__: "local", localStorage: storage, electronAPI: api }
+    ? { __SAIWORK_RUNTIME_HOST__: "electron", __SAIWORK_WINDOW_CONTEXT__: "local", localStorage: storage, electronAPI: api }
     : { localStorage: storage } })
   return storage
 }
@@ -227,8 +227,8 @@ describe("secondary hosts", () => {
       const storage = new MemoryStorage(); storage.setItem(layoutKey, "360")
       let saves = 0
       if (host === "plain web") {
-        storage.setItem("codenomad-client-snapshot-v1", JSON.stringify(snapshot("private")))
-        storage.setItem("codenomad-client-restore-enabled-v1", "false")
+        storage.setItem("saiwork-client-snapshot-v1", JSON.stringify(snapshot("private")))
+        storage.setItem("saiwork-client-restore-enabled-v1", "false")
       } else storage.removeItem(layoutKey)
       const state = await boot(host === "plain web" ? undefined : {
         loadClientState: async () => loadResult(snapshot("docs", { [layoutKey]: "380" }), false),
@@ -242,8 +242,8 @@ describe("secondary hosts", () => {
       assert.equal(storage.getItem(layoutKey), "420")
       assert.equal(saves, 0)
       if (host === "plain web") {
-        assert.equal(storage.getItem("codenomad-client-snapshot-v1"), null)
-        assert.equal(storage.getItem("codenomad-client-restore-enabled-v1"), null)
+        assert.equal(storage.getItem("saiwork-client-snapshot-v1"), null)
+        assert.equal(storage.getItem("saiwork-client-restore-enabled-v1"), null)
       }
     })
   }

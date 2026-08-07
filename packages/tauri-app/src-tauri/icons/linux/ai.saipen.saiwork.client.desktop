@@ -1,0 +1,9 @@
+[Desktop Entry]
+Categories=
+Exec=saiwork-tauri
+StartupWMClass=saiwork-tauri
+Icon=saiwork-tauri
+Name=SaiWork
+NoDisplay=true
+Terminal=false
+Type=Application

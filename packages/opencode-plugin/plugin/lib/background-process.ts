@@ -1,6 +1,6 @@
 import path from "path"
 import { tool } from "@opencode-ai/plugin/tool"
-import { createCodeNomadRequester, type CodeNomadConfig } from "./request.js"
+import { createSaiWorkRequester, type SaiWorkConfig } from "./request.js"
 
 type BackgroundProcess = {
   id: string
@@ -27,8 +27,8 @@ type ParsedCommand = {
   args: string[]
 }
 
-export function createBackgroundProcessTools(config: CodeNomadConfig, options: BackgroundProcessOptions) {
-  const requester = createCodeNomadRequester(config)
+export function createBackgroundProcessTools(config: SaiWorkConfig, options: BackgroundProcessOptions) {
+  const requester = createSaiWorkRequester(config)
 
   const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     return requester.requestJson<T>(`/background-processes${path}`, init)

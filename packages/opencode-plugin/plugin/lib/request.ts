@@ -7,19 +7,19 @@ export type PluginEvent = {
   properties?: Record<string, unknown>
 }
 
-export type CodeNomadConfig = {
+export type SaiWorkConfig = {
   instanceId: string
   baseUrl: string
 }
 
-export function getCodeNomadConfig(): CodeNomadConfig {
+export function getSaiWorkConfig(): SaiWorkConfig {
   return {
-    instanceId: requireEnv("CODENOMAD_INSTANCE_ID"),
-    baseUrl: requireEnv("CODENOMAD_BASE_URL"),
+    instanceId: requireEnv("SAIWORK_INSTANCE_ID"),
+    baseUrl: requireEnv("SAIWORK_BASE_URL"),
   }
 }
 
-export function createCodeNomadRequester(config: CodeNomadConfig) {
+export function createSaiWorkRequester(config: SaiWorkConfig) {
   const rawBaseUrl = (config.baseUrl ?? "").trim()
   const baseUrl = rawBaseUrl.replace(/\/+$/, "")
   const pluginBase = `${baseUrl}/workspaces/${encodeURIComponent(config.instanceId)}/plugin`
@@ -47,7 +47,7 @@ export function createCodeNomadRequester(config: CodeNomadConfig) {
     const hasBody = init?.body !== undefined
     const headers = buildHeaders(init?.headers, hasBody)
 
-    // The CodeNomad plugin only talks to the local CodeNomad server.
+    // The SaiWork plugin only talks to the local SaiWork server.
     // Use a single request implementation that tolerates custom/self-signed certs
     // without disabling TLS verification for the whole Node process.
     return nodeFetch(url, { ...init, headers }, { rejectUnauthorized: false })
@@ -180,7 +180,7 @@ async function nodeFetch(
 function requireEnv(key: string): string {
   const value = process.env[key]
   if (!value || !value.trim()) {
-    throw new Error(`[CodeNomadPlugin] Missing required env var ${key}`)
+    throw new Error(`[SaiWorkPlugin] Missing required env var ${key}`)
   }
   return value
 }

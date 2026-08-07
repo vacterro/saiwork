@@ -1,6 +1,6 @@
 # Winget release automation
 
-CodeNomad publishes Winget updates from the stable GitHub release pipeline. `.github/workflows/reusable-release.yml` now calls `.github/workflows/update-winget.yml` after the release assets finish uploading.
+SaiWork publishes Winget updates from the stable GitHub release pipeline. `.github/workflows/reusable-release.yml` now calls `.github/workflows/update-winget.yml` after the release assets finish uploading.
 
 ## Trigger
 
@@ -20,9 +20,9 @@ CodeNomad publishes Winget updates from the stable GitHub release pipeline. `.gi
 
 ### Repository variables
 
-- `WINGET_PACKAGE_IDENTIFIER` (default fallback in workflow: `NeuralNomadsAI.CodeNomad`)
+- `WINGET_PACKAGE_IDENTIFIER` (default fallback in workflow: `NeuralNomadsAI.SaiWork`)
 - `WINGET_FORK_OWNER` (default fallback in workflow: `pascalandr`)
-- `WINGET_WINDOWS_ASSET_NAME_TEMPLATE` (default fallback in workflow: `CodeNomad-Tauri-windows-x64-{version}.zip`)
+- `WINGET_WINDOWS_ASSET_NAME_TEMPLATE` (default fallback in workflow: `SaiWork-Tauri-windows-x64-{version}.zip`)
 - `WINGET_ASSET_WAIT_TIMEOUT_SECONDS` (optional, default fallback: `900`)
 - `WINGET_ASSET_POLL_INTERVAL_SECONDS` (optional, default fallback: `15`)
 
@@ -34,10 +34,10 @@ CodeNomad publishes Winget updates from the stable GitHub release pipeline. `.gi
 2. Poll the release API until exactly one uploaded asset matches the configured Windows Tauri asset template.
 3. Download the matched asset once and compute a SHA-256 for logging and verification.
 4. Verify the PAT owner matches `WINGET_FORK_OWNER` and that `${WINGET_FORK_OWNER}/winget-pkgs` is a fork of `microsoft/winget-pkgs`.
-5. Invoke `vedantmgoyal9/winget-releaser@v2`, which uses Komac under the hood to update the existing `NeuralNomadsAI.CodeNomad` manifest and open the PR.
+5. Invoke `vedantmgoyal9/winget-releaser@v2`, which uses Komac under the hood to update the existing `NeuralNomadsAI.SaiWork` manifest and open the PR.
 
 ## Notes
 
 - The workflow does not depend on a persistent local `winget-pkgs` clone.
-- The current package in `winget-pkgs` uses the release ZIP with a nested NSIS installer, so the workflow targets the stable `CodeNomad-Tauri-windows-x64-{version}.zip` asset.
+- The current package in `winget-pkgs` uses the release ZIP with a nested NSIS installer, so the workflow targets the stable `SaiWork-Tauri-windows-x64-{version}.zip` asset.
 - If a maintainer publishes a release outside the standard release workflow, they should manually run `Update Winget` for that stable tag.

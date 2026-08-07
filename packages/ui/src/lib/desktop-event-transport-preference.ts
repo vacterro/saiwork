@@ -1,4 +1,4 @@
-export const TAURI_NATIVE_EVENT_TRANSPORT_STORAGE_KEY = "codenomad-use-tauri-native-event-transport"
+export const TAURI_NATIVE_EVENT_TRANSPORT_STORAGE_KEY = "saiwork-use-tauri-native-event-transport"
 
 export function readUseTauriNativeEventTransportPreference(): boolean {
   if (typeof window === "undefined") {

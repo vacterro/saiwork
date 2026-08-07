@@ -8,8 +8,8 @@ export const messagingMessages = {
   "messageListHeader.connection.connecting": "जडान गर्दै...",
   "messageListHeader.connection.disconnected": "विच्छेद भयो",
 
-  "messageSection.empty.logoAlt": "CodeNomad लोगो",
-  "messageSection.empty.brandTitle": "CodeNomad",
+  "messageSection.empty.logoAlt": "SAIWORK लोगो",
+  "messageSection.empty.brandTitle": "SAIWORK",
   "messageSection.empty.title": "कुराकानी सुरु गर्नुहोस्",
   "messageSection.empty.description": "तल सन्देश टाइप गर्नुहोस् वा कमाण्ड प्यालेट खोल्नुहोस्:",
   "messageSection.empty.tips.commandPalette": "कमाण्ड प्यालेट",

@@ -7,7 +7,7 @@ import test from "node:test"
 import { ClientStateManager, type ClientStateWriter } from "./client-state"
 
 function harness(t: test.TestContext, initial?: object) {
-  const directory = mkdtempSync(join(tmpdir(), "codenomad-state-"))
+  const directory = mkdtempSync(join(tmpdir(), "saiwork-state-"))
   const statePath = join(directory, "client-state.json")
   if (initial) writeFileSync(statePath, JSON.stringify(initial))
   let failing = false
@@ -50,7 +50,7 @@ test("restore defaults on unless explicitly disabled", (t) => {
 })
 
 test("cross-host ownership is required in addition to each host-local election", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "codenomad-cross-host-state-"))
+  const root = mkdtempSync(join(tmpdir(), "saiwork-cross-host-state-"))
   const electronDirectory = join(root, "electron"), tauriDirectory = join(root, "tauri"), election = join(root, "election")
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const identities = new Map([[8101, "tauri-start"], [8102, "electron-start"], [8103, "successor-start"]])
@@ -86,7 +86,7 @@ test("cross-host ownership is required in addition to each host-local election",
 })
 
 test("first shared primary deterministically migrates legacy host envelopes", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "codenomad-migration-"))
+  const root = mkdtempSync(join(tmpdir(), "saiwork-migration-"))
   const electron = join(root, "electron"), tauri = join(root, "tauri"), election = join(root, "shared", "election")
   mkdirSync(electron, { recursive: true }); mkdirSync(tauri, { recursive: true })
   t.after(() => rmSync(root, { recursive: true, force: true }))
@@ -106,7 +106,7 @@ test("first shared primary deterministically migrates legacy host envelopes", as
 })
 
 test("legacy migration prefers disabled and ignores malformed candidates", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "codenomad-migration-"))
+  const root = mkdtempSync(join(tmpdir(), "saiwork-migration-"))
   const electron = join(root, "electron"), tauri = join(root, "tauri"), election = join(root, "shared", "election")
   mkdirSync(electron, { recursive: true }); mkdirSync(tauri, { recursive: true })
   t.after(() => rmSync(root, { recursive: true, force: true }))
@@ -119,7 +119,7 @@ test("legacy migration prefers disabled and ignores malformed candidates", async
 })
 
 test("legacy migration does not resurrect a snapshot after clear", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "codenomad-migration-"))
+  const root = mkdtempSync(join(tmpdir(), "saiwork-migration-"))
   const electron = join(root, "electron"), tauri = join(root, "tauri"), election = join(root, "shared", "election")
   mkdirSync(electron, { recursive: true }); mkdirSync(tauri, { recursive: true })
   t.after(() => rmSync(root, { recursive: true, force: true }))
@@ -131,7 +131,7 @@ test("legacy migration does not resurrect a snapshot after clear", async (t) => 
 })
 
 test("legacy cleanup failure cannot abort startup after shared state replacement", async (t) => {
-  const root = mkdtempSync(join(tmpdir(), "codenomad-migration-"))
+  const root = mkdtempSync(join(tmpdir(), "saiwork-migration-"))
   const electron = join(root, "electron"), shared = join(root, "shared"), election = join(shared, "election")
   mkdirSync(electron, { recursive: true })
   t.after(() => rmSync(root, { recursive: true, force: true }))

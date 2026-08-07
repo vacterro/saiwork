@@ -2,7 +2,7 @@
 
 ## Goal
 
-Support inline `\(...\)` and display `\[...\]` math in CodeNomad Markdown while preserving existing `$...$` and `$$...$$` behavior. No unrelated Markdown changes.
+Support inline `\(...\)` and display `\[...\]` math in SaiWork Markdown while preserving existing `$...$` and `$$...$$` behavior. No unrelated Markdown changes.
 
 ## Approach
 

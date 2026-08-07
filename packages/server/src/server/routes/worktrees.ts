@@ -10,7 +10,7 @@ import {
 } from "../../workspaces/git-worktrees"
 import type { WorktreeListResponse, WorktreeMap } from "../../api-types"
 import type { OpencodeYoloPersistence } from "../../permissions/opencode-yolo-metadata"
-import { ensureCodenomadGitExclude, readWorktreeMap, writeWorktreeMap } from "../../workspaces/worktree-map"
+import { ensureSaiworkGitExclude, readWorktreeMap, writeWorktreeMap } from "../../workspaces/worktree-map"
 
 interface RouteDeps {
   workspaceManager: WorkspaceManager
@@ -100,7 +100,7 @@ export function registerWorktreeRoutes(app: FastifyInstance, deps: RouteDeps) {
         return { error: "Workspace is not a Git repository" }
       }
 
-      await ensureCodenomadGitExclude(workspace.path, request.log).catch(() => undefined)
+      await ensureSaiworkGitExclude(workspace.path, request.log).catch(() => undefined)
 
       const created = await createManagedWorktree({
         repoRoot,

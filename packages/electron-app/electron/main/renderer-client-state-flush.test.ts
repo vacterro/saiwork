@@ -16,7 +16,7 @@ test("renderer flush enforces primary/trusted access and invokes the registered 
   assert.equal(calls, 0)
   assert.equal(await flushRendererClientStateBeforeShutdown(target, true, () => true), "flushed")
   assert.equal(calls, 1)
-  assert.match(source, /__CODENOMAD_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__/)
+  assert.match(source, /__SAIWORK_FLUSH_CLIENT_STATE_BEFORE_NATIVE_SHUTDOWN__/)
   assert.match(source, /http:\/\/127\.0\.0\.1:3000/)
 })
 

@@ -10,6 +10,6 @@ out/
 .opencode/bashOutputs/
 
 # Local runtime artifacts
-.codenomad/
+.saiwork/
 .tmp/
 packages/cloudflare/.wrangler/

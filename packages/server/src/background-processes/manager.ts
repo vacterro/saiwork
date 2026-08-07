@@ -8,7 +8,7 @@ import { createInstanceClient } from "../workspaces/instance-client"
 import type { Logger } from "../logger"
 import type { BackgroundProcess, BackgroundProcessStatus, BackgroundProcessTerminalReason } from "../api-types"
 
-const ROOT_DIR = ".codenomad/background_processes"
+const ROOT_DIR = ".saiwork/background_processes"
 const INDEX_FILE = "index.json"
 const OUTPUT_FILE = "output.txt"
 const STOP_TIMEOUT_MS = 2000

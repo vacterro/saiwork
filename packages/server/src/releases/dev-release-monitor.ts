@@ -79,7 +79,7 @@ async function fetchLatestPrerelease(args: {
   const response = await fetch(apiUrl, {
     headers: {
       Accept: "application/vnd.github+json",
-      "User-Agent": "CodeNomad-CLI",
+      "User-Agent": "SaiWork-CLI",
     },
   })
 
