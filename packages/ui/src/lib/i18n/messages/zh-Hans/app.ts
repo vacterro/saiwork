@@ -1,0 +1,44 @@
+export const appMessages = {
+  "app.launchError.title": "无法启动 OpenCode",
+  "app.launchError.description": "OpenCode 无法启动此工作区。请查看下面的错误输出或检查 OpenCode 设置。",
+  "app.launchError.binaryPathLabel": "可执行文件路径",
+  "app.launchError.errorOutputLabel": "错误输出",
+  "app.launchError.openAdvancedSettings": "打开 OpenCode 设置",
+  "app.launchError.close": "关闭",
+  "app.launchError.closeTitle": "关闭 (Esc)",
+  "app.launchError.fallbackMessage": "启动工作区失败",
+  "app.launchError.invalidConfig": "OpenCode 配置无效",
+
+  "app.stopInstance.confirmMessage": "停止 OpenCode 实例？这将停止服务器。",
+  "app.stopInstance.title": "停止实例",
+  "app.stopInstance.confirmLabel": "停止",
+  "app.stopInstance.cancelLabel": "继续运行",
+  "app.stopInstance.toast.error": "无法停止工作区。",
+
+  "emptyState.logoAlt": "SAIWORK 徽标",
+  "emptyState.brandTitle": "SAIWORK",
+  "emptyState.tagline": "选择文件夹，开始与 AI 一起编码",
+  "emptyState.actions.selectFolder": "选择文件夹",
+  "emptyState.actions.selecting": "正在选择...",
+  "emptyState.keyboardShortcut": "键盘快捷键：{shortcut}",
+  "emptyState.examples": "示例：{example}",
+  "emptyState.multipleInstances": "同一个文件夹可以同时打开多个实例",
+
+  "releases.upgradeRequired.title": "需要升级",
+  "releases.upgradeRequired.message.withVersion": "更新到 SAIWORK {version} 以使用最新的 UI。",
+  "releases.upgradeRequired.message.noVersion": "更新 SAIWORK 以使用最新的 UI。",
+  "releases.upgradeRequired.action.getUpdate": "获取更新",
+
+  "releases.uiUpdated.title": "UI 已更新",
+  "releases.uiUpdated.message": "UI 已更新到 {version}。",
+
+  "releases.devUpdateAvailable.title": "可用的开发版",
+  "releases.devUpdateAvailable.message": "有新的开发版可用：{version}。",
+  "releases.devUpdateAvailable.action": "查看发布",
+
+  "theme.mode.system": "系统",
+  "theme.mode.light": "浅色",
+  "theme.mode.dark": "深色",
+  "theme.toggle.title": "主题：{mode}",
+  "theme.toggle.ariaLabel": "主题：{mode}",
+} as const

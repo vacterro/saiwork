@@ -1,0 +1,351 @@
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { FolderOpen, Trash2, Check, AlertCircle, Loader2, Plus } from "lucide-solid"
+import { useConfig } from "../stores/preferences"
+import { serverApi } from "../lib/api-client"
+import DirectoryBrowserDialog from "./directory-browser-dialog"
+import { openNativeFileDialog, supportsNativeDialogsInCurrentWindow } from "../lib/native/native-functions"
+import { useI18n } from "../lib/i18n"
+import { useNow } from "../lib/hooks/use-now"
+import { formatRelativeTime as formatRelativeTimeImpl } from "../lib/relative-time"
+import { getLogger } from "../lib/logger"
+const log = getLogger("actions")
+
+
+interface BinaryOption {
+  path: string
+  version?: string
+  lastUsed?: number
+  isDefault?: boolean
+}
+
+interface OpenCodeBinarySelectorProps {
+  selectedBinary: string
+  onBinaryChange: (binary: string) => void
+  disabled?: boolean
+  isVisible?: boolean
+}
+
+const OpenCodeBinarySelector: Component<OpenCodeBinarySelectorProps> = (props) => {
+  const { t } = useI18n()
+  const now = useNow()
+  const {
+    opencodeBinaries,
+    addOpenCodeBinary,
+    removeOpenCodeBinary,
+    serverSettings,
+    updateLastUsedBinary,
+  } = useConfig()
+  const [customPath, setCustomPath] = createSignal("")
+  const [validating, setValidating] = createSignal(false)
+  const [validationError, setValidationError] = createSignal<string | null>(null)
+  const [versionInfo, setVersionInfo] = createSignal<Map<string, string>>(new Map<string, string>())
+  const [validatingPaths, setValidatingPaths] = createSignal<Set<string>>(new Set<string>())
+  const [isBinaryBrowserOpen, setIsBinaryBrowserOpen] = createSignal(false)
+ 
+  const binaries = () => opencodeBinaries()
+
+  const lastUsedBinary = () => serverSettings().opencodeBinary
+
+  const customBinaries = createMemo(() => binaries().filter((binary) => binary.path !== "opencode"))
+
+  const binaryOptions = createMemo<BinaryOption[]>(() => [{ path: "opencode", isDefault: true }, ...customBinaries()])
+
+  const currentSelectionPath = () => props.selectedBinary || "opencode"
+
+  createEffect(() => {
+    if (!props.selectedBinary && lastUsedBinary()) {
+      props.onBinaryChange(lastUsedBinary()!)
+    } else if (!props.selectedBinary) {
+      const firstBinary = binaries()[0]
+      if (firstBinary) {
+        props.onBinaryChange(firstBinary.path)
+      }
+    }
+  })
+
+  createEffect(() => {
+    const cache = new Map(versionInfo())
+    let updated = false
+
+    binaries().forEach((binary) => {
+      if (binary.version && !cache.has(binary.path)) {
+        cache.set(binary.path, binary.version)
+        updated = true
+      }
+    })
+
+    if (updated) {
+      setVersionInfo(cache)
+    }
+  })
+
+  createEffect(() => {
+    if (!props.isVisible) return
+    const cache = versionInfo()
+    const pathsToValidate = ["opencode", ...customBinaries().map((binary) => binary.path)].filter(
+      (path) => !cache.has(path),
+    )
+
+    if (pathsToValidate.length === 0) return
+
+    setTimeout(() => {
+      pathsToValidate.forEach((path) => {
+        validateBinary(path).catch((error) => log.error("Failed to validate binary", { path, error }))
+      })
+    }, 0)
+  })
+
+  onCleanup(() => {
+    setValidatingPaths(new Set<string>())
+    setValidating(false)
+  })
+
+  async function validateBinary(path: string): Promise<{ valid: boolean; version?: string; error?: string }> {
+    if (versionInfo().has(path)) {
+      const cachedVersion = versionInfo().get(path)
+      return cachedVersion ? { valid: true, version: cachedVersion } : { valid: true }
+    }
+
+    if (validatingPaths().has(path)) {
+      return { valid: false, error: t("opencodeBinarySelector.validation.alreadyValidating") }
+    }
+
+    try {
+      setValidatingPaths((prev) => new Set(prev).add(path))
+      setValidating(true)
+      setValidationError(null)
+
+      const result = await serverApi.validateBinary(path)
+
+      if (result.valid && result.version) {
+        const updatedVersionInfo = new Map(versionInfo())
+        updatedVersionInfo.set(path, result.version)
+        setVersionInfo(updatedVersionInfo)
+      }
+
+      return result
+    } catch (error) {
+      return { valid: false, error: error instanceof Error ? error.message : String(error) }
+    } finally {
+      setValidatingPaths((prev) => {
+        const next = new Set(prev)
+        next.delete(path)
+        if (next.size === 0) {
+          setValidating(false)
+        }
+        return next
+      })
+    }
+  }
+
+  async function handleBrowseBinary() {
+    if (props.disabled) return
+    setValidationError(null)
+    if (supportsNativeDialogsInCurrentWindow()) {
+      const selected = await openNativeFileDialog({
+        title: t("opencodeBinarySelector.dialog.title"),
+      })
+      if (selected) {
+        setCustomPath(selected)
+        void handleValidateAndAdd(selected)
+      }
+      return
+    }
+    setIsBinaryBrowserOpen(true)
+  }
+ 
+  async function handleValidateAndAdd(path: string) {
+    const validation = await validateBinary(path)
+
+    if (validation.valid) {
+      addOpenCodeBinary(path, validation.version)
+      props.onBinaryChange(path)
+      updateLastUsedBinary(path)
+      setCustomPath("")
+      setValidationError(null)
+    } else {
+      setValidationError(validation.error || t("opencodeBinarySelector.validation.invalidBinary"))
+    }
+  }
+ 
+  function handleBinaryBrowserSelect(path: string) {
+    setIsBinaryBrowserOpen(false)
+    setCustomPath(path)
+    void handleValidateAndAdd(path)
+  }
+ 
+  async function handleCustomPathSubmit() {
+
+    const path = customPath().trim()
+    if (!path) return
+    await handleValidateAndAdd(path)
+  }
+
+  function handleSelectBinary(path: string) {
+    if (props.disabled) return
+    if (path === props.selectedBinary) return
+    props.onBinaryChange(path)
+    updateLastUsedBinary(path)
+  }
+
+  function handleRemoveBinary(path: string, event: Event) {
+    event.stopPropagation()
+    if (props.disabled) return
+    removeOpenCodeBinary(path)
+
+    if (props.selectedBinary === path) {
+      props.onBinaryChange("opencode")
+      updateLastUsedBinary("opencode")
+    }
+  }
+
+  function formatRelativeTime(timestamp?: number): string {
+    if (!timestamp) return ""
+    return formatRelativeTimeImpl(timestamp, now(), t)
+  }
+
+  function getDisplayName(path: string): string {
+    if (path === "opencode") return t("opencodeBinarySelector.display.systemPath", { name: "opencode" })
+    const parts = path.split(/[/\\]/)
+    return parts[parts.length - 1] ?? path
+  }
+
+  const isPathValidating = (path: string) => validatingPaths().has(path)
+
+  return (
+    <>
+      <div class="panel">
+        <div class="panel-header flex items-center justify-between gap-3">
+          <div>
+            <h3 class="panel-title">{t("opencodeBinarySelector.title")}</h3>
+            <p class="panel-subtitle">{t("opencodeBinarySelector.subtitle")}</p>
+          </div>
+          <Show when={validating()}>
+            <div class="selector-loading text-xs">
+              <Loader2 class="selector-loading-spinner" />
+              <span>{t("opencodeBinarySelector.status.checkingVersions")}</span>
+            </div>
+          </Show>
+        </div>
+
+        <div class="panel-body space-y-3">
+          <div class="selector-input-group">
+            <input
+              type="text"
+              value={customPath()}
+              onInput={(e) => setCustomPath(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  handleCustomPathSubmit()
+                }
+              }}
+              disabled={props.disabled}
+              placeholder={t("opencodeBinarySelector.customPath.placeholder")}
+              class="selector-input"
+            />
+            <button
+              type="button"
+              onClick={handleCustomPathSubmit}
+              disabled={props.disabled || !customPath().trim()}
+              class="selector-button selector-button-primary"
+            >
+              <Plus class="w-4 h-4" />
+              {t("opencodeBinarySelector.actions.add")}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleBrowseBinary()}
+            disabled={props.disabled}
+            class="selector-button selector-button-secondary w-full flex items-center justify-center gap-2"
+          >
+            <FolderOpen class="w-4 h-4" />
+            {t("opencodeBinarySelector.actions.browse")}
+          </button>
+
+          <Show when={validationError()}>
+            <div class="selector-validation-error">
+              <div class="selector-validation-error-content">
+                <AlertCircle class="selector-validation-error-icon" />
+                <span class="selector-validation-error-text">{validationError()}</span>
+              </div>
+            </div>
+          </Show>
+        </div>
+
+        <div class="panel-list panel-list--fill max-h-80 overflow-y-auto">
+          <For each={binaryOptions()}>
+            {(binary) => {
+              const isDefault = binary.isDefault
+              const versionLabel = () => versionInfo().get(binary.path) ?? binary.version
+
+              return (
+                <div
+                  class="panel-list-item flex items-center"
+                  classList={{ "panel-list-item-highlight": currentSelectionPath() === binary.path }}
+                >
+                  <button
+                    type="button"
+                    class="panel-list-item-content flex-1"
+                    onClick={() => handleSelectBinary(binary.path)}
+                    disabled={props.disabled}
+                  >
+                    <div class="flex flex-col flex-1 min-w-0 gap-1.5">
+                      <div class="flex items-center gap-2">
+                        <Check
+                          class={`w-4 h-4 transition-opacity ${currentSelectionPath() === binary.path ? "opacity-100" : "opacity-0"}`}
+                        />
+                        <span class="text-sm font-medium truncate text-primary">{getDisplayName(binary.path)}</span>
+                      </div>
+                      <Show when={!isDefault}>
+                        <div class="text-xs font-mono truncate pl-6 text-muted">{binary.path}</div>
+                      </Show>
+                      <div class="flex items-center gap-2 text-xs text-muted pl-6 flex-wrap">
+                        <Show when={versionLabel()}>
+                          <span class="selector-badge-version">{t("opencodeBinarySelector.versionLabel", { version: versionLabel() })}</span>
+                        </Show>
+                        <Show when={isPathValidating(binary.path)}>
+                          <span class="selector-badge-time">{t("opencodeBinarySelector.status.checking")}</span>
+                        </Show>
+                        <Show when={!isDefault && binary.lastUsed}>
+                          <span class="selector-badge-time">{formatRelativeTime(binary.lastUsed)}</span>
+                        </Show>
+                        <Show when={isDefault}>
+                          <span class="selector-badge-time">{t("opencodeBinarySelector.badge.systemPath")}</span>
+                        </Show>
+                      </div>
+                    </div>
+                  </button>
+                  <Show when={!isDefault}>
+                    <button
+                      type="button"
+                      class="p-2 text-muted hover:text-primary"
+                      onClick={(event) => handleRemoveBinary(binary.path, event)}
+                      disabled={props.disabled}
+                      title={t("opencodeBinarySelector.actions.removeTitle")}
+                    >
+                      <Trash2 class="w-3.5 h-3.5" />
+                    </button>
+                  </Show>
+                </div>
+              )
+            }}
+          </For>
+        </div>
+      </div>
+
+      <DirectoryBrowserDialog
+        open={isBinaryBrowserOpen()}
+        mode="files"
+        title={t("opencodeBinarySelector.dialog.title")}
+        description={t("opencodeBinarySelector.dialog.description")}
+        onClose={() => setIsBinaryBrowserOpen(false)}
+        onSelect={handleBinaryBrowserSelect}
+      />
+    </>
+  )
+}
+ 
+export default OpenCodeBinarySelector

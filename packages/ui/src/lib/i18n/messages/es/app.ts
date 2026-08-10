@@ -1,0 +1,44 @@
+export const appMessages = {
+  "app.launchError.title": "No se pudo iniciar OpenCode",
+  "app.launchError.description": "OpenCode no pudo iniciar este espacio de trabajo. Revisa la salida de error o la configuración de OpenCode.",
+  "app.launchError.binaryPathLabel": "Ruta del binario",
+  "app.launchError.errorOutputLabel": "Salida de error",
+  "app.launchError.openAdvancedSettings": "Abrir Configuración de OpenCode",
+  "app.launchError.close": "Cerrar",
+  "app.launchError.closeTitle": "Cerrar (Esc)",
+  "app.launchError.fallbackMessage": "No se pudo iniciar el workspace",
+  "app.launchError.invalidConfig": "La configuración de OpenCode no es válida",
+
+  "app.stopInstance.confirmMessage": "¿Detener la instancia de OpenCode? Esto detendrá el servidor.",
+  "app.stopInstance.title": "Detener instancia",
+  "app.stopInstance.confirmLabel": "Detener",
+  "app.stopInstance.cancelLabel": "Seguir ejecutándose",
+  "app.stopInstance.toast.error": "No se pudo detener el workspace.",
+
+  "emptyState.logoAlt": "Logo de SAIWORK",
+  "emptyState.brandTitle": "SAIWORK",
+  "emptyState.tagline": "Selecciona una carpeta para empezar a programar con IA",
+  "emptyState.actions.selectFolder": "Seleccionar carpeta",
+  "emptyState.actions.selecting": "Seleccionando...",
+  "emptyState.keyboardShortcut": "Atajo de teclado: {shortcut}",
+  "emptyState.examples": "Ejemplos: {example}",
+  "emptyState.multipleInstances": "Puedes tener varias instancias de la misma carpeta",
+
+  "releases.upgradeRequired.title": "Actualización requerida",
+  "releases.upgradeRequired.message.withVersion": "Actualiza a SAIWORK {version} para usar la UI más reciente.",
+  "releases.upgradeRequired.message.noVersion": "Actualiza SAIWORK para usar la UI más reciente.",
+  "releases.upgradeRequired.action.getUpdate": "Obtener actualización",
+
+  "releases.uiUpdated.title": "UI actualizada",
+  "releases.uiUpdated.message": "La UI ahora está actualizada a {version}.",
+
+  "releases.devUpdateAvailable.title": "Compilación dev disponible",
+  "releases.devUpdateAvailable.message": "Hay una nueva compilación dev disponible: {version}.",
+  "releases.devUpdateAvailable.action": "Ver release",
+
+  "theme.mode.system": "Sistema",
+  "theme.mode.light": "Claro",
+  "theme.mode.dark": "Oscuro",
+  "theme.toggle.title": "Tema: {mode}",
+  "theme.toggle.ariaLabel": "Tema: {mode}",
+} as const

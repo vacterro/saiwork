@@ -1,0 +1,121 @@
+/*
+ * Loading screen -- Vintage Golden.
+ *
+ * No spinner, no drop shadow, no per-theme branch: the palette is the same in
+ * every mode, and progress is reported as static text (saipen UI.md).
+ */
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--background, #342012);
+  color: var(--textPrimary, #e2ca95);
+  font-family: Verdana_m1, Verdana, Geneva, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.loading-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.loading-logo {
+  width: 96px;
+  height: auto;
+}
+
+.loading-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.loading-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin: 0;
+  color: var(--textPrimary, #e2ca95);
+}
+
+.loading-status {
+  margin: 0;
+  font-size: 11px;
+  color: var(--textSecondary, #c5ab6e);
+}
+
+.loading-card {
+  margin-top: 8px;
+  width: 100%;
+  max-width: 360px;
+  padding: 8px;
+  background: var(--surfaceRaised, #5a4324);
+  border: 2px solid;
+  border-color: var(--borderHighlight, #d3b57a) var(--borderDark, #1c1208) var(--borderDark, #1c1208)
+    var(--borderHighlight, #d3b57a);
+}
+
+.loading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+/* Replaces the old .spinner. Same "process is alive" signal, zero motion. */
+.loading-ellipsis {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--textSecondary, #c5ab6e);
+}
+
+.phrase-controls {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--textMuted, #95804c);
+}
+
+.phrase-controls button {
+  border: 2px solid;
+  border-color: var(--borderHighlight, #d3b57a) var(--borderDark, #1c1208) var(--borderDark, #1c1208)
+    var(--borderHighlight, #d3b57a);
+  background: var(--surfaceRaised, #5a4324);
+  color: var(--textPrimary, #e2ca95);
+  font: inherit;
+  padding: 2px 6px;
+  min-height: 20px;
+  cursor: pointer;
+}
+
+.phrase-controls button:hover {
+  background: var(--surfaceAlt, #634b2b);
+}
+
+.phrase-controls button:active {
+  border-color: var(--borderDark, #1c1208) var(--borderHighlight, #d3b57a) var(--borderHighlight, #d3b57a)
+    var(--borderDark, #1c1208);
+  background: var(--surface, #4a341b);
+  transform: translate(1px, 1px);
+}
+
+.loading-error {
+  margin-top: 8px;
+  padding: 4px;
+  background: var(--compareBack, #24170c);
+  color: var(--danger, #963030);
+  font-size: 11px;
+  text-align: left;
+}

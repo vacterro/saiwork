@@ -1,0 +1,155 @@
+{
+    "name": "@saiwork/electron-app",
+    "version": "0.0.2",
+    "description": "SaiWork - AI coding assistant",
+    "license": "MIT",
+    "author": {
+        "name": "Neural Nomads",
+        "email": "saiwork@saipen.local"
+    },
+    "type": "module",
+    "main": "dist/main/main.cjs",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/vacterro/saiwork.git"
+    },
+    "homepage": "https://github.com/vacterro/saiwork",
+    "scripts": {
+    "dev": "npm run dev:info",
+    "dev:info": "cross-env CLI_LOG_LEVEL=info electron-vite dev",
+    "dev:debug": "cross-env CLI_LOG_LEVEL=debug electron-vite dev",
+    "dev:trace": "cross-env CLI_LOG_LEVEL=trace electron-vite dev",
+    "dev:electron": "cross-env NODE_ENV=development ELECTRON_ENABLE_LOGGING=1 NODE_OPTIONS=\"--import tsx\" electron electron/main/main.ts",
+        "prepare:resources": "node scripts/prepare-resources.js",
+        "prebuild": "npm run prepare:resources",
+        "build": "electron-vite build",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test:native": "node --import tsx --test electron/main/client-state-cross-host.test.ts electron/main/client-state-process.test.ts electron/main/client-state.test.ts electron/main/client-state-ipc.test.ts electron/main/client-state-navigation.test.ts electron/main/client-state-lifecycle.test.ts electron/main/process-stop.test.ts electron/main/renderer-client-state-flush.test.ts electron/main/renderer-origin.test.ts electron/main/serialized-lifecycle.test.ts electron/main/window-state.test.ts",
+        "preview": "electron-vite preview",
+        "build:binaries": "node scripts/build.js",
+        "build:mac": "node scripts/build.js mac",
+        "build:mac-x64": "node scripts/build.js mac-x64",
+        "build:mac-arm64": "node scripts/build.js mac-arm64",
+        "build:win": "node scripts/build.js win",
+        "build:win-arm64": "node scripts/build.js win-arm64",
+        "build:linux": "node scripts/build.js linux",
+        "build:linux-arm64": "node scripts/build.js linux-arm64",
+        "build:linux-rpm": "node scripts/build.js linux-rpm",
+        "build:all": "node scripts/build.js all",
+        "package:mac": "node scripts/build.js mac",
+        "package:win": "node scripts/build.js win",
+        "package:linux": "node scripts/build.js linux",
+        "smoke:resources": "node ../../scripts/smoke-packaged-resources.cjs --resources electron/resources --loading dist/renderer"
+    },
+    "dependencies": {
+        "yaml": "^2.4.2"
+    },
+    "devDependencies": {
+        "7zip-bin": "^5.2.0",
+        "app-builder-bin": "^4.2.0",
+        "cross-env": "^7.0.3",
+        "electron": "^38.0.0",
+        "electron-builder": "^24.0.0",
+        "electron-vite": "4.0.1",
+        "png2icons": "^2.0.1",
+        "pngjs": "^7.0.0",
+        "tsx": "^4.20.6",
+        "typescript": "^5.3.0",
+        "vite": "^5.0.0",
+        "vite-plugin-solid": "^2.10.0"
+    },
+    "build": {
+        "appId": "ai.saipen.saiwork.client",
+        "productName": "SaiWork",
+        "directories": {
+            "output": "release",
+            "buildResources": "electron/resources"
+        },
+        "files": [
+            "dist/main/**/*",
+            "dist/preload/**/*",
+            "dist/renderer/loading.html",
+            "dist/renderer/assets/**/*",
+            "package.json"
+        ],
+        "extraResources": [
+            {
+                "from": "electron/resources",
+                "to": "",
+                "filter": [
+                    "!icon.icns",
+                    "!icon.ico"
+                ]
+            },
+            {
+                "from": "../server/dist/opencode-plugin",
+                "to": "opencode-plugin"
+            }
+        ],
+        "mac": {
+            "entitlements": "electron/resources/entitlements.mac.plist",
+            "entitlementsInherit": "electron/resources/entitlements.mac.plist",
+            "extendInfo": {
+                "NSMicrophoneUsageDescription": "SaiWork needs microphone access for speech-to-text prompt input.",
+                "NSLocalNetworkUsageDescription": "SaiWork needs local network access to connect to locally hosted AI and speech services."
+            },
+            "category": "public.app-category.developer-tools",
+            "target": [
+                {
+                    "target": "zip"
+                }
+            ],
+            "artifactName": "SaiWork-Electron-macos-${arch}-${version}.${ext}",
+            "icon": "electron/resources/icon.icns"
+        },
+        "dmg": {
+            "contents": [
+                {
+                    "x": 130,
+                    "y": 220
+                },
+                {
+                    "x": 410,
+                    "y": 220,
+                    "type": "link",
+                    "path": "/Applications"
+                }
+            ]
+        },
+        "win": {
+            "target": [
+                {
+                    "target": "portable"
+                },
+                {
+                    "target": "zip"
+                }
+            ],
+            "artifactName": "SAIWORK-${arch}-${version}.${ext}",
+            "icon": "electron/resources/icon.ico"
+        },
+        "portable": {
+            "artifactName": "SAIWORK-portable-${arch}-${version}.exe",
+            "requestExecutionLevel": "user",
+            "unpackDirName": "saiwork"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true
+        },
+        "linux": {
+            "executableName": "SaiWork",
+            "target": [
+                {
+                    "target": "tar.gz"
+                }
+            ],
+            "artifactName": "SaiWork-Electron-linux-${arch}-${version}.${ext}",
+            "category": "Development",
+            "icon": "electron/resources/icon.png"
+        }
+    },
+    "private": true
+}

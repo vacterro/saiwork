@@ -1,0 +1,176 @@
+export const commandMessages = {
+  "commandPalette.title": "Paleta de comandos",
+  "commandPalette.description": "Busca y ejecuta comandos",
+  "commandPalette.searchPlaceholder": "Escribe un comando o busca...",
+  "commandPalette.empty": "No se encontraron comandos para \"{query}\"",
+  "commandPalette.category.customCommands": "Comandos personalizados",
+  "commandPalette.category.instance": "Instancia",
+  "commandPalette.category.session": "Sesión",
+  "commandPalette.category.agentModel": "Agente y modelo",
+  "commandPalette.category.inputFocus": "Entrada y foco",
+  "commandPalette.category.system": "Sistema",
+  "commandPalette.category.other": "Otro",
+
+  "commands.newInstance.label": "Nueva instancia",
+  "commands.newInstance.description": "Abrir el selector de carpetas para crear una nueva instancia",
+  "commands.newInstance.keywords": "carpeta, proyecto, workspace",
+
+  "commands.closeInstance.label": "Cerrar pestaña",
+  "commands.closeInstance.description": "Cerrar la pestaña superior actual",
+  "commands.closeInstance.keywords": "detener, salir, cerrar, pestaña",
+
+  "commands.nextInstance.label": "Siguiente pestaña",
+  "commands.nextInstance.description": "Cambiar a la siguiente pestaña superior",
+  "commands.nextInstance.keywords": "cambiar, navegar, pestaña",
+
+  "commands.previousInstance.label": "Pestaña anterior",
+  "commands.previousInstance.description": "Cambiar a la pestaña superior anterior",
+  "commands.previousInstance.keywords": "cambiar, navegar, pestaña",
+
+  "commands.newSession.label": "Nueva sesión",
+  "commands.newSession.description": "Crear una nueva sesión principal",
+  "commands.newSession.keywords": "crear, iniciar",
+
+  "commands.closeSession.label": "Cerrar sesión",
+  "commands.closeSession.description": "Cerrar la sesión principal actual",
+  "commands.closeSession.keywords": "cerrar, detener",
+
+  "commands.scrubSessions.label": "Depurar sesiones",
+  "commands.scrubSessions.description": "Eliminar sesiones vacías, sesiones de subagente que ya completaron su tarea principal y sesiones bifurcadas innecesarias.",
+  "commands.scrubSessions.keywords": "limpieza, blanco, vacías, sesiones, quitar, eliminar, depurar",
+
+  "commands.instanceInfo.label": "Info de la instancia",
+  "commands.instanceInfo.description": "Abrir el resumen de la instancia para ver logs y estado",
+  "commands.instanceInfo.keywords": "info, logs, consola, salida",
+
+  "commands.nextSession.label": "Siguiente sesión",
+  "commands.nextSession.description": "Cambiar a la siguiente pestaña de sesión",
+  "commands.nextSession.keywords": "cambiar, navegar",
+
+  "commands.previousSession.label": "Sesión anterior",
+  "commands.previousSession.description": "Cambiar a la pestaña de sesión anterior",
+  "commands.previousSession.keywords": "cambiar, navegar",
+
+  "commands.compactSession.label": "Compactar sesión",
+  "commands.compactSession.description": "Resumir y compactar la sesión actual",
+  "commands.compactSession.keywords": "resumir, comprimir",
+  "commands.compactSession.errorFallback": "No se pudo compactar la sesión",
+  "commands.compactSession.alert.title": "La compactación falló",
+  "commands.compactSession.alert.message": "La compactación falló: {message}",
+
+  "commands.undoLastMessage.label": "Deshacer último mensaje",
+  "commands.undoLastMessage.description": "Revertir el último mensaje",
+  "commands.undoLastMessage.keywords": "revertir, deshacer",
+  "commands.undoLastMessage.none.title": "No hay acciones para deshacer",
+  "commands.undoLastMessage.none.message": "Nada que deshacer",
+  "commands.undoLastMessage.failed.title": "No se pudo deshacer",
+  "commands.undoLastMessage.failed.message": "No se pudo revertir el mensaje",
+
+  "commands.openModelSelector.label": "Abrir selector de modelo",
+  "commands.openModelSelector.description": "Elegir un modelo diferente",
+  "commands.openModelSelector.keywords": "modelo, llm, IA",
+
+  "commands.selectModelVariant.label": "Seleccionar variante del modelo",
+  "commands.selectModelVariant.description": "Elegir un nivel de esfuerzo de pensamiento para el modelo actual",
+  "commands.selectModelVariant.keywords": "variante, pensamiento, razonamiento, esfuerzo",
+
+  "commands.openAgentSelector.label": "Abrir selector de agente",
+  "commands.openAgentSelector.description": "Elegir un agente diferente",
+  "commands.openAgentSelector.keywords": "agente, modo",
+
+  "commands.clearInput.label": "Limpiar entrada",
+  "commands.clearInput.description": "Borrar el área de texto del prompt",
+  "commands.clearInput.keywords": "limpiar, reiniciar",
+
+  "commands.promptSubmitShortcut.label.default": "Enter: Nueva linea, Cmd/Ctrl+Enter: Enviar prompt",
+  "commands.promptSubmitShortcut.label.swapped": "Enter: Enviar prompt, Cmd/Ctrl+Enter: Nueva linea",
+  "commands.promptSubmitShortcut.description": "Intercambiar el comportamiento de Enter y Cmd/Ctrl+Enter en la entrada de prompt",
+  "commands.promptSubmitShortcut.keywords": "enter, enviar, salto de linea, atajo, teclado, cmd, ctrl, prompt",
+
+  "commands.thinkingBlocks.label.show": "Mostrar pensamiento",
+  "commands.thinkingBlocks.label.hide": "Ocultar pensamiento",
+  "commands.thinkingBlocks.description": "Mostrar u ocultar secciones de pensamiento de IA",
+  "commands.thinkingBlocks.keywords": "pensamiento, razonamiento, alternar, mostrar, ocultar",
+
+  "commands.timelineToolCalls.label.show": "Mostrar llamadas de herramienta en la línea de tiempo",
+  "commands.timelineToolCalls.label.hide": "Ocultar llamadas de herramienta en la línea de tiempo",
+  "commands.timelineToolCalls.description": "Alternar entradas de llamadas de herramienta en la línea de tiempo de mensajes",
+  "commands.timelineToolCalls.keywords": "línea de tiempo, herramienta, alternar",
+
+  "commands.keyboardShortcutHints.label.show": "Mostrar atajos de teclado",
+  "commands.keyboardShortcutHints.label.hide": "Ocultar atajos de teclado",
+  "commands.keyboardShortcutHints.description": "Mostrar u ocultar sugerencias de atajos de teclado en la interfaz",
+  "commands.keyboardShortcutHints.description.disabledWeb": "Desactivado en WebUI (los atajos siempre se ocultan)",
+  "commands.keyboardShortcutHints.keywords": "atajo, atajos, teclado, keybind, pistas",
+
+  "commands.common.expanded": "Expandido",
+  "commands.common.collapsed": "Colapsado",
+  "commands.common.visible": "Visible",
+  "commands.common.hidden": "Oculto",
+  "commands.common.enabled": "Activado",
+  "commands.common.disabled": "Desactivado",
+
+  "commands.thinkingBlocksDefault.label": "Vista de pensamiento: {state}",
+  "commands.thinkingBlocksDefault.description": "Contraer / Expandir secciones de pensamiento de IA cuando se muestran",
+  "commands.thinkingBlocksDefault.keywords": "pensamiento, razonamiento, expandir, colapsar, por defecto",
+
+  "commands.diffViewSplit.label": "Usar vista de diff dividida",
+  "commands.diffViewSplit.description": "Mostrar diffs de llamadas de herramienta lado a lado",
+  "commands.diffViewSplit.keywords": "diff, dividir, vista",
+
+  "commands.diffViewUnified.label": "Usar vista de diff unificada",
+  "commands.diffViewUnified.description": "Mostrar diffs de llamadas de herramienta en línea",
+  "commands.diffViewUnified.keywords": "diff, unificada, vista",
+
+  "commands.toolOutputsDefault.label": "Salidas de herramientas por defecto · {state}",
+  "commands.toolOutputsDefault.description": "Configurar la visibilidad por defecto de las salidas de herramientas",
+  "commands.toolOutputsDefault.keywords": "herramienta, salida, ocultar, expandir, colapsar",
+
+  "commands.diagnosticsDefault.label": "Diagnósticos por defecto · {state}",
+  "commands.diagnosticsDefault.description": "Configurar la visibilidad por defecto de la salida de diagnósticos",
+  "commands.diagnosticsDefault.keywords": "diagnósticos, ocultar, expandir, colapsar",
+
+  "commands.toolInputsVisibility.label": "Visibilidad de entradas de herramientas · {state}",
+  "commands.toolInputsVisibility.description": "Configurar la visibilidad por defecto de los argumentos de entrada de llamadas de herramienta",
+  "commands.toolInputsVisibility.keywords": "herramienta, entradas, argumentos, visibilidad, ocultar, mostrar, expandir, colapsar",
+
+  "commands.tokenUsageDisplay.label": "Mostrar uso de tokens · {state}",
+  "commands.tokenUsageDisplay.description": "Mostrar u ocultar estadísticas de tokens y costo en los mensajes del asistente",
+  "commands.tokenUsageDisplay.keywords": "token, uso, costo, estadísticas",
+
+  "commands.autoCleanupBlankSessions.label": "Auto-limpieza de sesiones vacías · {state}",
+  "commands.autoCleanupBlankSessions.description": "Limpiar automáticamente las sesiones vacías al crear nuevas",
+  "commands.autoCleanupBlankSessions.keywords": "auto, limpieza, vacías, sesiones, alternar",
+
+  "commands.showHelp.label": "Mostrar ayuda",
+  "commands.showHelp.description": "Mostrar atajos de teclado y ayuda",
+  "commands.showHelp.keywords": "atajos, ayuda",
+
+  "commands.custom.argumentsPrompt.message": "Argumentos para /{name}",
+  "commands.custom.argumentsPrompt.title": "Comando personalizado",
+  "commands.custom.argumentsPrompt.inputLabel": "Argumentos",
+  "commands.custom.argumentsPrompt.inputPlaceholder": "p. ej. foo bar",
+  "commands.custom.argumentsPrompt.confirmLabel": "Ejecutar",
+  "commands.custom.argumentsPrompt.cancelLabel": "Cancelar",
+  "commands.custom.argumentsPrompt.openFailed.message": "No se pudo abrir el diálogo de argumentos.",
+  "commands.custom.argumentsPrompt.openFailed.title": "Argumentos del comando",
+  "commands.custom.entries.descriptionFallback": "Comando personalizado",
+  "commands.custom.sessionRequired.message": "Selecciona una sesión antes de ejecutar un comando personalizado.",
+  "commands.custom.sessionRequired.title": "Se requiere sesión",
+  "commands.custom.runFailed.message": "No se pudo ejecutar el comando personalizado. Revisa la consola para más detalles.",
+  "commands.custom.runFailed.title": "El comando falló",
+
+  "unifiedPicker.loading.searching": "Buscando...",
+  "unifiedPicker.loading.loadingWorkspace": "Cargando workspace...",
+  "unifiedPicker.title.command": "Seleccionar comando",
+  "unifiedPicker.title.mention": "Seleccionar agente o archivo",
+  "unifiedPicker.empty": "No se encontraron resultados",
+  "unifiedPicker.sections.commands": "COMANDOS",
+  "unifiedPicker.sections.agents": "AGENTES",
+  "unifiedPicker.sections.files": "ARCHIVOS",
+  "unifiedPicker.sections.workspaceRoot": "RAÍZ DEL WORKSPACE",
+  "unifiedPicker.badge.subagent": "subagente",
+  "unifiedPicker.footer.navigate": "navegar",
+  "unifiedPicker.footer.select": "seleccionar",
+  "unifiedPicker.footer.close": "cerrar",
+} as const

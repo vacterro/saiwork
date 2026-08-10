@@ -1,0 +1,176 @@
+export const commandMessages = {
+  "commandPalette.title": "Command Palette",
+  "commandPalette.description": "Search and execute commands",
+  "commandPalette.searchPlaceholder": "Type a command or search...",
+  "commandPalette.empty": "No commands found for \"{query}\"",
+  "commandPalette.category.customCommands": "Custom Commands",
+  "commandPalette.category.instance": "Instance",
+  "commandPalette.category.session": "Session",
+  "commandPalette.category.agentModel": "Agent & Model",
+  "commandPalette.category.inputFocus": "Input & Focus",
+  "commandPalette.category.system": "System",
+  "commandPalette.category.other": "Other",
+
+  "commands.newInstance.label": "New Instance",
+  "commands.newInstance.description": "Open folder picker to create new instance",
+  "commands.newInstance.keywords": "folder, project, workspace",
+
+  "commands.closeInstance.label": "Close Tab",
+  "commands.closeInstance.description": "Close the current top-level tab",
+  "commands.closeInstance.keywords": "stop, quit, close, tab",
+
+  "commands.nextInstance.label": "Next Tab",
+  "commands.nextInstance.description": "Cycle to the next top-level tab",
+  "commands.nextInstance.keywords": "switch, navigate, tab",
+
+  "commands.previousInstance.label": "Previous Tab",
+  "commands.previousInstance.description": "Cycle to the previous top-level tab",
+  "commands.previousInstance.keywords": "switch, navigate, tab",
+
+  "commands.newSession.label": "New Session",
+  "commands.newSession.description": "Create a new parent session",
+  "commands.newSession.keywords": "create, start",
+
+  "commands.closeSession.label": "Close Session",
+  "commands.closeSession.description": "Close current parent session",
+  "commands.closeSession.keywords": "close, stop",
+
+  "commands.scrubSessions.label": "Scrub Sessions",
+  "commands.scrubSessions.description": "Remove empty sessions, subagent sessions that have completed their primary task, and extraneous forked sessions.",
+  "commands.scrubSessions.keywords": "cleanup, blank, empty, sessions, remove, delete, scrub",
+
+  "commands.instanceInfo.label": "Instance Info",
+  "commands.instanceInfo.description": "Open the instance overview for logs and status",
+  "commands.instanceInfo.keywords": "info, logs, console, output",
+
+  "commands.nextSession.label": "Next Session",
+  "commands.nextSession.description": "Cycle to next session tab",
+  "commands.nextSession.keywords": "switch, navigate",
+
+  "commands.previousSession.label": "Previous Session",
+  "commands.previousSession.description": "Cycle to previous session tab",
+  "commands.previousSession.keywords": "switch, navigate",
+
+  "commands.compactSession.label": "Compact Session",
+  "commands.compactSession.description": "Summarize and compact the current session",
+  "commands.compactSession.keywords": "summarize, compress",
+  "commands.compactSession.errorFallback": "Failed to compact session",
+  "commands.compactSession.alert.title": "Compact failed",
+  "commands.compactSession.alert.message": "Compact failed: {message}",
+
+  "commands.undoLastMessage.label": "Undo Last Message",
+  "commands.undoLastMessage.description": "Revert the last message",
+  "commands.undoLastMessage.keywords": "revert, undo",
+  "commands.undoLastMessage.none.title": "No actions to undo",
+  "commands.undoLastMessage.none.message": "Nothing to undo",
+  "commands.undoLastMessage.failed.title": "Undo failed",
+  "commands.undoLastMessage.failed.message": "Failed to revert message",
+
+  "commands.openModelSelector.label": "Open Model Selector",
+  "commands.openModelSelector.description": "Choose a different model",
+  "commands.openModelSelector.keywords": "model, llm, ai",
+
+  "commands.selectModelVariant.label": "Select Model Variant",
+  "commands.selectModelVariant.description": "Choose a thinking effort for the current model",
+  "commands.selectModelVariant.keywords": "variant, thinking, reasoning, effort",
+
+  "commands.openAgentSelector.label": "Open Agent Selector",
+  "commands.openAgentSelector.description": "Choose a different agent",
+  "commands.openAgentSelector.keywords": "agent, mode",
+
+  "commands.clearInput.label": "Clear Input",
+  "commands.clearInput.description": "Clear the prompt textarea",
+  "commands.clearInput.keywords": "clear, reset",
+
+  "commands.promptSubmitShortcut.label.default": "Enter: New Line, Cmd/Ctrl+Enter: Submit Prompt",
+  "commands.promptSubmitShortcut.label.swapped": "Enter: Submit Prompt, Cmd/Ctrl+Enter: New Line",
+  "commands.promptSubmitShortcut.description": "Swap Enter and Cmd/Ctrl+Enter behavior in the prompt input",
+  "commands.promptSubmitShortcut.keywords": "enter, cmd, ctrl, submit, send, newline, shortcut, keybind, prompt",
+
+  "commands.thinkingBlocks.label.show": "Show Thinking",
+  "commands.thinkingBlocks.label.hide": "Hide Thinking",
+  "commands.thinkingBlocks.description": "Show or hide AI thinking sections",
+  "commands.thinkingBlocks.keywords": "thinking, reasoning, toggle, show, hide",
+
+  "commands.timelineToolCalls.label.show": "Show Timeline Tool Calls",
+  "commands.timelineToolCalls.label.hide": "Hide Timeline Tool Calls",
+  "commands.timelineToolCalls.description": "Toggle tool call entries in the message timeline",
+  "commands.timelineToolCalls.keywords": "timeline, tool, toggle",
+
+  "commands.keyboardShortcutHints.label.show": "Show Keyboard Shortcut Hints",
+  "commands.keyboardShortcutHints.label.hide": "Hide Keyboard Shortcut Hints",
+  "commands.keyboardShortcutHints.description": "Show or hide keyboard shortcut hints across the UI",
+  "commands.keyboardShortcutHints.description.disabledWeb": "Disabled in WebUI (shortcut hints are always hidden)",
+  "commands.keyboardShortcutHints.keywords": "shortcut, shortcuts, keyboard, keybind, hints",
+
+  "commands.common.expanded": "Expanded",
+  "commands.common.collapsed": "Collapsed",
+  "commands.common.visible": "Visible",
+  "commands.common.hidden": "Hidden",
+  "commands.common.enabled": "Enabled",
+  "commands.common.disabled": "Disabled",
+
+  "commands.thinkingBlocksDefault.label": "Thinking View: {state}",
+  "commands.thinkingBlocksDefault.description": "Collapse / Expand AI thinking sections when shown",
+  "commands.thinkingBlocksDefault.keywords": "thinking, reasoning, expand, collapse, default",
+
+  "commands.diffViewSplit.label": "Use Split Diff View",
+  "commands.diffViewSplit.description": "Display tool-call diffs side-by-side",
+  "commands.diffViewSplit.keywords": "diff, split, view",
+
+  "commands.diffViewUnified.label": "Use Unified Diff View",
+  "commands.diffViewUnified.description": "Display tool-call diffs inline",
+  "commands.diffViewUnified.keywords": "diff, unified, view",
+
+  "commands.toolOutputsDefault.label": "Tool Outputs Default · {state}",
+  "commands.toolOutputsDefault.description": "Set default visibility for tool outputs",
+  "commands.toolOutputsDefault.keywords": "tool, output, hide, expand, collapse",
+
+  "commands.diagnosticsDefault.label": "Diagnostics Default · {state}",
+  "commands.diagnosticsDefault.description": "Set default visibility for diagnostics output",
+  "commands.diagnosticsDefault.keywords": "diagnostics, hide, expand, collapse",
+
+  "commands.toolInputsVisibility.label": "Tool Inputs Visibility · {state}",
+  "commands.toolInputsVisibility.description": "Set default visibility for tool call input arguments",
+  "commands.toolInputsVisibility.keywords": "tool, inputs, arguments, visibility, hide, show, expand, collapse",
+
+  "commands.tokenUsageDisplay.label": "Token Usage Display · {state}",
+  "commands.tokenUsageDisplay.description": "Show or hide token and cost stats for assistant messages",
+  "commands.tokenUsageDisplay.keywords": "token, usage, cost, stats",
+
+  "commands.autoCleanupBlankSessions.label": "Auto-Cleanup Blank Sessions · {state}",
+  "commands.autoCleanupBlankSessions.description": "Automatically clean up blank sessions when creating new ones",
+  "commands.autoCleanupBlankSessions.keywords": "auto, cleanup, blank, sessions, toggle",
+
+  "commands.showHelp.label": "Show Help",
+  "commands.showHelp.description": "Display keyboard shortcuts and help",
+  "commands.showHelp.keywords": "shortcuts, help",
+
+  "commands.custom.argumentsPrompt.message": "Arguments for /{name}",
+  "commands.custom.argumentsPrompt.title": "Custom command",
+  "commands.custom.argumentsPrompt.inputLabel": "Arguments",
+  "commands.custom.argumentsPrompt.inputPlaceholder": "e.g. foo bar",
+  "commands.custom.argumentsPrompt.confirmLabel": "Run",
+  "commands.custom.argumentsPrompt.cancelLabel": "Cancel",
+  "commands.custom.argumentsPrompt.openFailed.message": "Failed to open arguments prompt.",
+  "commands.custom.argumentsPrompt.openFailed.title": "Command arguments",
+  "commands.custom.entries.descriptionFallback": "Custom command",
+  "commands.custom.sessionRequired.message": "Select a session before running a custom command.",
+  "commands.custom.sessionRequired.title": "Session required",
+  "commands.custom.runFailed.message": "Failed to run custom command. Check the console for details.",
+  "commands.custom.runFailed.title": "Command failed",
+
+  "unifiedPicker.loading.searching": "Searching...",
+  "unifiedPicker.loading.loadingWorkspace": "Loading workspace...",
+  "unifiedPicker.title.command": "Select Command",
+  "unifiedPicker.title.mention": "Select Agent or File",
+  "unifiedPicker.empty": "No results found",
+  "unifiedPicker.sections.commands": "COMMANDS",
+  "unifiedPicker.sections.agents": "AGENTS",
+  "unifiedPicker.sections.files": "FILES",
+  "unifiedPicker.sections.workspaceRoot": "WORKSPACE ROOT",
+  "unifiedPicker.badge.subagent": "subagent",
+  "unifiedPicker.footer.navigate": "navigate",
+  "unifiedPicker.footer.select": "select",
+  "unifiedPicker.footer.close": "close",
+} as const

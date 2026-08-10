@@ -1,0 +1,172 @@
+import type { ClientPart } from "../../types/message"
+import type { PromptDisplayMetadata } from "../../lib/prompt-display-metadata"
+import type { PermissionRequest } from "../../types/permission"
+import type { QuestionRequest } from "../../types/question"
+
+export type MessageStatus = "sending" | "sent" | "streaming" | "complete" | "error"
+export type MessageRole = "user" | "assistant"
+
+export interface NormalizedPartRecord {
+  id: string
+  data: ClientPart
+  revision: number
+}
+
+export interface MessageRecord {
+  id: string
+  sessionId: string
+  role: MessageRole
+  status: MessageStatus
+  createdAt: number
+  updatedAt: number
+  revision: number
+  isEphemeral?: boolean
+  clientPromptDisplayMetadata?: PromptDisplayMetadata
+  partIds: string[]
+  parts: Record<string, NormalizedPartRecord>
+}
+
+export interface SessionRevertState {
+  messageID?: string
+  partID?: string
+  snapshot?: string
+  diff?: string
+}
+
+export interface SessionRecord {
+  id: string
+  title?: string
+  parentId?: string | null
+  createdAt: number
+  updatedAt: number
+  messageIds: string[]
+  revert?: SessionRevertState | null
+}
+
+export interface PendingPartEntry {
+  messageId: string
+  part: ClientPart
+  receivedAt: number
+}
+
+export interface PermissionEntry {
+  permission: PermissionRequest
+  messageId?: string
+  partId?: string
+  enqueuedAt: number
+}
+
+export interface InstancePermissionState {
+  queue: PermissionEntry[]
+  active: PermissionEntry | null
+  byMessage: Record<string, Record<string, PermissionEntry>>
+}
+
+export interface QuestionEntry {
+  request: QuestionRequest
+  messageId?: string
+  partId?: string
+  enqueuedAt: number
+}
+
+export interface InstanceQuestionState {
+  queue: QuestionEntry[]
+  active: QuestionEntry | null
+  byMessage: Record<string, Record<string, QuestionEntry>>
+}
+
+export interface ScrollSnapshot {
+  scrollTop: number
+  scrollRatio?: number
+  maxScrollTop?: number
+  anchorKey?: string
+  anchorOffset?: number
+  atBottom: boolean
+  followModeType?: "following" | "escaped"
+  updatedAt: number
+}
+
+export interface UsageEntry {
+  messageId: string
+  inputTokens: number
+  outputTokens: number
+  reasoningTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalTokens?: number
+  combinedTokens: number
+  cost: number
+  timestamp: number
+  hasContextUsage: boolean
+}
+
+export interface SessionUsageState {
+  entries: Record<string, UsageEntry>
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalReasoningTokens: number
+  totalCost: number
+  actualUsageTokens: number
+  latestMessageId?: string
+}
+
+export interface LatestTodoSnapshot {
+  messageId: string
+  partId: string
+  timestamp: number
+}
+
+export interface InstanceMessageState {
+  instanceId: string
+  sessions: Record<string, SessionRecord>
+  sessionOrder: string[]
+  messages: Record<string, MessageRecord>
+  lastAssistantMessageIds: Record<string, string | undefined>
+  messageInfoVersion: Record<string, number>
+  pendingParts: Record<string, PendingPartEntry[]>
+  sessionRevisions: Record<string, number>
+  permissions: InstancePermissionState
+  questions: InstanceQuestionState
+  usage: Record<string, SessionUsageState>
+  scrollState: Record<string, ScrollSnapshot>
+  latestTodos: Record<string, LatestTodoSnapshot | undefined>
+}
+
+export interface SessionUpsertInput {
+  id: string
+  title?: string
+  parentId?: string | null
+  messageIds?: string[]
+  revert?: SessionRevertState | null
+}
+
+export interface MessageUpsertInput {
+  id: string
+  sessionId: string
+  role: MessageRole
+  status: MessageStatus
+  parts?: ClientPart[]
+  createdAt?: number
+  updatedAt?: number
+  isEphemeral?: boolean
+  clientPromptDisplayMetadata?: PromptDisplayMetadata
+  bumpRevision?: boolean
+}
+
+export interface PartUpdateInput {
+  messageId: string
+  part: ClientPart
+  bumpRevision?: boolean
+}
+
+export interface ReplaceMessageIdOptions {
+  oldId: string
+  newId: string
+  clearParts?: boolean
+}
+
+export interface ScrollCacheKey {
+  instanceId: string
+  sessionId: string
+  scope: string
+}

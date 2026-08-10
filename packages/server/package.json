@@ -1,0 +1,52 @@
+{
+  "name": "@saiwork/saiwork",
+  "version": "0.0.2",
+  "description": "SaiWork Server",
+  "license": "MIT",
+  "author": {
+    "name": "Neural Nomads",
+    "email": "saiwork@saipen.local"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vacterro/saiwork.git"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "saiwork": "dist/bin.js"
+  },
+  "scripts": {
+    "build": "npm run build:ui && npm run prepare-ui && tsc -p tsconfig.json && node ./scripts/copy-auth-pages.mjs && npm run prepare-plugin",
+    "build:ui": "npm run build --prefix ../ui",
+    "prepare-ui": "node ./scripts/copy-ui-dist.mjs",
+    "prepare-plugin": "node ./scripts/package-opencode-plugin.mjs",
+    "dev": "cross-env SAIWORK_DEV=1 SAIWORK_SERVER_PASSWORD=saiwork-dev CLI_UI_DEV_SERVER=http://localhost:3000 CLI_HTTPS=false CLI_HTTP=true tsx src/index.ts",
+    "test": "node --import tsx --test --test-force-exit \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fastify/cors": "^8.5.0",
+    "@fastify/reply-from": "^9.8.0",
+    "@fastify/static": "^7.0.4",
+    "@opencode-ai/sdk": "^1.17.8",
+    "commander": "^12.1.0",
+    "fastify": "^4.28.1",
+    "fuzzysort": "^2.0.4",
+    "node-forge": "^1.3.3",
+    "openai": "^6.27.0",
+    "pino": "^9.4.0",
+    "undici": "^6.19.8",
+    "yaml": "^2.4.2",
+    "yauzl": "^2.10.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node-forge": "^1.3.14",
+    "@types/yauzl": "^2.10.0",
+    "cross-env": "^7.0.3",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.6.3"
+  }
+}

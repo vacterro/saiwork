@@ -1,0 +1,16 @@
+node_modules/
+dist/
+release/
+.DS_Store
+*.log
+.vite/
+.electron-vite/
+out/
+.dir-locals.el
+.opencode/bashOutputs/
+
+# Local runtime artifacts
+.saiwork/
+.tmp/
+packages/cloudflare/.wrangler/
+temp/

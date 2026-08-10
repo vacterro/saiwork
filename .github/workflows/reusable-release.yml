@@ -1,0 +1,132 @@
+name: Reusable Release
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag, or SHA) to build from"
+        required: false
+        default: ""
+        type: string
+      version_suffix:
+        description: "Suffix appended to package.json version"
+        required: false
+        default: ""
+        type: string
+      dist_tag:
+        description: "npm dist-tag to publish under"
+        required: false
+        default: dev
+        type: string
+      npm_package_name:
+        description: "npm package name to publish (defaults to server package name)"
+        required: false
+        default: ""
+        type: string
+      prerelease:
+        description: "Create GitHub prerelease"
+        required: false
+        default: false
+        type: boolean
+      release_ui:
+        description: "Publish remote UI + manifest"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
+      tag: ${{ steps.versions.outputs.tag }}
+      release_name: ${{ steps.versions.outputs.release_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Compute release versions
+        id: versions
+        env:
+          VERSION_SUFFIX: ${{ inputs.version_suffix }}
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          VERSION="${BASE_VERSION}${VERSION_SUFFIX}"
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "release_name=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.versions.outputs.tag }}
+          IS_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
+          else
+            if [ "${IS_PRERELEASE}" = "true" ]; then
+              gh release create "$TAG" --title "$TAG" --generate-notes --prerelease
+            else
+              gh release create "$TAG" --title "$TAG" --generate-notes
+            fi
+          fi
+
+  build-and-upload:
+    needs: prepare-release
+    uses: ./.github/workflows/build-and-upload.yml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+      version: ${{ needs.prepare-release.outputs.version }}
+      tag: ${{ needs.prepare-release.outputs.tag }}
+      release_name: ${{ needs.prepare-release.outputs.release_name }}
+    secrets: inherit
+
+  update-winget:
+    needs:
+      - prepare-release
+      - build-and-upload
+    if: ${{ !inputs.prerelease }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/update-winget.yml
+    with:
+      release_tag: ${{ needs.prepare-release.outputs.tag }}
+    secrets: inherit
+
+  release-ui:
+    needs: prepare-release
+    if: ${{ inputs.release_ui }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-ui.yml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets: inherit
+
+  publish-server:
+    needs:
+      - prepare-release
+      - build-and-upload
+    uses: ./.github/workflows/manual-npm-publish.yml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+      version: ${{ needs.prepare-release.outputs.version }}
+      dist_tag: ${{ inputs.dist_tag }}
+      package_name: ${{ inputs.npm_package_name }}
+    secrets: inherit

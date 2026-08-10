@@ -1,0 +1,34 @@
+/* Split panes: flex-row container + dividers + per-pane toolbar. */
+
+.session-split-panes {
+  background-color: var(--surface-base);
+}
+
+.session-split-divider {
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background-color: var(--border-base);
+  border-left: 1px solid var(--border-base);
+  border-right: 1px solid var(--border-base);
+}
+
+.session-split-pane-toolbar {
+  background-color: var(--surface-secondary);
+  border-bottom: 1px solid var(--border-base);
+}
+
+.session-split-pane-action {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 11px;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.session-split-pane-action:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--border-base);
+}

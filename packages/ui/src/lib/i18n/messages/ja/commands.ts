@@ -1,0 +1,176 @@
+export const commandMessages = {
+  "commandPalette.title": "コマンドパレット",
+  "commandPalette.description": "コマンドを検索して実行",
+  "commandPalette.searchPlaceholder": "コマンドを入力するか検索...",
+  "commandPalette.empty": "「{query}」に一致するコマンドが見つかりません",
+  "commandPalette.category.customCommands": "カスタムコマンド",
+  "commandPalette.category.instance": "インスタンス",
+  "commandPalette.category.session": "セッション",
+  "commandPalette.category.agentModel": "エージェントとモデル",
+  "commandPalette.category.inputFocus": "入力とフォーカス",
+  "commandPalette.category.system": "システム",
+  "commandPalette.category.other": "その他",
+
+  "commands.newInstance.label": "新しいインスタンス",
+  "commands.newInstance.description": "フォルダ選択を開いて新しいインスタンスを作成",
+  "commands.newInstance.keywords": "フォルダ, プロジェクト, ワークスペース, folder, project, workspace",
+
+  "commands.closeInstance.label": "タブを閉じる",
+  "commands.closeInstance.description": "現在のトップレベルタブを閉じる",
+  "commands.closeInstance.keywords": "閉じる, タブ, stop, quit, close",
+
+  "commands.nextInstance.label": "次のタブ",
+  "commands.nextInstance.description": "次のトップレベルタブへ切り替え",
+  "commands.nextInstance.keywords": "切り替え, 移動, タブ, switch, navigate",
+
+  "commands.previousInstance.label": "前のタブ",
+  "commands.previousInstance.description": "前のトップレベルタブへ切り替え",
+  "commands.previousInstance.keywords": "切り替え, 移動, タブ, switch, navigate",
+
+  "commands.newSession.label": "新しいセッション",
+  "commands.newSession.description": "新しい親セッションを作成",
+  "commands.newSession.keywords": "作成, 開始, create, start",
+
+  "commands.closeSession.label": "セッションを閉じる",
+  "commands.closeSession.description": "現在の親セッションを閉じる",
+  "commands.closeSession.keywords": "閉じる, 停止, close, stop",
+
+  "commands.scrubSessions.label": "セッションを整理",
+  "commands.scrubSessions.description": "空のセッション、主要タスクを完了したサブエージェントのセッション、不要なフォークされたセッションを削除します。",
+  "commands.scrubSessions.keywords": "整理, クリーンアップ, 空, セッション, 削除, cleanup, blank, empty, sessions, remove, delete, scrub",
+
+  "commands.instanceInfo.label": "インスタンス情報",
+  "commands.instanceInfo.description": "ログと状態のインスタンス概要を開く",
+  "commands.instanceInfo.keywords": "情報, ログ, コンソール, 出力, info, logs, console, output",
+
+  "commands.nextSession.label": "次のセッション",
+  "commands.nextSession.description": "次のセッションタブへ切り替え",
+  "commands.nextSession.keywords": "切り替え, 移動, switch, navigate",
+
+  "commands.previousSession.label": "前のセッション",
+  "commands.previousSession.description": "前のセッションタブへ切り替え",
+  "commands.previousSession.keywords": "切り替え, 移動, switch, navigate",
+
+  "commands.compactSession.label": "セッションをコンパクト化",
+  "commands.compactSession.description": "現在のセッションを要約して圧縮",
+  "commands.compactSession.keywords": "要約, 圧縮, summarize, compress",
+  "commands.compactSession.errorFallback": "セッションのコンパクト化に失敗しました",
+  "commands.compactSession.alert.title": "コンパクト化に失敗",
+  "commands.compactSession.alert.message": "コンパクト化に失敗しました: {message}",
+
+  "commands.undoLastMessage.label": "直前のメッセージを取り消す",
+  "commands.undoLastMessage.description": "直前のメッセージへ戻す",
+  "commands.undoLastMessage.keywords": "取り消し, 戻す, revert, undo",
+  "commands.undoLastMessage.none.title": "取り消せる操作がありません",
+  "commands.undoLastMessage.none.message": "取り消すものがありません",
+  "commands.undoLastMessage.failed.title": "取り消しに失敗",
+  "commands.undoLastMessage.failed.message": "メッセージを戻せませんでした",
+
+  "commands.openModelSelector.label": "モデルセレクターを開く",
+  "commands.openModelSelector.description": "別のモデルを選択",
+  "commands.openModelSelector.keywords": "モデル, LLM, AI, model, llm, ai",
+
+  "commands.selectModelVariant.label": "モデルバリアントを選択",
+  "commands.selectModelVariant.description": "現在のモデルの思考量を選択",
+  "commands.selectModelVariant.keywords": "バリアント, 思考, 推論, 努力, variant, thinking, reasoning, effort",
+
+  "commands.openAgentSelector.label": "エージェントセレクターを開く",
+  "commands.openAgentSelector.description": "別のエージェントを選択",
+  "commands.openAgentSelector.keywords": "エージェント, モード, agent, mode",
+
+  "commands.clearInput.label": "入力をクリア",
+  "commands.clearInput.description": "プロンプト入力欄をクリア",
+  "commands.clearInput.keywords": "クリア, リセット, clear, reset",
+
+  "commands.promptSubmitShortcut.label.default": "Enter: 改行, Cmd/Ctrl+Enter: プロンプト送信",
+  "commands.promptSubmitShortcut.label.swapped": "Enter: プロンプト送信, Cmd/Ctrl+Enter: 改行",
+  "commands.promptSubmitShortcut.description": "プロンプト入力で Enter と Cmd/Ctrl+Enter の動作を入れ替え",
+  "commands.promptSubmitShortcut.keywords": "enter, 送信, 改行, ショートカット, cmd, ctrl, プロンプト",
+
+  "commands.thinkingBlocks.label.show": "思考を表示",
+  "commands.thinkingBlocks.label.hide": "思考を非表示",
+  "commands.thinkingBlocks.description": "AI の思考セクションを表示/非表示",
+  "commands.thinkingBlocks.keywords": "思考, 推論, 切り替え, 表示, 非表示, thinking, reasoning, toggle, show, hide",
+
+  "commands.timelineToolCalls.label.show": "タイムラインのツールコールを表示",
+  "commands.timelineToolCalls.label.hide": "タイムラインのツールコールを非表示",
+  "commands.timelineToolCalls.description": "メッセージタイムラインのツールコール表示を切り替え",
+  "commands.timelineToolCalls.keywords": "タイムライン, ツール, 切り替え, timeline, tool, toggle",
+
+  "commands.keyboardShortcutHints.label.show": "キーボードショートカットのヒントを表示",
+  "commands.keyboardShortcutHints.label.hide": "キーボードショートカットのヒントを非表示",
+  "commands.keyboardShortcutHints.description": "UI 全体のキーボードショートカットヒントを表示/非表示",
+  "commands.keyboardShortcutHints.description.disabledWeb": "WebUI では無効（ヒントは常に非表示）",
+  "commands.keyboardShortcutHints.keywords": "ショートカット, キーボード, ヒント, shortcuts, keyboard, hints",
+
+  "commands.common.expanded": "展開",
+  "commands.common.collapsed": "折りたたみ",
+  "commands.common.visible": "表示",
+  "commands.common.hidden": "非表示",
+  "commands.common.enabled": "有効",
+  "commands.common.disabled": "無効",
+
+  "commands.thinkingBlocksDefault.label": "思考ビュー: {state}",
+  "commands.thinkingBlocksDefault.description": "表示中は AI の思考セクションを折りたたみ / 展開",
+  "commands.thinkingBlocksDefault.keywords": "思考, 推論, 展開, 折りたたみ, 既定, thinking, reasoning, expand, collapse, default",
+
+  "commands.diffViewSplit.label": "分割 diff 表示を使用",
+  "commands.diffViewSplit.description": "ツールコールの diff を左右に並べて表示",
+  "commands.diffViewSplit.keywords": "diff, 分割, 表示, split, view",
+
+  "commands.diffViewUnified.label": "ユニファイド diff 表示を使用",
+  "commands.diffViewUnified.description": "ツールコールの diff をインラインで表示",
+  "commands.diffViewUnified.keywords": "diff, ユニファイド, 表示, unified, view",
+
+  "commands.toolOutputsDefault.label": "ツール出力の既定 · {state}",
+  "commands.toolOutputsDefault.description": "ツール出力の既定の表示状態を設定",
+  "commands.toolOutputsDefault.keywords": "ツール, 出力, 非表示, 展開, 折りたたみ, tool, output, hide, expand, collapse",
+
+  "commands.diagnosticsDefault.label": "診断の既定 · {state}",
+  "commands.diagnosticsDefault.description": "診断出力の既定の表示状態を設定",
+  "commands.diagnosticsDefault.keywords": "診断, 非表示, 展開, 折りたたみ, diagnostics, hide, expand, collapse",
+
+  "commands.toolInputsVisibility.label": "ツール入力の表示 · {state}",
+  "commands.toolInputsVisibility.description": "ツール呼び出しの入力引数の既定の表示状態を設定します",
+  "commands.toolInputsVisibility.keywords": "ツール, 入力, 引数, 表示, 非表示, 展開, 折りたたみ, tool, inputs, arguments, visibility, hide, show, expand, collapse",
+
+  "commands.tokenUsageDisplay.label": "トークン使用量表示 · {state}",
+  "commands.tokenUsageDisplay.description": "アシスタントメッセージのトークン/コスト統計を表示/非表示",
+  "commands.tokenUsageDisplay.keywords": "トークン, 使用量, コスト, 統計, token, usage, cost, stats",
+
+  "commands.autoCleanupBlankSessions.label": "空セッションの自動クリーンアップ · {state}",
+  "commands.autoCleanupBlankSessions.description": "新しいセッション作成時に空のセッションを自動的に整理",
+  "commands.autoCleanupBlankSessions.keywords": "自動, クリーンアップ, 空, セッション, 切り替え, auto, cleanup, blank, sessions, toggle",
+
+  "commands.showHelp.label": "ヘルプを表示",
+  "commands.showHelp.description": "キーボードショートカットとヘルプを表示",
+  "commands.showHelp.keywords": "ショートカット, ヘルプ, shortcuts, help",
+
+  "commands.custom.argumentsPrompt.message": "/{name} の引数",
+  "commands.custom.argumentsPrompt.title": "カスタムコマンド",
+  "commands.custom.argumentsPrompt.inputLabel": "引数",
+  "commands.custom.argumentsPrompt.inputPlaceholder": "例: foo bar",
+  "commands.custom.argumentsPrompt.confirmLabel": "実行",
+  "commands.custom.argumentsPrompt.cancelLabel": "キャンセル",
+  "commands.custom.argumentsPrompt.openFailed.message": "引数入力を開けませんでした。",
+  "commands.custom.argumentsPrompt.openFailed.title": "コマンド引数",
+  "commands.custom.entries.descriptionFallback": "カスタムコマンド",
+  "commands.custom.sessionRequired.message": "カスタムコマンドを実行する前にセッションを選択してください。",
+  "commands.custom.sessionRequired.title": "セッションが必要です",
+  "commands.custom.runFailed.message": "カスタムコマンドの実行に失敗しました。詳細はコンソールを確認してください。",
+  "commands.custom.runFailed.title": "コマンドの実行に失敗",
+
+  "unifiedPicker.loading.searching": "検索中...",
+  "unifiedPicker.loading.loadingWorkspace": "ワークスペースを読み込み中...",
+  "unifiedPicker.title.command": "コマンドを選択",
+  "unifiedPicker.title.mention": "エージェントまたはファイルを選択",
+  "unifiedPicker.empty": "結果が見つかりません",
+  "unifiedPicker.sections.commands": "コマンド",
+  "unifiedPicker.sections.agents": "エージェント",
+  "unifiedPicker.sections.files": "ファイル",
+  "unifiedPicker.sections.workspaceRoot": "ワークスペースルート",
+  "unifiedPicker.badge.subagent": "サブエージェント",
+  "unifiedPicker.footer.navigate": "移動",
+  "unifiedPicker.footer.select": "選択",
+  "unifiedPicker.footer.close": "閉じる",
+} as const

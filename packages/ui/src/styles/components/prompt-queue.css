@@ -1,0 +1,188 @@
+/* Prompt queue panel -- Vintage Golden. */
+
+.prompt-queue {
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surface);
+  margin: 0 0 4px 0;
+}
+
+.prompt-queue-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  background: var(--surfaceRaised);
+  border-bottom: 1px solid var(--borderDark);
+  overflow: hidden;
+}
+
+.prompt-queue-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.prompt-queue-toggle:hover {
+  background: var(--surfaceRaisedHover, var(--surface));
+}
+
+.prompt-queue-toggle:focus-visible {
+  outline: 1px solid var(--borderLight);
+  outline-offset: -1px;
+}
+
+.prompt-queue-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--textPrimary);
+  letter-spacing: 1px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.prompt-queue-count {
+  font-size: 10px;
+  color: var(--textSecondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Inline peek at the queued texts, truncated to the space between the count
+   and the action buttons; the full list is in the title tooltip. */
+.prompt-queue-preview {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--textMuted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prompt-queue-state {
+  font-size: 10px;
+  color: var(--warning);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.prompt-queue-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.prompt-queue-actions button,
+.prompt-queue-item-actions button {
+  font-size: 10px;
+  min-height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.queue-mode-toggle[data-enabled="true"] {
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background: var(--surface);
+}
+
+/* Open/highlighted toggles read as pressed-in: the queue expand button and the
+   Send-all mode. */
+.prompt-queue-expand[data-expanded="true"],
+.prompt-queue-send-mode[data-all="true"] {
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background: var(--surface);
+}
+
+/* Collapsed leaves only the header strip; the body stays out of the layout.
+   The body height comes from resolveQueueLayout and never depends on count. */
+.prompt-queue[data-state="collapsed"] .prompt-queue-body {
+  display: none;
+}
+
+.prompt-queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 112px;
+  overflow-y: auto;
+}
+
+.prompt-queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--borderDark);
+}
+
+.prompt-queue-item:last-child {
+  border-bottom: 0;
+}
+
+.prompt-queue-item[data-next="true"] {
+  background: var(--selection);
+}
+
+.prompt-queue-index {
+  min-width: 18px;
+  font-size: 10px;
+  color: var(--textMuted);
+  text-align: right;
+  padding-top: 2px;
+}
+
+.prompt-queue-text {
+  flex: 1;
+  font-size: 11px;
+  color: var(--textPrimary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding-top: 2px;
+}
+
+.prompt-queue-meta {
+  font-size: 10px;
+  color: var(--textMuted);
+}
+
+.prompt-queue-edit {
+  flex: 1;
+  min-height: 44px;
+  font-size: 11px;
+}
+
+.prompt-queue-item-actions {
+  display: flex;
+  gap: 2px;
+}
+
+/* Empty and full take the same space in the expanded body, so draining the
+   queue never reflows the chat. */
+.prompt-queue-empty {
+  height: 112px;
+  padding: 4px;
+  font-size: 10px;
+  color: var(--textMuted);
+}
+
+.prompt-queue-hint {
+  height: 20px;
+  padding: 3px 4px;
+  font-size: 10px;
+  color: var(--textMuted);
+  border-top: 1px solid var(--borderDark);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

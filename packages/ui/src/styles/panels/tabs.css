@@ -1,0 +1,261 @@
+/* Primary tab strip */
+.tab-bar {
+  @apply border-b;
+  border-color: var(--border-base);
+}
+
+.tab-bar-instance {
+  background-color: var(--surface-secondary);
+}
+
+.tab-bar-session {
+  background-color: var(--surface-base);
+}
+
+.tab-container {
+  @apply flex items-center justify-between gap-1 px-2 py-1;
+}
+
+.tab-scroll {
+  @apply w-full;
+  overflow-x: auto;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Scroll arrows: only rendered while the tab strip actually overflows. */
+.tab-arrow {
+  flex-shrink: 0;
+  min-width: 20px;
+  min-height: 20px;
+  font-size: 14px;
+  padding: 0;
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surfaceRaised);
+  color: var(--textPrimary);
+}
+
+.tab-strip {
+  @apply flex items-center gap-2 px-1;
+  min-width: 100%;
+}
+
+.tab-strip-tabs {
+  @apply flex items-center gap-1 flex-shrink-0;
+}
+
+.tab-draggable {
+  @apply flex-shrink-0;
+  user-select: none;
+  transition: transform 140ms ease, opacity 140ms ease;
+  will-change: transform;
+}
+
+.tab-draggable-active {
+  opacity: 0.72;
+  position: relative;
+  z-index: 20;
+  transition: none;
+}
+
+.tab-draggable .tab-base,
+.tab-draggable .tab-pill,
+.tab-draggable .tab-pill-button {
+  cursor: grab;
+}
+
+.tab-draggable .tab-base:active,
+.tab-draggable .tab-pill:active,
+.tab-draggable .tab-pill-button:active {
+  cursor: grabbing;
+}
+
+.tab-strip-spacer {
+  @apply flex-1;
+  min-width: 1px;
+}
+
+.tab-shortcuts {
+  @apply flex items-center gap-2 flex-shrink-0;
+}
+
+.tab-remote-button {
+  @apply flex-shrink-0;
+}
+
+.tab-base {
+  @apply inline-flex items-center gap-2 px-3 py-2 rounded-t-md max-w-[200px] transition-colors text-sm font-medium;
+  font-family: var(--font-family-sans);
+  outline: none;
+}
+
+.tab-base:focus-visible {
+  @apply ring-2 ring-offset-1;
+  ring-color: var(--accent-primary);
+  ring-offset-color: var(--surface-base);
+}
+
+.tab-active {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  border-bottom: 2px solid var(--accent-primary);
+}
+
+.tab-inactive {
+  background-color: var(--tab-inactive-bg);
+  color: var(--tab-inactive-text);
+  border-bottom: 2px solid var(--tab-active-bg);
+}
+
+.tab-inactive:hover {
+  background-color: var(--tab-inactive-hover-bg);
+}
+
+.tab-active:hover {
+  background-color: var(--tab-active-hover-bg);
+}
+
+.tab-label {
+  @apply truncate;
+}
+
+.tab-close {
+  @apply opacity-100 hover:bg-red-500 hover:text-white rounded p-0.5 transition-all cursor-pointer;
+}
+
+.tab-close:focus-visible {
+  @apply ring-2 ring-offset-1;
+  ring-color: var(--accent-primary);
+  ring-offset-color: inherit;
+}
+
+/* Instance tabs: session-status dots should be lighter/softer than list/status pills. */
+.tab-base .status-indicator.session-status.session-working {
+  --session-status-dot: color-mix(in oklab, var(--session-status-working-fg) 55%, var(--surface-base));
+}
+
+.tab-base .status-indicator.session-status.session-compacting {
+  --session-status-dot: color-mix(in oklab, var(--session-status-compacting-fg) 55%, var(--surface-base));
+}
+
+.tab-base .status-indicator.session-status.session-idle {
+  --session-status-dot: color-mix(in oklab, var(--session-status-idle-fg) 55%, var(--surface-base));
+}
+
+.tab-base .status-indicator.session-status.session-permission {
+  --session-status-dot: color-mix(in oklab, var(--session-status-permission-fg) 55%, var(--surface-base));
+}
+
+/* Dark mode: keep dots vivid (avoid muddy mixes). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .tab-base .status-indicator.session-status.session-working {
+    --session-status-dot: var(--session-status-working-fg);
+  }
+  :root:not([data-theme]) .tab-base .status-indicator.session-status.session-compacting {
+    --session-status-dot: var(--session-status-compacting-fg);
+  }
+  :root:not([data-theme]) .tab-base .status-indicator.session-status.session-idle {
+    --session-status-dot: var(--session-status-idle-fg);
+  }
+  :root:not([data-theme]) .tab-base .status-indicator.session-status.session-permission {
+    --session-status-dot: var(--session-status-permission-fg);
+  }
+}
+
+[data-theme="dark"] .tab-base .status-indicator.session-status.session-working {
+  --session-status-dot: var(--session-status-working-fg);
+}
+
+[data-theme="dark"] .tab-base .status-indicator.session-status.session-compacting {
+  --session-status-dot: var(--session-status-compacting-fg);
+}
+
+[data-theme="dark"] .tab-base .status-indicator.session-status.session-idle {
+  --session-status-dot: var(--session-status-idle-fg);
+}
+
+[data-theme="dark"] .tab-base .status-indicator.session-status.session-permission {
+  --session-status-dot: var(--session-status-permission-fg);
+}
+
+.new-tab-button {
+  @apply inline-flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-md transition-colors;
+  background-color: var(--new-tab-bg);
+  color: var(--new-tab-text);
+}
+
+.new-tab-button:hover {
+  background-color: var(--new-tab-hover-bg);
+}
+
+.new-tab-button:focus-visible {
+  @apply ring-2 ring-offset-1;
+  ring-color: var(--accent-primary);
+  ring-offset-color: var(--surface-base);
+}
+
+.tab-pill {
+  @apply inline-flex items-center gap-1 px-3 py-2 rounded-t-md max-w-[220px] text-sm;
+  background-color: var(--tab-inactive-bg);
+  color: var(--tab-inactive-text);
+  border-bottom: 2px solid var(--tab-active-bg);
+  outline: none;
+}
+
+.tab-pill:focus-visible {
+  @apply ring-2 ring-offset-1;
+  ring-color: var(--accent-primary);
+  ring-offset-color: var(--surface-base);
+}
+
+.tab-pill-active {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  border-bottom-color: var(--accent-primary);
+}
+
+.tab-pill-button {
+  @apply truncate;
+}
+
+.tab-pill-close {
+  @apply inline-flex items-center justify-center rounded w-5 h-5 text-xs;
+}
+
+.tab-pill-close:hover {
+  background-color: var(--new-tab-hover-bg);
+}
+
+/* Session tabs */
+.session-tab-base {
+  @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-t-md max-w-[150px] transition-colors text-sm;
+  font-family: var(--font-family-sans);
+  outline: none;
+  border-bottom: 2px solid transparent;
+}
+
+.session-tab-base:focus-visible {
+  @apply ring-2 ring-offset-1;
+  ring-color: var(--accent-primary);
+  ring-offset-color: var(--surface-base);
+}
+
+.session-tab-active {
+  background-color: var(--session-tab-active-bg);
+  border-bottom-color: var(--accent-primary);
+  color: var(--session-tab-active-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.session-tab-inactive {
+  color: var(--session-tab-inactive-text);
+}
+
+.session-tab-inactive:hover {
+  background-color: var(--session-tab-hover-bg);
+}
+
+.session-tab-special {
+  color: var(--session-tab-inactive-text);
+}

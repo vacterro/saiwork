@@ -1,0 +1,45 @@
+{
+  "name": "saiwork-workspace",
+  "version": "0.0.2",
+  "private": true,
+  "description": "SaiWork monorepo workspace",
+  "license": "MIT",
+  "workspaces": {
+    "packages": [
+      "packages/server",
+      "packages/ui",
+      "packages/electron-app",
+      "packages/tauri-app",
+      "packages/opencode-plugin"
+    ]
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @saiwork/electron-app",
+    "dev:electron": "npm run dev --workspace @saiwork/electron-app",
+    "dev:tauri": "npm run dev --workspace @saiwork/tauri-app",
+    "build": "npm run build --workspace @saiwork/electron-app",
+    "build:tauri": "npm run build --workspace @saiwork/tauri-app",
+    "build:ui": "npm run build --workspace @saiwork/ui",
+    "build:mac-x64": "npm run build:mac-x64 --workspace @saiwork/electron-app",
+    "build:binaries": "npm run build:binaries --workspace @saiwork/electron-app",
+    "typecheck": "npm run typecheck --workspace @saiwork/ui && npm run typecheck --workspace @saiwork/electron-app",
+    "test": "npm run test --workspace @saiwork/ui && npm run test --workspace @saiwork/saiwork && npm run test --workspace @saiwork/opencode-plugin && npm run test:native --workspace @saiwork/electron-app",
+    "bumpVersion": "node ./scripts/bump-version.js"
+  },
+  "dependencies": {
+    "7zip-bin": "^5.2.0",
+    "google-auth-library": "^10.5.0"
+  },
+  "devDependencies": {
+    "baseline-browser-mapping": "^2.9.11",
+    "electron": "^38.0.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "4.52.5",
+    "@rollup/rollup-darwin-x64": "4.52.5",
+    "@rollup/rollup-linux-arm64-gnu": "4.52.5",
+    "@rollup/rollup-linux-x64-gnu": "4.52.5",
+    "@rollup/rollup-win32-arm64-msvc": "4.52.5",
+    "@rollup/rollup-win32-x64-msvc": "4.52.5"
+  }
+}

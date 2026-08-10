@@ -1,0 +1,86 @@
+/* Keyboard shortcut sheet -- Vintage Golden. */
+
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--compareBack);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.shortcuts-panel {
+  width: 100%;
+  max-width: 640px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surfaceRaised);
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+}
+
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 4px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--borderDark);
+}
+
+.shortcuts-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--textPrimary);
+}
+
+.shortcuts-header button {
+  margin-left: auto;
+  font-size: 10px;
+  min-height: 16px;
+  padding: 0 4px;
+}
+
+.shortcuts-body {
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.shortcuts-section {
+  margin-bottom: 8px;
+}
+
+.shortcuts-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--textPrimary);
+  margin-bottom: 4px;
+}
+
+.shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.shortcuts-table td {
+  padding: 1px 4px;
+  border-bottom: 1px solid var(--borderDark);
+  color: var(--textSecondary);
+  height: 16px;
+  vertical-align: top;
+}
+
+.shortcuts-key {
+  width: 160px;
+  color: var(--textPrimary);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.shortcuts-note {
+  color: var(--textMuted);
+}

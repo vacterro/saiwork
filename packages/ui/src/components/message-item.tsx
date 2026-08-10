@@ -1,0 +1,775 @@
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js"
+import { Portal } from "solid-js/web"
+import { CheckSquare2, Copy, ListStart, Split, Square, Trash, Undo, Volume2 } from "lucide-solid"
+import type { MessageInfo, ClientPart, SDKAssistantMessageV2 } from "../types/message"
+import { getRawMessageText, isHiddenSyntheticTextPart, partHasRenderableText } from "../types/message"
+import type { MessageRecord } from "../stores/message-v2/types"
+import MessagePart from "./message-part"
+import { copyToClipboard } from "../lib/clipboard"
+import { useI18n } from "../lib/i18n"
+import { showAlertDialog } from "../stores/alerts"
+import { deleteMessage } from "../stores/session-actions"
+import { isTauriHost } from "../lib/runtime-env"
+import type { DeleteHoverState } from "../types/delete-hover"
+import { useSpeech } from "../lib/hooks/use-speech"
+import ActionOverflowMenu, { type ActionOverflowMenuItem } from "./action-overflow-menu"
+import { getMessageDurationMs, getMessageStartedAt, inferReasoningDurationMs } from "../lib/message-timing"
+import { recordReply as recordThinkingReply } from "../stores/thinking-stats"
+import SpeechActionButton from "./speech-action-button"
+
+function DeleteUpToIcon() {
+  return (
+    <span class="relative inline-block w-3.5 h-3.5" aria-hidden="true">
+      <ListStart class="absolute inset-0 w-3.5 h-3.5" aria-hidden="true" />
+    </span>
+  )
+}
+
+interface MessageItemProps {
+  record: MessageRecord
+  messageInfo?: MessageInfo
+  instanceId: string
+  sessionId: string
+  isQueued?: boolean
+  parts: ClientPart[]
+  onRevert?: (messageId: string) => void
+  selectedMessageIds?: () => Set<string>
+  onToggleSelectedMessage?: (messageId: string, selected: boolean) => void
+  onDeleteMessagesUpTo?: (messageId: string) => void | Promise<void>
+  onFork?: (messageId?: string) => void
+  showAgentMeta?: boolean
+  contentStartPartId?: string
+  onContentRendered?: () => void
+  showDeleteMessage?: boolean
+  onDeleteHoverChange?: (state: DeleteHoverState) => void
+}
+
+export default function MessageItem(props: MessageItemProps) {
+  const { t } = useI18n()
+  const [copied, setCopied] = createSignal(false)
+  const [deletingMessage, setDeletingMessage] = createSignal(false)
+  const [deletingUpTo, setDeletingUpTo] = createSignal(false)
+
+  type ImagePreviewState = {
+    url: string
+    name: string
+    anchor: HTMLElement
+  }
+
+  const [imagePreview, setImagePreview] = createSignal<ImagePreviewState | null>(null)
+
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+  const getImagePreviewPosition = () => {
+    const state = imagePreview()
+    if (!state) return null
+
+    const rect = state.anchor.getBoundingClientRect()
+
+    // Outer box: 320px image + 8px padding on each side.
+    const padding = 8
+    const maxImage = 320
+    const gap = 8
+    const chrome = padding * 2
+    const outerWidth = maxImage + chrome
+    const outerHeight = maxImage + chrome
+
+    const viewportW = window.innerWidth
+    const viewportH = window.innerHeight
+
+    const left = clamp(rect.left, 8, Math.max(8, viewportW - outerWidth - 8))
+
+    const fitsAbove = rect.top >= outerHeight + gap + 8
+    const preferredTop = fitsAbove ? rect.top - outerHeight - gap : rect.bottom + gap
+    const top = clamp(preferredTop, 8, Math.max(8, viewportH - outerHeight - 8))
+
+    return { left, top }
+  }
+
+  createEffect(() => {
+    const active = imagePreview()
+    if (!active) return
+
+    // If the user scrolls (message stream scroll container) or resizes, the anchor moves.
+    // Hide the popover to avoid showing it in the wrong place.
+    const hide = () => setImagePreview(null)
+    window.addEventListener("scroll", hide, true)
+    window.addEventListener("resize", hide)
+    onCleanup(() => {
+      window.removeEventListener("scroll", hide, true)
+      window.removeEventListener("resize", hide)
+    })
+  })
+
+  const isSelectedForDeletion = () => Boolean(props.selectedMessageIds?.().has(props.record.id))
+
+  let topRowEl: HTMLDivElement | undefined
+  let actionsEl: HTMLDivElement | undefined
+  let speakerPrimaryEl: HTMLDivElement | undefined
+  let metaMeasureEl: HTMLSpanElement | undefined
+  const [showMetaInline, setShowMetaInline] = createSignal(true)
+
+  const metaText = () => ""
+
+  const updateMetaLayout = () => {
+    const text = metaText()
+    if (!text) return
+    if (!topRowEl || !actionsEl || !speakerPrimaryEl || !metaMeasureEl) return
+
+    const rowWidth = topRowEl.getBoundingClientRect().width
+    const actionsWidth = actionsEl.getBoundingClientRect().width
+    const primaryWidth = speakerPrimaryEl.getBoundingClientRect().width
+    const metaWidth = metaMeasureEl.getBoundingClientRect().width
+
+    // Allow for the flex gap between left and actions.
+    const availableLeft = Math.max(0, rowWidth - actionsWidth - 12)
+    setShowMetaInline(primaryWidth + metaWidth + 8 <= availableLeft)
+  }
+
+  createEffect(() => {
+    const text = metaText()
+    if (!text || typeof ResizeObserver === "undefined") {
+      setShowMetaInline(true)
+      return
+    }
+
+    updateMetaLayout()
+    const observer = new ResizeObserver(() => updateMetaLayout())
+    if (topRowEl) observer.observe(topRowEl)
+    if (actionsEl) observer.observe(actionsEl)
+    if (speakerPrimaryEl) observer.observe(speakerPrimaryEl)
+    onCleanup(() => observer.disconnect())
+  })
+
+  const isUser = () => props.record.role === "user"
+  const createdTimestamp = () => getMessageStartedAt(props.messageInfo, props.record.createdAt) ?? props.record.createdAt
+  const totalDuration = () => getMessageDurationMs(props.messageInfo, props.record.status, props.record.createdAt)
+
+  // Record the reply once it stops moving. `error` counts too: an aborted reply
+  // still spent the thinking time it managed, and dropping it would make the
+  // totals quietly optimistic. `recordReply` is idempotent per message id, so a
+  // re-render or a late event cannot double count.
+  createEffect(() => {
+    const status = props.record.status
+    if (isUser() || (status !== "complete" && status !== "error")) return
+
+    const parts = props.parts
+    const thinkingMs = parts.reduce((total, part) => {
+      if (part.type !== "reasoning") return total
+      return total + (inferReasoningDurationMs(parts, part, props.messageInfo, status) ?? 0)
+    }, 0)
+    const toolCalls = parts.filter((part) => part.type === "tool").length
+
+    recordThinkingReply({
+      replyId: props.record.id,
+      thinkingMs,
+      toolCalls,
+      at: new Date(createdTimestamp()),
+    })
+  })
+
+  const timestamp = () => {
+    const date = new Date(createdTimestamp())
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
+
+  const timestampIso = () => new Date(createdTimestamp()).toISOString()
+
+  type FilePart = Extract<ClientPart, { type: "file" }> & {
+    url?: string
+    mime?: string
+    filename?: string
+  }
+
+  const messageParts = () => props.parts
+  const isAssistantTextBlock = () =>
+    !isUser() &&
+    messageParts().some(
+      (part) => part.type === "text" && !isHiddenSyntheticTextPart(part) && partHasRenderableText(part),
+    )
+
+  // User messages can temporarily include synthetic helper parts (e.g. tool traces / file reads).
+  // We only want to display the primary prompt text for the user message; other synthetic text
+  // parts should be hidden.
+  const primaryUserTextPartId = () => {
+    if (!isUser()) return null
+    const firstText = messageParts().find((part) => part?.type === "text") as { id?: string } | undefined
+    return typeof firstText?.id === "string" ? firstText.id : null
+  }
+
+  const primaryUserPromptDisplayMetadata = () => {
+    if (!isUser()) return undefined
+    return props.record.clientPromptDisplayMetadata
+  }
+
+  const fileAttachments = () =>
+    messageParts().filter((part): part is FilePart => part?.type === "file" && typeof (part as FilePart).url === "string")
+
+
+  const getAttachmentName = (part: FilePart) => {
+    if (part.filename && part.filename.trim().length > 0) {
+      return part.filename
+    }
+    const url = part.url || ""
+    if (url.startsWith("data:")) {
+      return t("messageItem.attachment.defaultName")
+    }
+    try {
+      const parsed = new URL(url)
+      const segments = parsed.pathname.split("/")
+      return segments.pop() || t("messageItem.attachment.defaultName")
+    } catch (error) {
+      const fallback = url.split("/").pop()
+      return fallback && fallback.length > 0 ? fallback : t("messageItem.attachment.defaultName")
+    }
+  }
+
+  const isImageAttachment = (part: FilePart) => {
+    if (part.mime && typeof part.mime === "string" && part.mime.startsWith("image/")) {
+      return true
+    }
+    return typeof part.url === "string" && part.url.startsWith("data:image/")
+  }
+
+  const handleAttachmentDownload = async (part: FilePart) => {
+    const url = part.url
+    if (!url) return
+
+    const filename = getAttachmentName(part)
+    const directDownload = (href: string) => {
+      const anchor = document.createElement("a")
+      anchor.href = href
+      anchor.download = filename
+      anchor.target = "_blank"
+      anchor.rel = "noopener"
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+    }
+
+    if (url.startsWith("data:")) {
+      directDownload(url)
+      return
+    }
+
+    if (url.startsWith("file://")) {
+      // Local filesystem URLs are not reliably downloadable from the message stream.
+      // We hide the download action for these chips.
+      return
+    }
+
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`Failed to fetch attachment: ${response.status}`)
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      directDownload(objectUrl)
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      directDownload(url)
+    }
+  }
+
+  const showImagePreview = (anchor: HTMLElement, url: string, name: string) => {
+    if (!url) return
+    setImagePreview({ anchor, url, name })
+  }
+
+  const errorMessage = () => {
+    const info = props.messageInfo
+    if (!info || info.role !== "assistant" || !info.error) return null
+
+    const error = info.error
+    if (error.name === "ProviderAuthError") {
+      return error.data?.message || t("messageItem.errors.authenticationFallback")
+    }
+    if (error.name === "MessageOutputLengthError") {
+      return t("messageItem.errors.outputLengthExceeded")
+    }
+    if (error.name === "MessageAbortedError") {
+      return t("messageItem.errors.requestAborted")
+    }
+    if (error.name === "UnknownError") {
+      return error.data?.message || t("messageItem.errors.unknownFallback")
+    }
+    return null
+  }
+
+  const hasContent = () => {
+    if (errorMessage() !== null) {
+      return true
+    }
+
+    return messageParts().some((part) => partHasRenderableText(part))
+  }
+
+  const isGenerating = () => {
+    if (hasContent()) {
+      return false
+    }
+
+    // Prefer the local record status for streaming placeholders.
+    if (!isUser() && props.record.status === "streaming") {
+      return true
+    }
+
+    const info = props.messageInfo
+    const timeInfo = info?.time as { created: number; end?: number } | undefined
+    return Boolean(info && info.role === "assistant" && (timeInfo?.end === undefined || timeInfo?.end === 0))
+  }
+
+  const handleRevert = () => {
+    if (props.onRevert && isUser()) {
+      props.onRevert(props.record.id)
+    }
+  }
+
+  const copyLabel = () => (copied() ? t("messageItem.actions.copied") : t("messageItem.actions.copy"))
+
+  const getRawContent = () => getRawMessageText(props.parts)
+
+  const speech = useSpeech({
+    id: () => `${props.instanceId}:${props.sessionId}:${props.record.id}`,
+    text: getRawContent,
+  })
+
+  const canSpeakMessage = () => getRawContent().trim().length > 0 && speech.canUseSpeech()
+
+  const handleCopy = async () => {
+    const content = getRawContent()
+    if (!content) return
+    const success = await copyToClipboard(content)
+    setCopied(success)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleDeleteMessage = async () => {
+    if (deletingMessage()) return
+    setDeletingMessage(true)
+    try {
+      await deleteMessage(props.instanceId, props.sessionId, props.record.id)
+    } catch (error) {
+      showAlertDialog(t("messageItem.actions.deleteMessageFailedMessage"), {
+        title: t("messageItem.actions.deleteMessageFailedTitle"),
+        detail: error instanceof Error ? error.message : String(error),
+        variant: "error",
+      })
+    } finally {
+      setDeletingMessage(false)
+    }
+  }
+
+  const handleDeleteUpTo = async () => {
+    if (!props.onDeleteMessagesUpTo) return
+    if (deletingUpTo()) return
+    setDeletingUpTo(true)
+    try {
+      await props.onDeleteMessagesUpTo(props.record.id)
+    } finally {
+      setDeletingUpTo(false)
+    }
+  }
+
+  if (!hasContent() && !isGenerating()) {
+    return null
+  }
+
+  const containerClass = () =>
+    isUser()
+      ? "message-item-base bg-[var(--message-user-bg)] border-l-4 border-[var(--message-user-border)]"
+      : "message-item-base assistant-message border-l-4 border-[var(--message-assistant-border)]"
+
+  const agentIdentifier = () => {
+    if (isUser()) return ""
+    const info = props.messageInfo
+    if (!info || info.role !== "assistant") return ""
+    return info.mode || ""
+  }
+
+  const modelIdentifier = () => {
+    if (isUser()) return ""
+    const info = props.messageInfo
+    if (!info || info.role !== "assistant") return ""
+    const modelID = info.modelID || ""
+    const providerID = info.providerID || ""
+
+    const base = modelID && providerID ? `${providerID}/${modelID}` : modelID
+    if (!base) return ""
+
+    const variant = (info as SDKAssistantMessageV2).variant
+    if (typeof variant === "string" && variant.trim().length > 0) {
+      return `${base} (${variant.trim()})`
+    }
+
+    return base
+  }
+
+  const agentMeta = () => {
+    if (isUser() || !props.showAgentMeta) return ""
+    const segments: string[] = []
+    const agent = agentIdentifier()
+    const model = modelIdentifier()
+    if (agent) {
+      segments.push(t("messageItem.agentMeta.agentLabel", { agent }))
+    }
+    if (model) {
+      segments.push(t("messageItem.agentMeta.modelLabel", { model }))
+    }
+    return segments.join(" • ")
+  }
+
+  const speakerLabel = () => {
+    if (isUser()) return t("messageItem.speaker.you")
+    return agentMeta() || t("messageItem.speaker.assistant")
+  }
+
+  const workedDurationTooltip = () => {
+    if (isUser()) return ""
+    const duration = totalDuration()
+    if (typeof duration !== "number" || !Number.isFinite(duration) || duration <= 0) return ""
+
+    const formatWorkedFor = (count: number, unit: "seconds" | "minutes" | "hours") =>
+      t(`messageItem.duration.workedFor.${unit}.${count === 1 ? "one" : "other"}`, { count })
+
+    const seconds = Math.max(1, Math.round(duration / 1000))
+    if (seconds < 60) {
+      return formatWorkedFor(seconds, "seconds")
+    }
+
+    const minutes = Math.max(1, Math.round(seconds / 60))
+    if (minutes < 60) {
+      return formatWorkedFor(minutes, "minutes")
+    }
+
+    const hours = Math.max(1, Math.round(minutes / 60))
+    return formatWorkedFor(hours, "hours")
+  }
+
+  const actionMenuItems = (includePrimaryActions = false): ActionOverflowMenuItem[] => {
+    const items: ActionOverflowMenuItem[] = []
+
+    if (props.showDeleteMessage) {
+      items.push({
+        key: "select",
+        label: isSelectedForDeletion()
+          ? t("messageItem.selection.deselectForDeletion")
+          : t("messageItem.selection.selectForDeletion"),
+        icon: isSelectedForDeletion()
+          ? <CheckSquare2 class="w-3.5 h-3.5" aria-hidden="true" />
+          : <Square class="w-3.5 h-3.5" aria-hidden="true" />,
+        checked: isSelectedForDeletion(),
+        onSelect: () => props.onToggleSelectedMessage?.(props.record.id, !isSelectedForDeletion()),
+      })
+    }
+
+    if (includePrimaryActions) {
+      items.push({
+        key: "copy",
+        label: copyLabel(),
+        icon: <Copy class="w-3.5 h-3.5" aria-hidden="true" />,
+        onSelect: handleCopy,
+      })
+
+      if (canSpeakMessage()) {
+        items.push({
+          key: "speak",
+          label: speech.buttonTitle(),
+          icon: <Volume2 class="w-3.5 h-3.5" aria-hidden="true" />,
+          onSelect: () => void speech.toggle(),
+        })
+      }
+    }
+
+    if (isUser() && props.onFork) {
+      items.push({
+        key: "fork",
+        label: t("messageItem.actions.fork"),
+        icon: <Split class="w-3.5 h-3.5" aria-hidden="true" />,
+        onSelect: () => props.onFork?.(props.record.id),
+      })
+    }
+
+    if (isUser() && props.onRevert) {
+      items.push({
+        key: "revert",
+        label: t("messageItem.actions.revertTitle"),
+        icon: <Undo class="w-3.5 h-3.5" aria-hidden="true" />,
+        onSelect: handleRevert,
+      })
+    }
+
+    if (props.showDeleteMessage) {
+      items.push(
+        {
+          key: "delete-up-to",
+          label: t("messageItem.actions.deleteMessagesUpTo"),
+          icon: <DeleteUpToIcon />,
+          disabled: !props.onDeleteMessagesUpTo || deletingUpTo(),
+          destructive: true,
+          onMouseEnter: () => props.onDeleteHoverChange?.({ kind: "deleteUpTo", messageId: props.record.id }),
+          onMouseLeave: () => props.onDeleteHoverChange?.({ kind: "none" }),
+          onSelect: () => void handleDeleteUpTo(),
+        },
+        {
+          key: "delete-message",
+          label: deletingMessage() ? t("messageItem.actions.deletingMessage") : t("messageItem.actions.deleteMessage"),
+          icon: <Trash class="w-3.5 h-3.5" aria-hidden="true" />,
+          disabled: deletingMessage(),
+          destructive: true,
+          onMouseEnter: () => props.onDeleteHoverChange?.({ kind: "message", messageId: props.record.id }),
+          onMouseLeave: () => props.onDeleteHoverChange?.({ kind: "none" }),
+          onSelect: handleDeleteMessage,
+        },
+      )
+    }
+
+    return items
+  }
+
+
+  return (
+    <div
+      class={containerClass()}
+      data-view="message-item"
+      data-instance-id={props.instanceId}
+      data-session-id={props.sessionId}
+      data-message-id={props.record.id}
+      data-message-role={isUser() ? "user" : "assistant"}
+      data-message-status={props.record.status}
+      data-message-content-start-part-id={props.contentStartPartId}
+      data-assistant-text-block={isAssistantTextBlock() ? "true" : undefined}
+    >
+      <header class="message-item-header pb-0">
+        <div class="message-item-header-row message-item-header-row--top" ref={(el) => (topRowEl = el)}>
+          <div class="message-header-left">
+            <div class="message-speaker-primary" ref={(el) => (speakerPrimaryEl = el)}>
+              <span class="message-speaker-label" data-role={isUser() ? "user" : "assistant"} title={workedDurationTooltip() || undefined}>
+                {speakerLabel()}
+              </span>
+              <time class="message-timestamp message-timestamp-inline" dateTime={timestampIso()}>{timestamp()}</time>
+            </div>
+
+            <Show when={metaText() && showMetaInline()}>
+              <span class="message-agent-meta-inline">{metaText()}</span>
+            </Show>
+
+            <Show when={metaText()}>
+              <span
+                ref={(el) => (metaMeasureEl = el)}
+                class="message-agent-meta-inline message-agent-meta-inline--measure"
+              >
+                {metaText()}
+              </span>
+            </Show>
+          </div>
+
+          <div
+            class="message-item-actions"
+            data-action-overflow={actionMenuItems(true).length > 0 ? "true" : undefined}
+            ref={(el) => (actionsEl = el)}
+          >
+            <Show when={isUser()}>
+              <div class="message-action-group">
+                <button
+                  class="message-action-button"
+                  onClick={handleCopy}
+                  title={copyLabel()}
+                  aria-label={copyLabel()}
+                >
+                  <Copy class="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+
+                <Show when={canSpeakMessage()}>
+                  <SpeechActionButton
+                    class="message-action-button"
+                    onClick={() => void speech.toggle()}
+                    title={speech.buttonTitle()}
+                    isLoading={speech.isLoading()}
+                    isPlaying={speech.isPlaying()}
+                  />
+                </Show>
+
+              </div>
+              <ActionOverflowMenu
+                items={actionMenuItems()}
+                label={t("messageItem.actions.more")}
+                triggerClass="message-action-button action-overflow-wide"
+                minItems={1}
+              />
+              <ActionOverflowMenu
+                items={actionMenuItems(true)}
+                label={t("messageItem.actions.more")}
+                triggerClass="message-action-button action-overflow-narrow"
+                minItems={1}
+              />
+            </Show>
+            <Show when={!isUser()}>
+              <div class="message-action-group">
+                <button
+                  class="message-action-button"
+                  onClick={handleCopy}
+                  title={copyLabel()}
+                  aria-label={copyLabel()}
+                >
+                  <Copy class="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+
+                <Show when={canSpeakMessage()}>
+                  <SpeechActionButton
+                    class="message-action-button"
+                    onClick={() => void speech.toggle()}
+                    title={speech.buttonTitle()}
+                    isLoading={speech.isLoading()}
+                    isPlaying={speech.isPlaying()}
+                  />
+                </Show>
+
+              </div>
+              <ActionOverflowMenu
+                items={actionMenuItems()}
+                label={t("messageItem.actions.more")}
+                triggerClass="message-action-button action-overflow-wide"
+                minItems={1}
+              />
+              <ActionOverflowMenu
+                items={actionMenuItems(true)}
+                label={t("messageItem.actions.more")}
+                triggerClass="message-action-button action-overflow-narrow"
+                minItems={1}
+              />
+            </Show>
+          </div>
+        </div>
+
+        <Show when={metaText() && !showMetaInline()}>
+          <div class="message-item-header-row message-item-header-row--meta">
+            <span class="message-agent-meta-block">{metaText()}</span>
+          </div>
+        </Show>
+
+      </header>
+
+      <div class="pt-0 whitespace-pre-wrap break-words leading-[1.1]" dir="auto">
+
+
+        <Show when={props.isQueued && isUser()}>
+          <div class="message-queued-badge">{t("messageItem.status.queued")}</div>
+        </Show>
+
+        <Show when={errorMessage()}>
+          <div class="message-error-block" dir="auto">⚠️ {errorMessage()}</div>
+        </Show>
+
+        <Show when={isGenerating()}>
+          <div class="message-generating">
+            <span class="generating-spinner">⏳</span> {t("messageItem.status.generating")}
+          </div>
+        </Show>
+
+        <For each={messageParts()}>
+          {(part) => {
+            return (
+              <div class="message-part-shell">
+                <MessagePart
+                  part={part}
+                  messageType={props.record.role}
+                  instanceId={props.instanceId}
+                  sessionId={props.sessionId}
+                  primaryUserTextPartId={primaryUserTextPartId()}
+                  displayMetadataOverride={part.id === primaryUserTextPartId() ? primaryUserPromptDisplayMetadata() : undefined}
+                  onRendered={props.onContentRendered}
+                />
+              </div>
+            )
+          }}
+        </For>
+
+        <Show when={fileAttachments().length > 0}>
+          <div class="message-attachments mt-1">
+            <For each={fileAttachments()}>
+              {(attachment) => {
+                const name = getAttachmentName(attachment)
+                const isImage = isImageAttachment(attachment)
+                return (
+                  <div
+                    class={`attachment-chip ${isImage ? "attachment-chip-image" : ""}`}
+                    title={name}
+                    onMouseEnter={(e) => {
+                      if (!isImage) return
+                      const el = e.currentTarget as HTMLElement
+                      showImagePreview(el, attachment.url || "", name)
+                    }}
+                    onMouseLeave={() => setImagePreview(null)}
+                  >
+                    <Show when={isImage} fallback={
+                      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                        />
+                      </svg>
+                    }>
+                      <img src={attachment.url} alt={name} class="h-5 w-5 rounded object-cover" />
+                    </Show>
+                    <span class="truncate max-w-[180px]">{name}</span>
+                    <Show when={!attachment.url?.startsWith("file://")}>
+                      <button
+                        type="button"
+                        onClick={() => void handleAttachmentDownload(attachment)}
+                        class="attachment-download"
+                        aria-label={t("messageItem.attachment.downloadAriaLabel", { name })}
+                        title={t("messageItem.attachment.downloadAriaLabel", { name })}
+                      >
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l4 4 4-4m-4-8v12" />
+                        </svg>
+                      </button>
+                    </Show>
+                  </div>
+                )
+              }}
+            </For>
+          </div>
+        </Show>
+
+        <Show when={imagePreview()}>
+          {(stateAccessor) => {
+            const state = stateAccessor()
+            const pos = () => getImagePreviewPosition()
+            return (
+              <Portal>
+                <Show when={pos()}>
+                  {(posAccessor) => {
+                    const coords = posAccessor()
+                    return (
+                      <div
+                        class="attachment-image-popover"
+                        style={{ left: `${coords.left}px`, top: `${coords.top}px` }}
+                        aria-hidden="true"
+                      >
+                        <img src={state.url} alt={state.name} />
+                      </div>
+                    )
+                  }}
+                </Show>
+              </Portal>
+            )
+          }}
+        </Show>
+
+        <Show when={props.record.status === "sending"}>
+          <div class="message-sending">
+            <span class="generating-spinner">●</span> {t("messageItem.status.sending")}
+          </div>
+        </Show>
+
+        <Show when={props.record.status === "error"}>
+          <div class="message-error">⚠ {t("messageItem.status.failedToSend")}</div>
+        </Show>
+      </div>
+    </div>
+  )
+}

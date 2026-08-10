@@ -1,0 +1,166 @@
+/* SAIPENVIEW panel -- Vintage Golden. */
+
+/* Kept mounted while collapsed so show/hide never re-fetches. */
+.saipen-view[data-collapsed="true"] {
+  display: none;
+}
+
+.saipen-view {
+  border-top: 1px solid var(--borderDark);
+}
+
+/* The bar above the panel carries the tabs; this slim row only holds the
+   per-panel actions (edit, refresh). */
+.saipen-view-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--borderDark);
+  background: var(--surfaceRaised);
+}
+
+.saipen-view-actions button {
+  font-size: 10px;
+  min-height: 16px;
+  padding: 0 4px;
+}
+
+.saipen-view-refresh {
+  margin-left: auto;
+}
+
+.saipen-view-body,
+.saipen-view-board,
+.saipen-view-state,
+.saipen-view-log {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.saipen-view-board section {
+  margin-bottom: 4px;
+}
+
+.saipen-view-board h4 {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--textSecondary);
+  letter-spacing: 1px;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--borderDark);
+}
+
+.saipen-view-ticket {
+  display: flex;
+  gap: 4px;
+  padding: 2px 4px;
+  font-size: 10px;
+  color: var(--textPrimary);
+}
+
+.saipen-view-ticket[data-status="doing"] {
+  background: var(--selection);
+}
+
+.saipen-view-ticket[data-status="done"] {
+  color: var(--textMuted);
+}
+
+.saipen-view-ticket-id {
+  flex-shrink: 0;
+  color: var(--link);
+}
+
+.saipen-view-ticket-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.saipen-view-field {
+  display: flex;
+  gap: 6px;
+  padding: 2px 4px;
+  font-size: 10px;
+}
+
+.saipen-view-field-key {
+  flex-shrink: 0;
+  min-width: 90px;
+  color: var(--textSecondary);
+}
+
+.saipen-view-field-value {
+  color: var(--textPrimary);
+  overflow-wrap: anywhere;
+}
+
+.saipen-view-log-line {
+  padding: 1px 4px;
+  font-size: 10px;
+  color: var(--textPrimary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.saipen-view-empty,
+.saipen-view-note {
+  padding: 4px;
+  font-size: 10px;
+  color: var(--textMuted);
+}
+
+.saipen-view-plans {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.saipen-view-plan {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.saipen-view-plan-toggle {
+  font-size: 10px;
+  min-height: 18px;
+  flex: 1;
+  text-align: left;
+  padding: 2px 4px;
+}
+
+.saipen-view-plan-edit {
+  font-size: 10px;
+  min-height: 18px;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.saipen-view-plan-content {
+  padding: 4px;
+  font-size: 10px;
+  color: var(--textPrimary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--compareBack);
+  border: 1px solid var(--borderDark);
+}
+
+.saipen-view-edit {
+  padding: 2px;
+}
+
+.saipen-view-edit-area {
+  width: 100%;
+  min-height: 120px;
+  font-size: 10px;
+}
+
+.saipen-view-edit-actions {
+  display: flex;
+  gap: 4px;
+  padding-top: 2px;
+}

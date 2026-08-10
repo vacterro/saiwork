@@ -1,0 +1,44 @@
+export const appMessages = {
+  "app.launchError.title": "Unable to launch OpenCode",
+  "app.launchError.description": "OpenCode could not start this workspace. Review the error output below or check your OpenCode settings.",
+  "app.launchError.binaryPathLabel": "Binary path",
+  "app.launchError.errorOutputLabel": "Error output",
+  "app.launchError.openAdvancedSettings": "Open OpenCode Settings",
+  "app.launchError.close": "Close",
+  "app.launchError.closeTitle": "Close (Esc)",
+  "app.launchError.fallbackMessage": "Failed to launch workspace",
+  "app.launchError.invalidConfig": "OpenCode configuration is invalid",
+
+  "app.stopInstance.confirmMessage": "Stop OpenCode instance? This will stop the server.",
+  "app.stopInstance.title": "Stop instance",
+  "app.stopInstance.confirmLabel": "Stop",
+  "app.stopInstance.cancelLabel": "Keep running",
+  "app.stopInstance.toast.error": "Failed to stop workspace.",
+
+  "emptyState.logoAlt": "SAIWORK logo",
+  "emptyState.brandTitle": "SAIWORK",
+  "emptyState.tagline": "Select a folder to start coding with AI",
+  "emptyState.actions.selectFolder": "Select Folder",
+  "emptyState.actions.selecting": "Selecting...",
+  "emptyState.keyboardShortcut": "Keyboard shortcut: {shortcut}",
+  "emptyState.examples": "Examples: {example}",
+  "emptyState.multipleInstances": "You can have multiple instances of the same folder",
+
+  "releases.upgradeRequired.title": "Upgrade required",
+  "releases.upgradeRequired.message.withVersion": "Update to SAIWORK {version} to use the latest UI.",
+  "releases.upgradeRequired.message.noVersion": "Update SAIWORK to use the latest UI.",
+  "releases.upgradeRequired.action.getUpdate": "Get update",
+
+  "releases.uiUpdated.title": "UI updated",
+  "releases.uiUpdated.message": "UI is now updated to {version}.",
+
+  "releases.devUpdateAvailable.title": "Dev build available",
+  "releases.devUpdateAvailable.message": "A new dev build is available: {version}.",
+  "releases.devUpdateAvailable.action": "View release",
+
+  "theme.mode.system": "System",
+  "theme.mode.light": "Light",
+  "theme.mode.dark": "Dark",
+  "theme.toggle.title": "Theme: {mode}",
+  "theme.toggle.ariaLabel": "Theme: {mode}",
+} as const

@@ -1,0 +1,52 @@
+{
+  "name": "@saiwork/ui",
+  "version": "0.0.2",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --conditions=browser --import tsx --test --test-force-exit --test-concurrency=4 \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@git-diff-view/solid": "^0.0.8",
+    "@kobalte/core": "0.13.11",
+    "@opencode-ai/sdk": "^1.17.8",
+    "@solidjs/router": "^0.13.0",
+    "@suid/icons-material": "^0.9.0",
+    "@suid/material": "^0.19.0",
+    "@suid/system": "^0.14.0",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-notification": "^2.3.3",
+    "@tauri-apps/plugin-opener": "^2.5.3",
+    "@thisbeyond/solid-dnd": "^0.7.5",
+    "ansi-sequence-parser": "^1.1.3",
+    "debug": "^4.4.3",
+    "github-markdown-css": "^5.8.1",
+    "katex": "^0.16.45",
+    "lucide-solid": "^0.300.0",
+    "marked": "^12.0.0",
+    "marked-katex-extension": "^5.1.8",
+    "monaco-editor": "^0.52.2",
+    "qrcode": "^1.5.3",
+    "shiki": "^3.13.0",
+    "solid-js": "^1.8.0",
+    "solid-toast": "^0.5.0",
+    "virtua": "^0.48.8",
+    "yaml": "^2.4.2"
+  },
+  "devDependencies": {
+    "@vite-pwa/assets-generator": "^1.0.2",
+    "autoprefixer": "10.4.21",
+    "postcss": "8.5.6",
+    "tailwindcss": "3",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vite-plugin-pwa": "^1.2.0",
+    "vite-plugin-solid": "^2.10.0"
+  }
+}

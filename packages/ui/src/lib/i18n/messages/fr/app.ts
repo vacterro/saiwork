@@ -1,0 +1,44 @@
+export const appMessages = {
+  "app.launchError.title": "Impossible de lancer OpenCode",
+  "app.launchError.description": "OpenCode n'a pas pu démarrer cet espace de travail. Consultez la sortie d'erreur ci-dessous ou vérifiez vos paramètres OpenCode.",
+  "app.launchError.binaryPathLabel": "Chemin du binaire",
+  "app.launchError.errorOutputLabel": "Sortie d'erreur",
+  "app.launchError.openAdvancedSettings": "Ouvrir les paramètres OpenCode",
+  "app.launchError.close": "Fermer",
+  "app.launchError.closeTitle": "Fermer (Esc)",
+  "app.launchError.fallbackMessage": "Échec du lancement de l'espace de travail",
+  "app.launchError.invalidConfig": "La configuration OpenCode n'est pas valide",
+
+  "app.stopInstance.confirmMessage": "Arrêter l'instance OpenCode ? Cela arrêtera le serveur.",
+  "app.stopInstance.title": "Arrêter l'instance",
+  "app.stopInstance.confirmLabel": "Arrêter",
+  "app.stopInstance.cancelLabel": "Laisser tourner",
+  "app.stopInstance.toast.error": "Impossible d'arrêter l'espace de travail.",
+
+  "emptyState.logoAlt": "Logo SAIWORK",
+  "emptyState.brandTitle": "SAIWORK",
+  "emptyState.tagline": "Sélectionnez un dossier pour commencer à coder avec l'IA",
+  "emptyState.actions.selectFolder": "Sélectionner un dossier",
+  "emptyState.actions.selecting": "Sélection...",
+  "emptyState.keyboardShortcut": "Raccourci clavier : {shortcut}",
+  "emptyState.examples": "Exemples : {example}",
+  "emptyState.multipleInstances": "Vous pouvez avoir plusieurs instances du même dossier",
+
+  "releases.upgradeRequired.title": "Mise à jour requise",
+  "releases.upgradeRequired.message.withVersion": "Mettez à jour vers SAIWORK {version} pour utiliser la dernière UI.",
+  "releases.upgradeRequired.message.noVersion": "Mettez à jour SAIWORK pour utiliser la dernière UI.",
+  "releases.upgradeRequired.action.getUpdate": "Obtenir la mise à jour",
+
+  "releases.uiUpdated.title": "UI mise à jour",
+  "releases.uiUpdated.message": "L'UI est maintenant mise à jour vers {version}.",
+
+  "releases.devUpdateAvailable.title": "Build dev disponible",
+  "releases.devUpdateAvailable.message": "Un nouveau build dev est disponible : {version}.",
+  "releases.devUpdateAvailable.action": "Voir la release",
+
+  "theme.mode.system": "Système",
+  "theme.mode.light": "Clair",
+  "theme.mode.dark": "Sombre",
+  "theme.toggle.title": "Thème : {mode}",
+  "theme.toggle.ariaLabel": "Thème : {mode}",
+} as const

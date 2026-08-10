@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SAIWORK Login</title>
+    <style>
+      :root {
+        --background: #1A1810;
+        --backgroundSoft: #232018;
+        --surface: #332E22;
+        --surfaceRaised: #3D372A;
+        --surfaceAlt: #453D30;
+        --borderDark: #100E08;
+        --borderHighlight: #F0D060;
+        --bevelLight: #75663D;
+        --borderMuted: #5A5040;
+        --textPrimary: #D4C89A;
+        --textSecondary: #9C9371;
+        --textMuted: #6E674E;
+        --accentTeal: #008080;
+        --accentTealDeep: #004C4C;
+        --success: #4A7A20;
+        --warning: #7A7A20;
+        --danger: #7A2020;
+        --dangerText: #D66464;
+        --selection: #3D372A;
+        --compareBack: #14120C;
+        --link: #F0D060;
+      }
+      * {
+        box-sizing: border-box;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+        transition: none !important;
+        animation: none !important;
+        font-family: Verdana, sans-serif !important;
+        -webkit-font-smoothing: none !important;
+        -moz-osx-font-smoothing: unset !important;
+        text-rendering: optimizeSpeed !important;
+      }
+      html {
+        background: var(--background);
+        color: var(--textPrimary);
+        font-size: 12px;
+      }
+      body {
+        background: var(--background);
+        color: var(--textPrimary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 12px;
+      }
+      .card {
+        width: 360px;
+        max-width: 100%;
+        background: var(--surfaceRaised);
+        border: 2px solid;
+        border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+        padding: 12px;
+      }
+      h1 {
+        color: var(--textPrimary);
+        font-size: 16px;
+        line-height: 1.2;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 0 0 8px;
+        color: var(--textPrimary);
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      label {
+        display: block;
+        color: var(--textPrimary);
+        font-size: 11px;
+        margin: 8px 0 3px;
+      }
+      input {
+        width: 100%;
+        height: 24px;
+        padding: 1px 3px;
+        border: 2px solid;
+        border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+        background: var(--compareBack);
+        color: var(--textPrimary);
+        font-size: 12px;
+      }
+      input:focus-visible,
+      button:focus-visible {
+        outline: 1px dotted var(--textPrimary);
+        outline-offset: -4px;
+      }
+      button {
+        width: 100%;
+        min-height: 24px;
+        margin-top: 12px;
+        padding: 2px 6px;
+        border: 2px solid;
+        border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+        background: var(--surfaceRaised);
+        color: var(--textPrimary);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: var(--surfaceAlt);
+      }
+      button:active {
+        border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+        background: var(--surface);
+        transform: translate(1px, 1px);
+      }
+      .error {
+        margin-top: 8px;
+        padding: 3px;
+        border: 1px solid var(--dangerText);
+        background: var(--danger);
+        color: var(--textPrimary);
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      ::selection { background: var(--selection); color: var(--textPrimary); }
+    </style>
+  </head>
+  <body>
+    <form id="login" class="card">
+      <h1>Sign in</h1>
+      <p>This SAIWORK server is protected. Enter your credentials to continue.</p>
+
+      <label for="username">Username</label>
+      <input id="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="{{DEFAULT_USERNAME}}" value="{{DEFAULT_USERNAME}}" />
+
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" value="" />
+
+      <button id="submit" type="submit">Continue</button>
+      <div id="error" class="error" role="alert" aria-live="polite" style="display: none"></div>
+    </form>
+
+    <script>
+      const $ = (id) => document.getElementById(id)
+      const errorEl = $("error")
+      const showError = (msg) => {
+        errorEl.textContent = msg
+        errorEl.style.display = "block"
+      }
+      const hideError = () => {
+        errorEl.textContent = ""
+        errorEl.style.display = "none"
+      }
+
+      async function submit() {
+        hideError()
+        const username = $("username").value
+        const password = $("password").value
+        if (!username || !password) {
+          showError("Username and password are required.")
+          return
+        }
+        try {
+          const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+            credentials: "include",
+          })
+          if (!res.ok) {
+            let message = ""
+            try {
+              const json = await res.json()
+              message = json && json.error ? String(json.error) : ""
+            } catch {
+              message = ""
+            }
+            showError(message || `Login failed (${res.status})`)
+            return
+          }
+          // Replace history entry so Back doesn't return to /login.
+          window.location.replace("/")
+        } catch (e) {
+          showError(e && e.message ? e.message : String(e))
+        }
+      }
+
+      $("login").addEventListener("submit", (e) => {
+        e.preventDefault()
+        submit()
+      })
+    </script>
+  </body>
+</html>

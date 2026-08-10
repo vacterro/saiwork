@@ -1,0 +1,59 @@
+/* Thinking time rollups -- Vintage Golden. */
+
+.thinking-stats {
+  margin-top: 8px;
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surface);
+}
+
+.thinking-stats-header {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 4px;
+  background: var(--surfaceRaised);
+  border-bottom: 1px solid var(--borderDark);
+}
+
+.thinking-stats-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--textPrimary);
+}
+
+.thinking-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.thinking-stats-table th {
+  text-align: left;
+  padding: 1px 4px;
+  background: var(--surfaceRaised);
+  border: 1px solid var(--borderDark);
+  color: var(--textPrimary);
+  font-weight: 700;
+}
+
+.thinking-stats-table td {
+  padding: 1px 4px;
+  border: 1px solid var(--borderDark);
+  color: var(--textSecondary);
+  height: 16px;
+}
+
+/* Numbers line up on the right so columns can be compared down the page. */
+.thinking-stats-value {
+  text-align: right;
+  color: var(--textPrimary);
+}
+
+.thinking-stats-hint {
+  padding: 2px 4px;
+  border-top: 1px solid var(--borderDark);
+  font-size: 10px;
+  color: var(--textMuted);
+}

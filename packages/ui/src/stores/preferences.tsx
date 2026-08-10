@@ -1,0 +1,1346 @@
+import { createContext, createMemo, createSignal, onMount, useContext } from "solid-js"
+import type { Accessor, ParentComponent } from "solid-js"
+import {
+  readUseTauriNativeEventTransportPreference,
+  writeUseTauriNativeEventTransportPreference,
+} from "../lib/desktop-event-transport-preference"
+import { storage, type OwnerBucket } from "../lib/storage"
+import type { RemoteServerProfile } from "../../../server/src/api-types"
+import {
+  ensureInstanceConfigLoaded,
+  getInstanceConfig,
+  updateInstanceConfig as updateInstanceData,
+} from "./instance-config"
+import { getLogger } from "../lib/logger"
+import { loadSpeechCapabilities, resetSpeechCapabilities } from "./speech"
+import { buildSpeechPatch } from "../lib/speech-patch"
+import type { WindowPreset } from "../lib/window-presets"
+import { activatePreset, removePreset, upsertPreset } from "../lib/window-preset-store"
+
+const log = getLogger("actions")
+
+type DeepReadonly<T> = T extends (...args: any[]) => unknown
+  ? T
+  : T extends Array<infer U>
+    ? ReadonlyArray<DeepReadonly<U>>
+    : T extends object
+      ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+      : T
+
+export interface ModelPreference {
+  providerId: string
+  modelId: string
+}
+
+export type DiffViewMode = "split" | "unified"
+export type ExpansionPreference = "expanded" | "collapsed"
+export type VisibilityPreference = "hidden" | ExpansionPreference
+export type ToolCallExpansionPreset = "minimal" | "balanced" | "detailed" | "everything"
+export type ToolCallExpansionPresetSelection = ToolCallExpansionPreset | "custom"
+export type ToolInputsVisibilityPreference = VisibilityPreference
+export type ListeningMode = "local" | "all"
+export type ServerLogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
+export type SpeechProviderPreference = "openai-compatible"
+export type SpeechPlaybackMode = "streaming" | "buffered"
+export type SpeechTtsFormat = "mp3" | "wav" | "opus" | "aac"
+
+export interface ToolCallExpansionDefaults {
+  preset: ToolCallExpansionPresetSelection
+  thinking: ExpansionPreference
+  tools: Record<string, VisibilityPreference>
+}
+
+export interface SpeechSettings {
+  provider: SpeechProviderPreference
+  apiKey?: string
+  hasApiKey: boolean
+  baseUrl?: string
+  sttModel: string
+  ttsModel: string
+  ttsVoice: string
+  playbackMode: SpeechPlaybackMode
+  ttsFormat: SpeechTtsFormat
+  separateProviders: boolean
+  stt: {
+    apiKey?: string
+    hasApiKey: boolean
+    baseUrl?: string
+    model: string
+  }
+  tts: {
+    apiKey?: string
+    hasApiKey: boolean
+    baseUrl?: string
+    model: string
+  }
+}
+
+export type SpeechSettingsUpdate = Partial<Omit<SpeechSettings, "provider" | "hasApiKey" | "apiKey" | "baseUrl" | "sttModel" | "ttsModel" | "ttsVoice" | "stt" | "tts">> & {
+  apiKey?: string | null
+  baseUrl?: string | null
+  sttModel?: string | null
+  ttsModel?: string | null
+  ttsVoice?: string | null
+  separateProviders?: boolean
+  stt?: { apiKey?: string | null; baseUrl?: string | null; model?: string | null }
+  tts?: { apiKey?: string | null; baseUrl?: string | null; model?: string | null }
+}
+
+export interface UiSettings {
+  showThinkingBlocks: boolean
+  showKeyboardShortcutHints: boolean
+  thinkingBlocksExpansion: ExpansionPreference
+  showMessageTimeline: boolean
+  showTimelineTools: boolean
+  holdLongAssistantReplies: boolean
+  promptSubmitOnEnter: boolean
+  showPromptVoiceInput: boolean
+  locale?: string
+  diffViewMode: DiffViewMode
+  toolCallExpansionDefaults: ToolCallExpansionDefaults
+  toolOutputExpansion: ExpansionPreference
+  diagnosticsExpansion: VisibilityPreference
+  toolInputsVisibility: ToolInputsVisibilityPreference
+  showUsageMetrics: boolean
+  usageMetricsExpansion: ExpansionPreference
+  autoCleanupBlankSessions: boolean
+  keepUnseenSubagentIdleStatus: boolean
+  queueEnabled: boolean
+  /**
+   * How the queue drains: `separately` sends one prompt, waits for its answer,
+   * then the next; `all` sends everything in one go as one combined message.
+   */
+  queueSendMode: "separately" | "all"
+  /**
+   * SAIPEN Goal Auto: keep sending `saipen continue` while the board has work.
+   * Used to ride on `queueEnabled`, which meant it could be neither seen nor
+   * switched off without giving up the queue as well.
+   */
+  saipenGoalAuto: boolean
+  /**
+   * Per-project overrides for Goal Auto, keyed by workspace folder. Absent
+   * folders fall back to `saipenGoalAuto`. An entry equal to the default is
+   * removed, so the map only ever carries the projects that differ.
+   */
+  saipenGoalAutoByFolder: Record<string, boolean>
+  /**
+   * Limit the number of times Goal Auto can trigger before auto-disabling.
+   * Keyed by folder. Null means infinite (default).
+   */
+  saipenGoalAutoLimitByFolder: Record<string, number | null>
+  /**
+   * SAIPEN shortcut buttons run immediately as their own turn when the session
+   * is idle, and fall back to the queue while the session works. When off they
+   * follow the ordinary queue policy, which can let two quick presses overlap
+   * into one message.
+   */
+  saipenShortcutsImmediate: boolean
+  /** Hide the desktop app menu bar (File/Edit/View/Window). */
+  hideMenuBar: boolean
+  /** Window layout presets; the active one is what Ctrl+Q snaps the window to. */
+  windowPresets: WindowPreset[]
+  activeWindowPreset: string | null
+
+  // OS notifications
+  osNotificationsEnabled: boolean
+  osNotificationsAllowWhenVisible: boolean
+  notifyOnNeedsInput: boolean
+  notifyOnIdle: boolean
+}
+
+// Backwards-compatible alias for older imports.
+export type Preferences = UiSettings
+
+export interface OpenCodeBinary {
+  path: string
+  version?: string
+  lastUsed: number
+  label?: string
+}
+
+export interface RecentFolder {
+  path: string
+  lastAccessed: number
+  projectName?: string
+}
+
+export type ThemePreference = string
+
+interface UiConfigBucket {
+  theme?: ThemePreference
+  settings?: Partial<UiSettings>
+}
+
+interface ServerConfigBucket {
+  listeningMode?: ListeningMode
+  logLevel?: ServerLogLevel
+  environmentVariables?: Record<string, string>
+  secureEnvVars?: string[]
+  opencodeBinary?: string
+  speech?: Partial<SpeechSettings>
+  saipen?: Partial<SaipenSettings>
+}
+
+export interface SaipenSettings {
+  enabled: boolean
+  home: string | null
+  files: string[] | null
+  extraInstructions: string[] | null
+  autoUpdate?: boolean
+}
+
+interface UiStateBucket {
+  recentFolders?: RecentFolder[]
+  opencodeBinaries?: OpenCodeBinary[]
+  remoteServers?: RemoteServerProfile[]
+  models?: {
+    recents?: ModelPreference[]
+    favorites?: ModelPreference[]
+    thinkingSelections?: Record<string, string>
+  }
+}
+
+interface NormalizedUiState {
+  recentFolders: RecentFolder[]
+  opencodeBinaries: OpenCodeBinary[]
+  remoteServers: RemoteServerProfile[]
+  models: {
+    recents: ModelPreference[]
+    favorites: ModelPreference[]
+    thinkingSelections: Record<string, string>
+  }
+}
+
+const MAX_RECENT_FOLDERS = 20
+const MAX_RECENT_MODELS = 5
+const MAX_FAVORITE_MODELS = 50
+
+const defaultToolCallExpansionDefaults: ToolCallExpansionDefaults = {
+  preset: "balanced",
+  thinking: "collapsed",
+  tools: {},
+}
+
+const defaultUiSettings: UiSettings = {
+  showThinkingBlocks: false,
+  showKeyboardShortcutHints: true,
+  thinkingBlocksExpansion: "collapsed",
+  showMessageTimeline: true,
+  showTimelineTools: true,
+  holdLongAssistantReplies: true,
+  promptSubmitOnEnter: false,
+  showPromptVoiceInput: true,
+  diffViewMode: "split",
+  toolCallExpansionDefaults: defaultToolCallExpansionDefaults,
+  toolOutputExpansion: "expanded",
+  diagnosticsExpansion: "expanded",
+  toolInputsVisibility: "collapsed",
+  showUsageMetrics: true,
+  usageMetricsExpansion: "collapsed",
+  autoCleanupBlankSessions: true,
+  keepUnseenSubagentIdleStatus: false,
+  queueEnabled: true,
+  queueSendMode: "separately",
+  // Off by default per user request.
+  saipenGoalAuto: false,
+  saipenGoalAutoByFolder: {},
+  saipenGoalAutoLimitByFolder: {},
+  // Off by default: shortcuts follow the queue policy, same as today.
+  saipenShortcutsImmediate: false,
+  hideMenuBar: false,
+  // One usable default so Ctrl+Q does something out of the box.
+  windowPresets: [
+    { id: "preset-centered", name: "Centered 1200x800", width: 1200, height: 800 },
+  ],
+  activeWindowPreset: "preset-centered",
+
+  osNotificationsEnabled: false,
+  osNotificationsAllowWhenVisible: false,
+  notifyOnNeedsInput: true,
+  notifyOnIdle: true,
+}
+
+function normalizeExpansionPreference(value: unknown, fallback: ExpansionPreference): ExpansionPreference {
+  return value === "expanded" || value === "collapsed" ? value : fallback
+}
+
+function normalizeVisibilityPreference(value: unknown, fallback: VisibilityPreference): VisibilityPreference {
+  return value === "hidden" || value === "expanded" || value === "collapsed" ? value : fallback
+}
+
+function normalizeToolCallExpansionPreset(value: unknown): ToolCallExpansionPresetSelection {
+  if (value === "minimal" || value === "balanced" || value === "detailed" || value === "everything" || value === "custom") {
+    return value
+  }
+  return defaultToolCallExpansionDefaults.preset
+}
+
+function normalizeToolCallExpansionTools(value: unknown): Record<string, VisibilityPreference> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  const next: Record<string, VisibilityPreference> = {}
+  for (const [tool, mode] of Object.entries(value as Record<string, unknown>)) {
+    if (!tool) continue
+    if (mode === "hidden" || mode === "expanded" || mode === "collapsed") {
+      next[tool] = mode
+    }
+  }
+  return next
+}
+
+function normalizeToolCallExpansionDefaults(input: unknown, legacySettings: Partial<UiSettings>): ToolCallExpansionDefaults {
+  const source = input && typeof input === "object" && !Array.isArray(input)
+    ? (input as Partial<ToolCallExpansionDefaults>)
+    : undefined
+  const legacyThinking = normalizeExpansionPreference(
+    legacySettings.thinkingBlocksExpansion,
+    "collapsed",
+  )
+
+  return {
+    preset: normalizeToolCallExpansionPreset(source?.preset),
+    thinking: normalizeExpansionPreference(source?.thinking, legacyThinking),
+    tools: normalizeToolCallExpansionTools(source?.tools),
+  }
+}
+
+const defaultSpeechSettings: SpeechSettings = {
+  provider: "openai-compatible",
+  hasApiKey: false,
+  sttModel: "gpt-4o-mini-transcribe",
+  ttsModel: "gpt-4o-mini-tts",
+  ttsVoice: "alloy",
+  playbackMode: "streaming",
+  ttsFormat: "mp3",
+  separateProviders: false,
+  stt: {
+    hasApiKey: false,
+    model: "gpt-4o-mini-transcribe",
+  },
+  tts: {
+    hasApiKey: false,
+    model: "gpt-4o-mini-tts",
+  },
+}
+
+function normalizeUiSettings(input?: Partial<UiSettings> | null): UiSettings {
+  const sanitized = input ?? {}
+  const toolCallExpansionDefaults = normalizeToolCallExpansionDefaults(sanitized.toolCallExpansionDefaults, sanitized)
+  const usageMetricsFallback =
+    toolCallExpansionDefaults.preset === "minimal" || toolCallExpansionDefaults.preset === "balanced"
+      ? "collapsed"
+      : "expanded"
+  return {
+    showThinkingBlocks: sanitized.showThinkingBlocks ?? defaultUiSettings.showThinkingBlocks,
+    showKeyboardShortcutHints:
+      sanitized.showKeyboardShortcutHints ?? defaultUiSettings.showKeyboardShortcutHints,
+    thinkingBlocksExpansion: sanitized.thinkingBlocksExpansion ?? defaultUiSettings.thinkingBlocksExpansion,
+    showMessageTimeline: sanitized.showMessageTimeline ?? defaultUiSettings.showMessageTimeline,
+    showTimelineTools: sanitized.showTimelineTools ?? defaultUiSettings.showTimelineTools,
+    holdLongAssistantReplies: sanitized.holdLongAssistantReplies ?? defaultUiSettings.holdLongAssistantReplies,
+    promptSubmitOnEnter: sanitized.promptSubmitOnEnter ?? defaultUiSettings.promptSubmitOnEnter,
+    showPromptVoiceInput: sanitized.showPromptVoiceInput ?? defaultUiSettings.showPromptVoiceInput,
+    locale: sanitized.locale ?? defaultUiSettings.locale,
+    diffViewMode: sanitized.diffViewMode ?? defaultUiSettings.diffViewMode,
+    toolCallExpansionDefaults,
+    toolOutputExpansion: sanitized.toolOutputExpansion ?? defaultUiSettings.toolOutputExpansion,
+    diagnosticsExpansion: normalizeVisibilityPreference(
+      sanitized.diagnosticsExpansion,
+      defaultUiSettings.diagnosticsExpansion,
+    ),
+    toolInputsVisibility:
+      sanitized.toolInputsVisibility === "hidden" || sanitized.toolInputsVisibility === "collapsed" || sanitized.toolInputsVisibility === "expanded"
+        ? sanitized.toolInputsVisibility
+        : defaultUiSettings.toolInputsVisibility,
+    showUsageMetrics: sanitized.showUsageMetrics ?? defaultUiSettings.showUsageMetrics,
+    usageMetricsExpansion: normalizeExpansionPreference(
+      sanitized.usageMetricsExpansion,
+      usageMetricsFallback,
+    ),
+    autoCleanupBlankSessions: sanitized.autoCleanupBlankSessions ?? defaultUiSettings.autoCleanupBlankSessions,
+    keepUnseenSubagentIdleStatus:
+      sanitized.keepUnseenSubagentIdleStatus ?? defaultUiSettings.keepUnseenSubagentIdleStatus,
+    queueEnabled: sanitized.queueEnabled ?? defaultUiSettings.queueEnabled,
+    queueSendMode: sanitized.queueSendMode === "all" ? "all" : "separately",
+    saipenGoalAuto: sanitized.saipenGoalAuto ?? defaultUiSettings.saipenGoalAuto,
+    saipenGoalAutoByFolder:
+      sanitized.saipenGoalAutoByFolder && typeof sanitized.saipenGoalAutoByFolder === "object"
+        ? sanitized.saipenGoalAutoByFolder
+        : defaultUiSettings.saipenGoalAutoByFolder,
+    saipenGoalAutoLimitByFolder:
+      sanitized.saipenGoalAutoLimitByFolder && typeof sanitized.saipenGoalAutoLimitByFolder === "object"
+        ? sanitized.saipenGoalAutoLimitByFolder
+        : defaultUiSettings.saipenGoalAutoLimitByFolder,
+    saipenShortcutsImmediate:
+      sanitized.saipenShortcutsImmediate ?? defaultUiSettings.saipenShortcutsImmediate,
+    hideMenuBar: sanitized.hideMenuBar ?? defaultUiSettings.hideMenuBar,
+    windowPresets: Array.isArray(sanitized.windowPresets)
+      ? (sanitized.windowPresets as WindowPreset[])
+      : defaultUiSettings.windowPresets,
+    activeWindowPreset:
+      typeof sanitized.activeWindowPreset === "string"
+        ? sanitized.activeWindowPreset
+        : defaultUiSettings.activeWindowPreset,
+    osNotificationsEnabled: sanitized.osNotificationsEnabled ?? defaultUiSettings.osNotificationsEnabled,
+    osNotificationsAllowWhenVisible:
+      sanitized.osNotificationsAllowWhenVisible ?? defaultUiSettings.osNotificationsAllowWhenVisible,
+    notifyOnNeedsInput: sanitized.notifyOnNeedsInput ?? defaultUiSettings.notifyOnNeedsInput,
+    notifyOnIdle: sanitized.notifyOnIdle ?? defaultUiSettings.notifyOnIdle,
+  }
+}
+
+function normalizeRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === "string") out[k] = v
+  }
+  return out
+}
+
+function normalizeSpeechSettings(input?: Partial<SpeechSettings> | null): SpeechSettings {
+  const sanitized = input ?? {}
+  const sttModel =
+    typeof sanitized.sttModel === "string" && sanitized.sttModel.trim()
+      ? sanitized.sttModel.trim()
+      : defaultSpeechSettings.sttModel
+  const ttsModel =
+    typeof sanitized.ttsModel === "string" && sanitized.ttsModel.trim()
+      ? sanitized.ttsModel.trim()
+      : defaultSpeechSettings.ttsModel
+  return {
+    provider: sanitized.provider === "openai-compatible" ? sanitized.provider : defaultSpeechSettings.provider,
+    apiKey: typeof sanitized.apiKey === "string" && sanitized.apiKey.trim() ? sanitized.apiKey.trim() : undefined,
+    hasApiKey: sanitized.hasApiKey === true || (typeof sanitized.apiKey === "string" && sanitized.apiKey.trim().length > 0),
+    baseUrl: typeof sanitized.baseUrl === "string" && sanitized.baseUrl.trim() ? sanitized.baseUrl.trim() : undefined,
+    sttModel,
+    ttsModel,
+    ttsVoice:
+      typeof sanitized.ttsVoice === "string" && sanitized.ttsVoice.trim()
+        ? sanitized.ttsVoice.trim()
+        : defaultSpeechSettings.ttsVoice,
+    playbackMode:
+      sanitized.playbackMode === "buffered" || sanitized.playbackMode === "streaming"
+        ? sanitized.playbackMode
+        : defaultSpeechSettings.playbackMode,
+    ttsFormat:
+      sanitized.ttsFormat === "wav" || sanitized.ttsFormat === "opus" || sanitized.ttsFormat === "aac" || sanitized.ttsFormat === "mp3"
+        ? sanitized.ttsFormat
+        : defaultSpeechSettings.ttsFormat,
+    separateProviders: sanitized.separateProviders === true,
+    stt: {
+      apiKey: typeof sanitized.stt?.apiKey === "string" && sanitized.stt.apiKey.trim() ? sanitized.stt.apiKey.trim() : undefined,
+      hasApiKey: sanitized.stt?.hasApiKey === true || (typeof sanitized.stt?.apiKey === "string" && sanitized.stt.apiKey.trim().length > 0),
+      baseUrl: typeof sanitized.stt?.baseUrl === "string" && sanitized.stt.baseUrl.trim() ? sanitized.stt.baseUrl.trim() : undefined,
+      model:
+        typeof sanitized.stt?.model === "string" && sanitized.stt.model.trim()
+          ? sanitized.stt.model.trim()
+          : sttModel,
+    },
+    tts: {
+      apiKey: typeof sanitized.tts?.apiKey === "string" && sanitized.tts.apiKey.trim() ? sanitized.tts.apiKey.trim() : undefined,
+      hasApiKey: sanitized.tts?.hasApiKey === true || (typeof sanitized.tts?.apiKey === "string" && sanitized.tts.apiKey.trim().length > 0),
+      baseUrl: typeof sanitized.tts?.baseUrl === "string" && sanitized.tts.baseUrl.trim() ? sanitized.tts.baseUrl.trim() : undefined,
+      model:
+        typeof sanitized.tts?.model === "string" && sanitized.tts.model.trim()
+          ? sanitized.tts.model.trim()
+          : ttsModel,
+    },
+  }
+}
+
+function cloneArray<T>(value: unknown, mapper: (item: any) => T | null): T[] {
+  if (!Array.isArray(value)) return []
+  const out: T[] = []
+  for (const item of value) {
+    const mapped = mapper(item)
+    if (mapped) out.push(mapped)
+  }
+  return out
+}
+
+function normalizeUiState(input?: UiStateBucket | null): NormalizedUiState {
+  const source = input ?? {}
+  return {
+    recentFolders: cloneArray<RecentFolder>(source.recentFolders, (f) => {
+      if (!f || typeof f !== "object") return null
+      const p = (f as any).path
+      const lastAccessed = (f as any).lastAccessed
+      const projectName = (f as any).projectName
+      if (typeof p !== "string") return null
+      const ts = typeof lastAccessed === "number" ? lastAccessed : Date.now()
+      return {
+        path: p,
+        lastAccessed: ts,
+        ...(typeof projectName === "string" && projectName.trim() ? { projectName: projectName.trim() } : {}),
+      }
+    }),
+    opencodeBinaries: cloneArray<OpenCodeBinary>(source.opencodeBinaries, (b) => {
+      if (!b || typeof b !== "object") return null
+      const p = (b as any).path
+      if (typeof p !== "string") return null
+      const lastUsed = typeof (b as any).lastUsed === "number" ? (b as any).lastUsed : Date.now()
+      const version = typeof (b as any).version === "string" ? (b as any).version : undefined
+      const label = typeof (b as any).label === "string" ? (b as any).label : undefined
+      return { path: p, version, label, lastUsed }
+    }),
+    remoteServers: cloneArray<RemoteServerProfile>(source.remoteServers, (server) => {
+      if (!server || typeof server !== "object") return null
+      const id = typeof (server as any).id === "string" ? (server as any).id.trim() : ""
+      const name = typeof (server as any).name === "string" ? (server as any).name.trim() : ""
+      const baseUrl = typeof (server as any).baseUrl === "string" ? (server as any).baseUrl.trim() : ""
+      if (!id || !name || !baseUrl) return null
+      const createdAt = typeof (server as any).createdAt === "string" ? (server as any).createdAt : new Date().toISOString()
+      const updatedAt = typeof (server as any).updatedAt === "string" ? (server as any).updatedAt : createdAt
+      const lastConnectedAt = typeof (server as any).lastConnectedAt === "string" ? (server as any).lastConnectedAt : undefined
+      return {
+        id,
+        name,
+        baseUrl,
+        skipTlsVerify: Boolean((server as any).skipTlsVerify),
+        createdAt,
+        updatedAt,
+        lastConnectedAt,
+      }
+    }).sort((a, b) => {
+      const left = a.lastConnectedAt ?? a.updatedAt
+      const right = b.lastConnectedAt ?? b.updatedAt
+      return right.localeCompare(left)
+    }),
+    models: {
+      recents: cloneArray<ModelPreference>((source.models as any)?.recents, (m) => {
+        if (!m || typeof m !== "object") return null
+        const providerId = (m as any).providerId
+        const modelId = (m as any).modelId
+        if (typeof providerId !== "string" || typeof modelId !== "string") return null
+        return { providerId, modelId }
+      }),
+      favorites: cloneArray<ModelPreference>((source.models as any)?.favorites, (m) => {
+        if (!m || typeof m !== "object") return null
+        const providerId = (m as any).providerId
+        const modelId = (m as any).modelId
+        if (typeof providerId !== "string" || typeof modelId !== "string") return null
+        return { providerId, modelId }
+      }),
+      thinkingSelections: normalizeRecord((source.models as any)?.thinkingSelections),
+    },
+  }
+}
+
+function normalizeServerConfig(
+  input?: ServerConfigBucket | null,
+): Required<Pick<ServerConfigBucket, "listeningMode" | "logLevel" | "environmentVariables" | "opencodeBinary" | "secureEnvVars">> & { speech: SpeechSettings; saipen?: Partial<SaipenSettings> } {
+  const source = input ?? {}
+  const listeningMode = source.listeningMode === "all" ? "all" : "local"
+  const logLevel =
+    source.logLevel === "INFO" || source.logLevel === "WARN" || source.logLevel === "ERROR" || source.logLevel === "DEBUG"
+      ? source.logLevel
+      : "DEBUG"
+  const opencodeBinary = typeof source.opencodeBinary === "string" && source.opencodeBinary.trim() ? source.opencodeBinary : "opencode"
+  const environmentVariables = normalizeRecord(source.environmentVariables)
+  const secureEnvVars = normalizeSecureEnvVars(source.secureEnvVars)
+  const speech = normalizeSpeechSettings(source.speech)
+  const saipen = source.saipen
+  return { listeningMode, logLevel, opencodeBinary, environmentVariables, secureEnvVars, speech, saipen }
+}
+
+function normalizeSecureEnvVars(input?: unknown): string[] {
+  if (!Array.isArray(input)) return []
+  return input.filter((item): item is string => typeof item === "string" && item.length > 0)
+}
+
+function getModelKey(model: { providerId: string; modelId: string }): string {
+  return `${model.providerId}/${model.modelId}`
+}
+
+function buildRecentFolderList(folderPath: string, source: RecentFolder[], aliasPath?: string): RecentFolder[] {
+  const matchingPaths = new Set([folderPath, aliasPath].filter((value): value is string => Boolean(value)))
+  const aliasEntry = aliasPath ? source.find((folder) => folder.path === aliasPath) : undefined
+  const canonicalEntry = source.find((folder) => folder.path === folderPath)
+  const projectName = aliasEntry?.projectName ?? canonicalEntry?.projectName
+  const folders = source.filter((folder) => !matchingPaths.has(folder.path))
+  folders.unshift({
+    path: folderPath,
+    lastAccessed: Date.now(),
+    ...(projectName ? { projectName } : {}),
+  })
+  return folders.slice(0, MAX_RECENT_FOLDERS)
+}
+
+function buildBinaryList(binaryPath: string, version: string | undefined, source: OpenCodeBinary[]): OpenCodeBinary[] {
+  const timestamp = Date.now()
+  const existing = source.find((b) => b.path === binaryPath)
+  if (existing) {
+    const updatedEntry: OpenCodeBinary = { ...existing, lastUsed: timestamp, version: version ?? existing.version }
+    const remaining = source.filter((b) => b.path !== binaryPath)
+    return [updatedEntry, ...remaining]
+  }
+  const nextEntry: OpenCodeBinary = version
+    ? { path: binaryPath, version, lastUsed: timestamp }
+    : { path: binaryPath, lastUsed: timestamp }
+  return [nextEntry, ...source].slice(0, 10)
+}
+
+interface RemoteServerProfileInput {
+  id?: string
+  name: string
+  baseUrl: string
+  skipTlsVerify: boolean
+}
+
+function buildRemoteServerProfile(input: RemoteServerProfileInput, source: RemoteServerProfile[]): RemoteServerProfile {
+  const existing = input.id ? source.find((entry) => entry.id === input.id) : undefined
+  const now = new Date().toISOString()
+  return {
+    id: existing?.id ?? input.id ?? createRandomId(),
+    name: input.name.trim(),
+    baseUrl: input.baseUrl.trim(),
+    skipTlsVerify: Boolean(input.skipTlsVerify),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    lastConnectedAt: existing?.lastConnectedAt,
+  }
+}
+
+function buildRemoteServerList(profile: RemoteServerProfile, source: RemoteServerProfile[]): RemoteServerProfile[] {
+  const remaining = source.filter((entry) => entry.id !== profile.id)
+  return [profile, ...remaining].sort((a, b) => {
+    const left = a.lastConnectedAt ?? a.updatedAt
+    const right = b.lastConnectedAt ?? b.updatedAt
+    return right.localeCompare(left)
+  })
+}
+
+function createRandomId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+  return `remote-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+const [uiConfigBucket, setUiConfigBucket] = createSignal<UiConfigBucket>({})
+const [serverConfigBucket, setServerConfigBucket] = createSignal<ServerConfigBucket>({})
+const [uiStateBucket, setUiStateBucket] = createSignal<UiStateBucket>({})
+const [isLoaded, setIsLoaded] = createSignal(false)
+const [useTauriNativeEventTransport, setUseTauriNativeEventTransportSignal] = createSignal(
+  readUseTauriNativeEventTransportPreference(),
+)
+
+const uiSettings = createMemo<UiSettings>(() => normalizeUiSettings(uiConfigBucket().settings))
+const themePreference = createMemo<ThemePreference>(() => uiConfigBucket().theme ?? "goldendefault")
+const serverSettings = createMemo(() => normalizeServerConfig(serverConfigBucket()))
+const uiState = createMemo(() => normalizeUiState(uiStateBucket()))
+
+const preferences = uiSettings
+const recentFolders = createMemo<RecentFolder[]>(() => uiState().recentFolders)
+const opencodeBinaries = createMemo<OpenCodeBinary[]>(() => uiState().opencodeBinaries)
+const remoteServers = createMemo<RemoteServerProfile[]>(() => uiState().remoteServers)
+
+let loadPromise: Promise<void> | null = null
+
+async function ensureLoaded(): Promise<void> {
+  if (isLoaded()) return
+  if (!loadPromise) {
+    loadPromise = Promise.all([
+      storage.loadConfigOwner("ui"),
+      storage.loadConfigOwner("server"),
+      storage.loadStateOwner("ui"),
+    ])
+      .then(([uiCfg, srvCfg, uiSt]) => {
+        setUiConfigBucket(uiCfg as any)
+        setServerConfigBucket(srvCfg as any)
+        setUiStateBucket(uiSt as any)
+        setIsLoaded(true)
+      })
+      .catch((error) => {
+        log.error("Failed to load settings", error)
+        setUiConfigBucket({})
+        setServerConfigBucket({})
+        setUiStateBucket({})
+        setIsLoaded(true)
+      })
+      .finally(() => {
+        loadPromise = null
+      })
+  }
+  await loadPromise
+}
+
+async function patchConfigOwner(owner: string, patch: unknown) {
+  await ensureLoaded()
+  const updated = await storage.patchConfigOwner(owner, patch)
+  if (owner === "ui") setUiConfigBucket(updated as any)
+  if (owner === "server") setServerConfigBucket(updated as any)
+}
+
+function setUseTauriNativeEventTransport(enabled: boolean): void {
+  if (useTauriNativeEventTransport() === enabled) {
+    return
+  }
+
+  setUseTauriNativeEventTransportSignal(enabled)
+  writeUseTauriNativeEventTransportPreference(enabled)
+
+  void import("../lib/server-events")
+    .then(({ serverEvents }) => {
+      serverEvents.restart("desktop transport preference changed")
+    })
+    .catch((error) => {
+      log.error("Failed to restart backend events stream after desktop transport preference change", error)
+    })
+}
+
+async function patchStateOwner(owner: string, patch: unknown) {
+  await ensureLoaded()
+  const updated = await storage.patchStateOwner(owner, patch)
+  if (owner === "ui") setUiStateBucket(updated as any)
+}
+
+function updateUiSettings(updates: Partial<UiSettings>) {
+  const current = uiConfigBucket()
+  const nextSettings = normalizeUiSettings({ ...(current.settings ?? {}), ...updates })
+  const patch = { settings: nextSettings }
+  void patchConfigOwner("ui", patch).catch((error) => log.error("Failed to patch ui settings", error))
+}
+
+function updatePreferences(updates: Partial<UiSettings>): void {
+  updateUiSettings(updates)
+}
+
+function setThemePreference(preference: ThemePreference): void {
+  if (themePreference() === preference) return
+  void patchConfigOwner("ui", { theme: preference }).catch((error) => log.error("Failed to set theme", error))
+}
+
+ async function setListeningMode(mode: ListeningMode): Promise<void> {
+   if (serverSettings().listeningMode === mode) return
+   await patchConfigOwner("server", { listeningMode: mode })
+ }
+
+function updateEnvironmentVariables(envVars: Record<string, string>): void {
+  void patchConfigOwner("server", { environmentVariables: envVars }).catch((error) =>
+    log.error("Failed to update environment variables", error),
+  )
+}
+
+function addEnvironmentVariable(key: string, value: string, secure: boolean = true): void {
+  const current = serverSettings().environmentVariables
+  updateEnvironmentVariables({ ...current, [key]: value })
+
+  const secureList = serverSettings().secureEnvVars
+  const upperKey = key.toUpperCase()
+  const exists = secureList.some((name) => name.toUpperCase() === upperKey)
+
+  if (secure) {
+    if (!exists) {
+      const next = [...secureList, key]
+      void patchConfigOwner("server", { secureEnvVars: next }).catch((error) =>
+        log.error("Failed to add secure env var", error),
+      )
+    }
+  } else {
+    if (exists) {
+      const next = secureList.filter((name) => name.toUpperCase() !== upperKey)
+      void patchConfigOwner("server", { secureEnvVars: next }).catch((error) =>
+        log.error("Failed to remove secure env var", error),
+      )
+    }
+  }
+}
+
+function removeEnvironmentVariable(key: string): void {
+  void patchConfigOwner("server", { environmentVariables: { [key]: null } }).catch((error) =>
+    log.error("Failed to remove environment variable", error),
+  )
+}
+
+function isSecureEnvVar(key: string): boolean {
+  const secureList = serverSettings().secureEnvVars
+  return secureList.some((name) => name.toUpperCase() === key.toUpperCase())
+}
+
+function toggleSecureEnvVar(key: string): void {
+  const secureList = serverSettings().secureEnvVars
+  const upperKey = key.toUpperCase()
+  const exists = secureList.some((name) => name.toUpperCase() === upperKey)
+  const next = exists
+    ? secureList.filter((name) => name.toUpperCase() !== upperKey)
+    : [...secureList, key]
+  void patchConfigOwner("server", { secureEnvVars: next }).catch((error) =>
+    log.error("Failed to update secure env vars", error),
+  )
+}
+
+function updateLastUsedBinary(path: string): void {
+  const target = path && path.trim().length > 0 ? path : "opencode"
+  void patchConfigOwner("server", { opencodeBinary: target }).catch((error) => log.error("Failed to set default binary", error))
+
+  // also bump lastUsed in state ui.opencodeBinaries
+  const nextList = buildBinaryList(target, undefined, opencodeBinaries())
+  void patchStateOwner("ui", { opencodeBinaries: nextList }).catch((error) => log.error("Failed to update binary list", error))
+}
+
+function updateLogLevel(level: ServerLogLevel): void {
+  const target = level ?? "DEBUG"
+  void patchConfigOwner("server", { logLevel: target }).catch((error) => log.error("Failed to set log level", error))
+}
+
+async function updateSpeechSettings(updates: SpeechSettingsUpdate): Promise<void> {
+  const patch = buildSpeechPatch(updates)
+  try {
+    await patchConfigOwner("server", { speech: patch })
+  } catch (error) {
+    log.error("Failed to update speech settings", error)
+    throw error
+  }
+}
+
+async function updateSaipenSettings(updates: Partial<SaipenSettings>): Promise<void> {
+  try {
+    await patchConfigOwner("server", { saipen: updates })
+  } catch (error) {
+    log.error("Failed to update saipen settings", error)
+    throw error
+  }
+}
+
+function addOpenCodeBinary(path: string, version?: string): void {
+  const nextList = buildBinaryList(path, version, opencodeBinaries())
+  void patchStateOwner("ui", { opencodeBinaries: nextList }).catch((error) => log.error("Failed to add binary", error))
+}
+
+function removeOpenCodeBinary(path: string): void {
+  const nextList = opencodeBinaries().filter((b) => b.path !== path)
+  void patchStateOwner("ui", { opencodeBinaries: nextList }).catch((error) => log.error("Failed to remove binary", error))
+
+  if (serverSettings().opencodeBinary === path) {
+    void patchConfigOwner("server", { opencodeBinary: "opencode" }).catch((error) =>
+      log.error("Failed to reset default binary", error),
+    )
+  }
+}
+
+function addRecentFolder(folderPath: string): void {
+  const next = buildRecentFolderList(folderPath, recentFolders())
+  void patchStateOwner("ui", { recentFolders: next }).catch((error) => log.error("Failed to add recent folder", error))
+}
+
+function removeRecentFolder(folderPath: string): void {
+  const next = recentFolders().filter((f) => f.path !== folderPath)
+  void patchStateOwner("ui", { recentFolders: next }).catch((error) => log.error("Failed to remove recent folder", error))
+}
+
+async function renameRecentFolderProject(folderPath: string, projectName: string): Promise<void> {
+  const name = projectName.trim()
+  if (!folderPath || !name) return
+  const next = recentFolders().map((folder) => (folder.path === folderPath ? { ...folder, projectName: name } : folder))
+  try {
+    await patchStateOwner("ui", { recentFolders: next })
+  } catch (error) {
+    log.error("Failed to rename recent folder", error)
+    throw error
+  }
+}
+
+async function saveRemoteServerProfile(input: RemoteServerProfileInput): Promise<RemoteServerProfile> {
+  const profile = buildRemoteServerProfile(input, remoteServers())
+  await patchStateOwner("ui", { remoteServers: buildRemoteServerList(profile, remoteServers()) })
+  return profile
+}
+
+async function markRemoteServerConnected(id: string): Promise<void> {
+  const current = remoteServers().find((entry) => entry.id === id)
+  if (!current) return
+  const now = new Date().toISOString()
+  const updated: RemoteServerProfile = {
+    ...current,
+    updatedAt: now,
+    lastConnectedAt: now,
+  }
+  await patchStateOwner("ui", { remoteServers: buildRemoteServerList(updated, remoteServers()) })
+}
+
+function removeRemoteServerProfile(id: string): void {
+  const next = remoteServers().filter((entry) => entry.id !== id)
+  void patchStateOwner("ui", { remoteServers: next }).catch((error) => log.error("Failed to remove remote server", error))
+}
+
+function recordWorkspaceLaunch(folderPath: string, binaryPath?: string, aliasPath?: string): void {
+  const targetBinary = binaryPath && binaryPath.trim().length > 0 ? binaryPath : serverSettings().opencodeBinary
+  const nextFolders = buildRecentFolderList(folderPath, recentFolders(), aliasPath)
+  const nextBinaries = buildBinaryList(targetBinary, undefined, opencodeBinaries())
+
+  void patchStateOwner("ui", { recentFolders: nextFolders, opencodeBinaries: nextBinaries }).catch((error) =>
+    log.error("Failed to update ui state on launch", error),
+  )
+  void patchConfigOwner("server", { opencodeBinary: targetBinary }).catch((error) =>
+    log.error("Failed to persist selected binary", error),
+  )
+}
+
+function addRecentModelPreference(model: ModelPreference): void {
+  if (!model.providerId || !model.modelId) return
+  const recents = uiState().models.recents
+  const filtered = recents.filter((item) => item.providerId !== model.providerId || item.modelId !== model.modelId)
+  const updated = [model, ...filtered].slice(0, MAX_RECENT_MODELS)
+  void patchStateOwner("ui", { models: { recents: updated } }).catch((error) => log.error("Failed to update model recents", error))
+}
+
+function isFavoriteModelPreference(model: ModelPreference): boolean {
+  if (!model.providerId || !model.modelId) return false
+  return uiState().models.favorites.some((item) => item.providerId === model.providerId && item.modelId === model.modelId)
+}
+
+function toggleFavoriteModelPreference(model: ModelPreference): void {
+  if (!model.providerId || !model.modelId) return
+  const favorites = uiState().models.favorites
+  const exists = favorites.some((item) => item.providerId === model.providerId && item.modelId === model.modelId)
+
+  const updated = exists
+    ? favorites.filter((item) => item.providerId !== model.providerId || item.modelId !== model.modelId)
+    : [model, ...favorites.filter((item) => item.providerId !== model.providerId || item.modelId !== model.modelId)].slice(
+        0,
+        MAX_FAVORITE_MODELS,
+      )
+
+  void patchStateOwner("ui", { models: { favorites: updated } }).catch((error) => log.error("Failed to update model favorites", error))
+}
+
+function getModelThinkingSelection(model: { providerId: string; modelId: string }): string | undefined {
+  if (!model.providerId || !model.modelId) return undefined
+  return uiState().models.thinkingSelections[getModelKey(model)]
+}
+
+function setModelThinkingSelection(model: { providerId: string; modelId: string }, value: string | undefined): void {
+  if (!model.providerId || !model.modelId) return
+  const key = getModelKey(model)
+  const current = uiState().models.thinkingSelections[key]
+  if (current === value) return
+
+  const selections = { ...uiState().models.thinkingSelections }
+  if (!value) {
+    delete selections[key]
+  } else {
+    selections[key] = value
+  }
+  void patchStateOwner("ui", { models: { thinkingSelections: selections } }).catch((error) =>
+    log.error("Failed to update thinking selection", error),
+  )
+}
+
+function setDiffViewMode(mode: DiffViewMode): void {
+  if (preferences().diffViewMode === mode) return
+  updateUiSettings({ diffViewMode: mode })
+}
+
+function setToolOutputExpansion(mode: VisibilityPreference): void {
+  const current = preferences()
+  if (current.toolCallExpansionDefaults.tools.other === mode) return
+  updateUiSettings({
+    toolOutputExpansion: mode === "hidden" ? current.toolOutputExpansion : mode,
+    toolCallExpansionDefaults: {
+      ...current.toolCallExpansionDefaults,
+      preset: "custom",
+      tools: {
+        ...current.toolCallExpansionDefaults.tools,
+        other: mode,
+      },
+    },
+  })
+}
+
+function setDiagnosticsExpansion(mode: VisibilityPreference): void {
+  if (preferences().diagnosticsExpansion === mode) return
+  updateUiSettings({ diagnosticsExpansion: mode })
+}
+
+function setToolInputsVisibility(mode: ToolInputsVisibilityPreference): void {
+  if (preferences().toolInputsVisibility === mode) return
+  updateUiSettings({ toolInputsVisibility: mode })
+}
+
+function setThinkingBlocksExpansion(mode: ExpansionPreference): void {
+  const current = preferences()
+  if (current.thinkingBlocksExpansion === mode && current.toolCallExpansionDefaults.thinking === mode) return
+  updateUiSettings({
+    thinkingBlocksExpansion: mode,
+    toolCallExpansionDefaults: {
+      ...current.toolCallExpansionDefaults,
+      preset: "custom",
+      thinking: mode,
+    },
+  })
+}
+
+function toggleShowThinkingBlocks(): void {
+  updateUiSettings({ showThinkingBlocks: !preferences().showThinkingBlocks })
+}
+
+function toggleKeyboardShortcutHints(): void {
+  updatePreferences({ showKeyboardShortcutHints: !preferences().showKeyboardShortcutHints })
+}
+
+function toggleShowTimelineTools(): void {
+  updateUiSettings({ showTimelineTools: !preferences().showTimelineTools })
+}
+
+function toggleShowMessageTimeline(): void {
+  updateUiSettings({ showMessageTimeline: !(preferences().showMessageTimeline ?? true) })
+}
+
+function toggleUsageMetrics(): void {
+  updateUiSettings({ showUsageMetrics: !preferences().showUsageMetrics })
+}
+
+function togglePromptSubmitOnEnter(): void {
+  updateUiSettings({ promptSubmitOnEnter: !preferences().promptSubmitOnEnter })
+}
+
+function toggleShowPromptVoiceInput(): void {
+  updateUiSettings({ showPromptVoiceInput: !preferences().showPromptVoiceInput })
+}
+
+function toggleAutoCleanupBlankSessions(): void {
+  const nextValue = !preferences().autoCleanupBlankSessions
+  log.info("toggle auto cleanup", { value: nextValue })
+  updateUiSettings({ autoCleanupBlankSessions: nextValue })
+}
+
+/**
+ * Goal Auto per project: a folder with no override follows the global default.
+ * A local override signal makes the toggle respond instantly instead of
+ * waiting for the async config round-trip; the persisted map is the durable
+ * source for the next launch.
+ */
+const [goalAutoLocalOverrides, setGoalAutoLocalOverrides] = createSignal<Record<string, boolean>>({})
+
+export function isSaipenGoalAutoEnabled(folder: string): boolean {
+  const local = goalAutoLocalOverrides()[folder]
+  if (local !== undefined) return local
+  const override = preferences().saipenGoalAutoByFolder?.[folder]
+  return override !== undefined ? override : preferences().saipenGoalAuto
+}
+
+function toggleSaipenGoalAuto(folder: string): void {
+  const nextValue = !isSaipenGoalAutoEnabled(folder)
+  log.info("toggle saipen goal auto", { folder, value: nextValue })
+  const global = preferences().saipenGoalAuto
+  const byFolder = { ...(preferences().saipenGoalAutoByFolder ?? {}) }
+  // Local override always stores the explicit value so the button responds
+  // instantly, even while the async config PATCH is in flight.
+  const local = { ...goalAutoLocalOverrides() }
+  local[folder] = nextValue
+  // Always explicitly save the boolean value so it overwrites any existing config.yaml entry.
+  // Deleting the key here would cause the backend deep merge to leave the old value untouched.
+  byFolder[folder] = nextValue
+  setGoalAutoLocalOverrides(local)
+  updateUiSettings({ saipenGoalAutoByFolder: byFolder })
+}
+
+export function getSaipenGoalAutoLimit(folder: string): number | null {
+  return preferences().saipenGoalAutoLimitByFolder?.[folder] ?? null
+}
+
+export function setSaipenGoalAutoLimit(folder: string, limit: number | null): void {
+  const limits = { ...(preferences().saipenGoalAutoLimitByFolder ?? {}) }
+  limits[folder] = limit
+  updateUiSettings({ saipenGoalAutoLimitByFolder: limits })
+}
+
+function toggleQueueEnabled(): void {
+  updateUiSettings({ queueEnabled: !preferences().queueEnabled })
+}
+
+function toggleQueueSendMode(): void {
+  updateUiSettings({ queueSendMode: preferences().queueSendMode === "all" ? "separately" : "all" })
+}
+
+function toggleSaipenShortcutsImmediate(): void {
+  updateUiSettings({ saipenShortcutsImmediate: !preferences().saipenShortcutsImmediate })
+}
+
+function toggleHideMenuBar(): void {
+  updateUiSettings({ hideMenuBar: !preferences().hideMenuBar })
+}
+
+function saveWindowPreset(preset: WindowPreset): void {
+  const next = upsertPreset(
+    { presets: preferences().windowPresets, activeId: preferences().activeWindowPreset },
+    preset,
+  )
+  updateUiSettings({ windowPresets: next.presets, activeWindowPreset: next.activeId })
+}
+
+function deleteWindowPreset(id: string): void {
+  const next = removePreset(
+    { presets: preferences().windowPresets, activeId: preferences().activeWindowPreset },
+    id,
+  )
+  updateUiSettings({ windowPresets: next.presets, activeWindowPreset: next.activeId })
+}
+
+function setActiveWindowPreset(id: string | null): void {
+  const next = activatePreset(
+    { presets: preferences().windowPresets, activeId: preferences().activeWindowPreset },
+    id,
+  )
+  updateUiSettings({ activeWindowPreset: next.activeId })
+}
+
+async function setAgentModelPreference(instanceId: string, agent: string, model: ModelPreference): Promise<void> {
+  if (!instanceId || !agent || !model.providerId || !model.modelId) return
+  await ensureInstanceConfigLoaded(instanceId)
+  await updateInstanceData(instanceId, (draft) => {
+    const selections = { ...(draft.agentModelSelections ?? {}) }
+    const existing = selections[agent]
+    if (existing && existing.providerId === model.providerId && existing.modelId === model.modelId) {
+      return
+    }
+    selections[agent] = model
+    draft.agentModelSelections = selections
+  })
+}
+
+async function getAgentModelPreference(instanceId: string, agent: string): Promise<ModelPreference | undefined> {
+  if (!instanceId || !agent) return undefined
+  await ensureInstanceConfigLoaded(instanceId)
+  const selections = getInstanceConfig(instanceId).agentModelSelections ?? {}
+  return selections[agent]
+}
+
+void ensureLoaded().catch((error: unknown) => {
+  log.error("Failed to initialize settings", error)
+})
+
+interface ConfigContextValue {
+  isLoaded: Accessor<boolean>
+  preferences: typeof preferences
+  useTauriNativeEventTransport: typeof useTauriNativeEventTransport
+  setUseTauriNativeEventTransport: typeof setUseTauriNativeEventTransport
+  updatePreferences: typeof updatePreferences
+  themePreference: typeof themePreference
+  setThemePreference: typeof setThemePreference
+
+  // server-owned stable config
+  serverSettings: typeof serverSettings
+  setListeningMode: typeof setListeningMode
+  updateEnvironmentVariables: typeof updateEnvironmentVariables
+  addEnvironmentVariable: typeof addEnvironmentVariable
+  removeEnvironmentVariable: typeof removeEnvironmentVariable
+  isSecureEnvVar: typeof isSecureEnvVar
+  toggleSecureEnvVar: typeof toggleSecureEnvVar
+    updateLastUsedBinary: typeof updateLastUsedBinary
+    updateLogLevel: typeof updateLogLevel
+    updateSpeechSettings: typeof updateSpeechSettings
+    updateSaipenSettings: typeof updateSaipenSettings
+
+  // ui-owned state
+  recentFolders: typeof recentFolders
+  opencodeBinaries: typeof opencodeBinaries
+  remoteServers: typeof remoteServers
+  uiState: typeof uiState
+  addRecentFolder: typeof addRecentFolder
+  removeRecentFolder: typeof removeRecentFolder
+  renameRecentFolderProject: typeof renameRecentFolderProject
+  addOpenCodeBinary: typeof addOpenCodeBinary
+  removeOpenCodeBinary: typeof removeOpenCodeBinary
+  saveRemoteServerProfile: typeof saveRemoteServerProfile
+  markRemoteServerConnected: typeof markRemoteServerConnected
+  removeRemoteServerProfile: typeof removeRemoteServerProfile
+  recordWorkspaceLaunch: typeof recordWorkspaceLaunch
+  addRecentModelPreference: typeof addRecentModelPreference
+  isFavoriteModelPreference: typeof isFavoriteModelPreference
+  toggleFavoriteModelPreference: typeof toggleFavoriteModelPreference
+  getModelThinkingSelection: typeof getModelThinkingSelection
+  setModelThinkingSelection: typeof setModelThinkingSelection
+
+  // ui settings helpers
+  toggleShowThinkingBlocks: typeof toggleShowThinkingBlocks
+  toggleKeyboardShortcutHints: typeof toggleKeyboardShortcutHints
+  toggleShowMessageTimeline: typeof toggleShowMessageTimeline
+  toggleShowTimelineTools: typeof toggleShowTimelineTools
+  toggleUsageMetrics: typeof toggleUsageMetrics
+  toggleAutoCleanupBlankSessions: typeof toggleAutoCleanupBlankSessions
+  toggleQueueEnabled: typeof toggleQueueEnabled
+  toggleQueueSendMode: typeof toggleQueueSendMode
+  isSaipenGoalAutoEnabled: typeof isSaipenGoalAutoEnabled
+  toggleSaipenGoalAuto: typeof toggleSaipenGoalAuto
+  getSaipenGoalAutoLimit: typeof getSaipenGoalAutoLimit
+  setSaipenGoalAutoLimit: typeof setSaipenGoalAutoLimit
+  toggleSaipenShortcutsImmediate: typeof toggleSaipenShortcutsImmediate
+  toggleHideMenuBar: typeof toggleHideMenuBar
+  saveWindowPreset: typeof saveWindowPreset
+  deleteWindowPreset: typeof deleteWindowPreset
+  setActiveWindowPreset: typeof setActiveWindowPreset
+  togglePromptSubmitOnEnter: typeof togglePromptSubmitOnEnter
+  toggleShowPromptVoiceInput: typeof toggleShowPromptVoiceInput
+  setDiffViewMode: typeof setDiffViewMode
+  setToolOutputExpansion: typeof setToolOutputExpansion
+  setDiagnosticsExpansion: typeof setDiagnosticsExpansion
+  setThinkingBlocksExpansion: typeof setThinkingBlocksExpansion
+  setToolInputsVisibility: typeof setToolInputsVisibility
+
+  // instance scoped
+  setAgentModelPreference: typeof setAgentModelPreference
+  getAgentModelPreference: typeof getAgentModelPreference
+}
+
+const ConfigContext = createContext<ConfigContextValue>()
+
+const configContextValue: ConfigContextValue = {
+  isLoaded,
+  preferences,
+  useTauriNativeEventTransport,
+  setUseTauriNativeEventTransport,
+  updatePreferences,
+  themePreference,
+  setThemePreference,
+  serverSettings,
+  setListeningMode,
+  updateEnvironmentVariables,
+  addEnvironmentVariable,
+  removeEnvironmentVariable,
+  isSecureEnvVar,
+  toggleSecureEnvVar,
+  updateLastUsedBinary,
+  updateLogLevel,
+  updateSpeechSettings,
+  updateSaipenSettings,
+  recentFolders,
+  opencodeBinaries,
+  remoteServers,
+  uiState,
+  addRecentFolder,
+  removeRecentFolder,
+  renameRecentFolderProject,
+  addOpenCodeBinary,
+  removeOpenCodeBinary,
+  saveRemoteServerProfile,
+  markRemoteServerConnected,
+  removeRemoteServerProfile,
+  recordWorkspaceLaunch,
+  addRecentModelPreference,
+  isFavoriteModelPreference,
+  toggleFavoriteModelPreference,
+  getModelThinkingSelection,
+  setModelThinkingSelection,
+  toggleShowThinkingBlocks,
+  toggleKeyboardShortcutHints,
+  toggleShowMessageTimeline,
+  toggleShowTimelineTools,
+  toggleUsageMetrics,
+  toggleAutoCleanupBlankSessions,
+  toggleQueueEnabled,
+  toggleQueueSendMode,
+  toggleSaipenGoalAuto,
+  isSaipenGoalAutoEnabled,
+  getSaipenGoalAutoLimit,
+  setSaipenGoalAutoLimit,
+  toggleSaipenShortcutsImmediate,
+  toggleHideMenuBar,
+  saveWindowPreset,
+  deleteWindowPreset,
+  setActiveWindowPreset,
+  togglePromptSubmitOnEnter,
+  toggleShowPromptVoiceInput,
+  setDiffViewMode,
+  setToolOutputExpansion,
+  setDiagnosticsExpansion,
+  setThinkingBlocksExpansion,
+  setToolInputsVisibility,
+  setAgentModelPreference,
+  getAgentModelPreference,
+}
+
+export const ConfigProvider: ParentComponent = (props) => {
+  onMount(() => {
+    ensureLoaded().catch((error: unknown) => {
+      log.error("Failed to initialize settings", error)
+    })
+
+    const unsubUi = storage.onConfigOwnerChanged("ui", (bucket) => {
+      setUiConfigBucket(bucket as any)
+      setIsLoaded(true)
+    })
+    const unsubServer = storage.onConfigOwnerChanged("server", (bucket) => {
+      setServerConfigBucket(bucket as any)
+      setIsLoaded(true)
+      resetSpeechCapabilities()
+      void loadSpeechCapabilities(true)
+    })
+    const unsubStateUi = storage.onStateOwnerChanged("ui", (bucket) => {
+      setUiStateBucket(bucket as any)
+      setIsLoaded(true)
+    })
+
+    return () => {
+      unsubUi()
+      unsubServer()
+      unsubStateUi()
+    }
+  })
+
+  return <ConfigContext.Provider value={configContextValue}>{props.children}</ConfigContext.Provider>
+}
+
+export function useConfig(): ConfigContextValue {
+  const context = useContext(ConfigContext)
+  if (!context) {
+    throw new Error("useConfig must be used within ConfigProvider")
+  }
+  return context
+}
+
+export {
+  preferences,
+  useTauriNativeEventTransport,
+  setUseTauriNativeEventTransport,
+  uiState,
+  serverSettings,
+  recentFolders,
+  opencodeBinaries,
+  themePreference,
+  setThemePreference,
+  updatePreferences,
+  setListeningMode,
+  updateEnvironmentVariables,
+  addEnvironmentVariable,
+  removeEnvironmentVariable,
+  isSecureEnvVar,
+  toggleSecureEnvVar,
+  updateLastUsedBinary,
+  updateLogLevel,
+  updateSpeechSettings,
+  updateSaipenSettings,
+  addRecentFolder,
+  removeRecentFolder,
+  renameRecentFolderProject,
+  addOpenCodeBinary,
+  removeOpenCodeBinary,
+  recordWorkspaceLaunch,
+  addRecentModelPreference,
+  isFavoriteModelPreference,
+  toggleFavoriteModelPreference,
+  getModelThinkingSelection,
+  setModelThinkingSelection,
+  toggleShowThinkingBlocks,
+  toggleKeyboardShortcutHints,
+  toggleShowTimelineTools,
+  toggleUsageMetrics,
+  toggleAutoCleanupBlankSessions,
+  toggleQueueEnabled,
+  toggleQueueSendMode,
+  toggleSaipenGoalAuto,
+  toggleSaipenShortcutsImmediate,
+  toggleHideMenuBar,
+  saveWindowPreset,
+  deleteWindowPreset,
+  setActiveWindowPreset,
+  togglePromptSubmitOnEnter,
+  toggleShowPromptVoiceInput,
+  setDiffViewMode,
+  setToolOutputExpansion,
+  setDiagnosticsExpansion,
+  setThinkingBlocksExpansion,
+  setAgentModelPreference,
+  getAgentModelPreference,
+}

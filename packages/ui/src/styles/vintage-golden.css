@@ -1,0 +1,508 @@
+/*
+ * SAIWORK -- Vintage Golden
+ *
+ * The saipen UI palette (saipen/UI.md) applied as an override layer on top of
+ * the upstream token file. Upstream `tokens.css` is left untouched so that
+ * merges from `upstream/dev` stay reviewable; everything below re-points the
+ * existing token names at the eighteen Vintage Golden values.
+ *
+ * Selector list covers every theme selector upstream defines, so the palette is
+ * the same whether the user sits on system, light, or dark. Vintage Golden is
+ * not one option among several -- it is what SAIWORK looks like.
+ */
+
+:root,
+:root:not([data-theme]),
+:root[data-theme="dark"],
+:root[data-theme="light"] {
+  color-scheme: dark;
+
+  /* ---- The eighteen. Source of truth: saipen/UI.md ---- */
+  /* Colors are now provided dynamically by wintage-themes.css */
+
+  /* ---- Role tokens this implementation adds (UI.md "Extending it") ---- */
+  --bevel-width: 2px;
+  --titlebar-height: 20px;
+  --row-height: 18px;
+
+  /* ---- Upstream surfaces ---- */
+  --surface-base: var(--background);
+  --surface-primary: var(--background);
+  --surface-secondary: var(--surface);
+  --surface-muted: var(--backgroundSoft);
+  --surface-code: var(--compareBack);
+  --surface-hover: var(--surfaceAlt);
+  --markdown-table-row-odd: var(--background);
+  --markdown-table-row-even: var(--backgroundSoft);
+
+  /* ---- Borders ---- */
+  --border-base: var(--borderMuted);
+  --border-secondary: var(--borderMuted);
+  --border-muted: var(--borderMuted);
+  --border-strong: var(--borderHighlight);
+  --border-critical: var(--danger);
+
+  /* ---- Text ---- */
+  --text-primary: var(--textPrimary);
+  --text-secondary: var(--textSecondary);
+  --text-muted: var(--textMuted);
+  --text-inverted: var(--background);
+  --text-on-accent: var(--textPrimary);
+
+  /* ---- Accent ---- */
+  /* The accent is golden, not teal: teal reads as "new/modern" and fights the
+     palette. Focus rings and active states use the gold border highlight. */
+  --accent-primary: var(--borderHighlight);
+  --accent-hover: var(--bevelLight);
+
+  /* ---- Status ---- */
+  --status-success: #7CC44E;
+  --status-error: #E5735A;
+  --status-warning: #E0B84E;
+
+  /* ---- Messages ---- */
+  /* User messages carry a readable slate-blue border so your own prompts and
+     the assistant's replies separate at a glance; the blue is desaturated
+     enough to stay calm on the dark background. User-requested. */
+  --message-user-bg: var(--surfaceRaised);
+  --message-user-border: #4E7FA3;
+  --message-assistant-bg: var(--backgroundSoft);
+  --message-assistant-border: var(--borderHighlight);
+  --message-tool-bg: var(--backgroundSoft);
+  --message-tool-border: var(--borderMuted);
+  --message-part-header-type: var(--textMuted);
+  --message-part-header-title: var(--textPrimary);
+  --message-error-bg: var(--compareBack);
+  --message-error-bg-strong: var(--compareBack);
+
+  /* ---- Session list / status pills. Iron law 2: no transparency. ---- */
+  --session-user-active-bg: #4A422E;
+  --session-assistant-active-bg: #4A422E;
+  --session-status-working-fg: #E0B84E;
+  --session-status-working-bg: var(--surfaceRaised);
+  --session-status-compacting-fg: #A78BFA;
+  --session-status-compacting-bg: var(--surfaceRaised);
+  --session-status-idle-fg: #7CC44E;
+  --session-status-idle-bg: var(--surfaceRaised);
+  --session-status-permission-fg: #E5735A;
+  --session-status-permission-bg: var(--surfaceRaised);
+  --status-ready-fg: var(--success);
+  --status-ready-bg: var(--surfaceRaised);
+  --status-starting-fg: var(--warning);
+  --status-starting-bg: var(--surfaceRaised);
+  --status-error-fg: var(--danger);
+  --status-error-bg: var(--surfaceRaised);
+  --status-stopped-fg: var(--textMuted);
+  --status-stopped-bg: var(--surfaceRaised);
+  --status-success-ring: var(--success);
+
+  /* ---- Lists, chips, badges ---- */
+  --list-item-highlight-bg: #4A422E;
+  --list-item-highlight-bg-solid: #4A422E;
+  --list-item-highlight-border: var(--borderHighlight);
+  --attachment-chip-bg: var(--surfaceRaised);
+  --attachment-chip-text: var(--textPrimary);
+  --attachment-chip-ring: var(--borderMuted);
+  --badge-neutral-bg: var(--surfaceRaised);
+  --badge-neutral-text: var(--textPrimary);
+  --badge-success-bg: var(--surfaceRaised);
+  --env-vars-bg: var(--surfaceRaised);
+  --env-vars-border: var(--borderMuted);
+  --env-vars-text: var(--textPrimary);
+  --dropdown-highlight-bg: #4A422E;
+  --dropdown-highlight-text: var(--textPrimary);
+  --selection-highlight-bg: #4A422E;
+  --selection-highlight-strong-bg: #57502F;
+  --control-ghost-bg: var(--surfaceRaised);
+  --danger-soft-bg: var(--surfaceRaised);
+  --danger-soft-bg-strong: var(--surfaceAlt);
+
+  /* ---- Overlays. Solid, never blurred or translucent. ---- */
+  --overlay-scrim: var(--compareBack);
+  --folder-overlay-bg: var(--compareBack);
+
+  /* ---- Iron law 2: zero shadow ---- */
+  --folder-card-shadow: none;
+  --scroll-elevation-shadow: none;
+  --panel-shadow: none;
+  --panel-shadow-strong: none;
+  --popover-shadow: none;
+  --timeline-segment-active-ring: none;
+  --code-block-header-bg: var(--surface);
+
+  /* ---- Timeline ---- */
+  --timeline-segment-active-bg: var(--bevelLight);
+  --timeline-segment-active-text: var(--textPrimary);
+
+  /* ---- Buttons, tabs, kbd ---- */
+  --button-primary-bg: var(--surfaceRaised);
+  --button-primary-hover-bg: var(--surfaceAlt);
+  --button-primary-text: var(--textPrimary);
+  --button-danger-bg: var(--danger);
+  --button-danger-hover-bg: var(--danger);
+  --button-danger-active-bg: var(--danger);
+  --button-danger-text: var(--textPrimary);
+  --kbd-bg: var(--surfaceRaised);
+  --kbd-border: var(--borderDark);
+  --kbd-text: var(--textPrimary);
+  --tab-active-bg: var(--surface);
+  --tab-active-hover-bg: var(--surface);
+  --tab-active-text: var(--textPrimary);
+  --tab-inactive-bg: var(--surfaceRaised);
+  --tab-inactive-hover-bg: var(--surfaceAlt);
+  --tab-inactive-text: var(--textSecondary);
+  --new-tab-bg: var(--surfaceRaised);
+  --new-tab-hover-bg: var(--surfaceAlt);
+  --new-tab-text: var(--textSecondary);
+  --session-tab-active-bg: var(--surface);
+  --session-tab-active-text: var(--textPrimary);
+  --session-tab-inactive-text: var(--textMuted);
+  --session-tab-hover-bg: var(--surfaceAlt);
+
+  /* ---- Logs ---- */
+  --log-level-error: var(--danger);
+  --log-level-warn: var(--warning);
+  --log-level-debug: var(--textMuted);
+  --log-level-default: var(--textPrimary);
+
+  /* ---- Focus ---- */
+  --focus-ring-color: var(--textPrimary);
+  --focus-ring-offset: var(--background);
+
+  /* ---- Iron law 2: zero rounded corners ---- */
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-full: 0;
+  --button-radius: 0;
+  --chip-radius: 0;
+  --pill-radius: 0;
+  --folder-card-radius: 0;
+
+  /* ---- Compact vertical rhythm ---- */
+  --space-2xs: 1px;
+  --space-xs: 2px;
+  --space-sm: 4px;
+  --space-md: 8px;
+  --space-lg: 12px;
+  --space-xl: 16px;
+  --button-padding-y: 2px;
+  --button-padding-x: 6px;
+
+  /* ---- Typography. Sizes only 10/11/12/14/16. ---- */
+  --font-family-sans: Verdana_m1, Verdana, Geneva, sans-serif;
+  --font-family-mono: Verdana_m1, Verdana, Geneva, sans-serif;
+  --font-family-code: Consolas, "Liberation Mono", monospace;
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-base: 12px;
+  --font-size-lg: 14px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 16px;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.25;
+  --line-height-relaxed: 1.35;
+}
+
+/*
+ * Iron laws 1 and 2. `!important` is mandated by UI.md for the font rules;
+ * the rest carries it because Tailwind preflight and SUID's emotion layer are
+ * both injected after this file and would otherwise re-round every corner.
+ */
+*,
+*::before,
+*::after {
+  font-family: var(--font-family-sans) !important;
+  -webkit-font-smoothing: none !important;
+  -moz-osx-font-smoothing: unset !important;
+  text-rendering: optimizeSpeed !important;
+  border-radius: 0 !important;
+  transition: none !important;
+  animation: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+
+/*
+ * Type scale clamp: 10/11/12/14/16 and nothing else.
+ *
+ * Tailwind's text-* utilities are rem-based and land on 18px, 20px, 22.5px and
+ * up. Fixing each call site would leave the next upstream merge free to
+ * reintroduce an off-scale size with no signal, so the utilities themselves are
+ * pinned here instead -- one place to read, one place to audit.
+ */
+.text-xs {
+  font-size: var(--font-size-xs) !important;
+}
+
+.text-sm {
+  font-size: var(--font-size-sm) !important;
+}
+
+.text-base {
+  font-size: var(--font-size-base) !important;
+}
+
+.text-lg {
+  font-size: var(--font-size-lg) !important;
+}
+
+.text-xl,
+.text-2xl,
+.text-3xl,
+.text-4xl,
+.text-5xl {
+  font-size: var(--font-size-xl) !important;
+}
+
+/* Alignment-critical surfaces keep a real fixed-width face (UI.md: monospace
+ * only where a technical value needs it). Diffs and code blocks qualify. */
+code,
+pre,
+kbd,
+samp,
+.diff-viewer,
+.diff-viewer *,
+[class*="monaco"],
+[class*="monaco"] * {
+  font-family: var(--font-family-code) !important;
+}
+
+/* Markdown sizes inline code in `em`, which lands off-scale next to 12px body
+ * text. Pin it, same as the utilities above. */
+code,
+pre,
+kbd,
+samp {
+  font-size: var(--font-size-base) !important;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--textPrimary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: none;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+#root {
+  background: var(--background);
+}
+
+::selection {
+  background: #4A422E;
+  color: var(--textPrimary);
+}
+
+/* ---- Depth is 2px bevel only ---- */
+
+.raised {
+  border: var(--bevel-width) solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surfaceRaised);
+}
+
+.sunken {
+  border: var(--bevel-width) solid;
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background: var(--surface);
+}
+
+button:not(.no-bevel),
+[role="button"]:not(.no-bevel) {
+  border: var(--bevel-width) solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surfaceRaised);
+  color: var(--textPrimary);
+  padding: var(--button-padding-y) var(--button-padding-x);
+  min-width: 24px;
+  min-height: 20px;
+  cursor: pointer;
+}
+
+button:not(.no-bevel):hover,
+[role="button"]:not(.no-bevel):hover {
+  background: var(--surfaceAlt);
+}
+
+/* The one sanctioned movement in the whole interface. */
+button:not(.no-bevel):active,
+[role="button"]:not(.no-bevel):active {
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background: var(--surface);
+  transform: translate(1px, 1px);
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 1px dotted var(--textPrimary);
+  outline-offset: -4px;
+}
+
+/* Disabled stays visible and keeps its border; only the label goes quiet.
+ * Never `opacity` -- that fails the accessibility floor and vanishes in
+ * screenshots. */
+button:disabled,
+button[aria-disabled="true"],
+[role="button"][aria-disabled="true"] {
+  color: var(--textMuted) !important;
+  opacity: 1 !important;
+  cursor: default;
+}
+
+input,
+select,
+textarea {
+  border: var(--bevel-width) solid;
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background: var(--compareBack);
+  color: var(--textPrimary);
+  padding: 1px 3px;
+}
+
+textarea {
+  resize: none;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--borderDark);
+  border-bottom: 1px solid var(--bevelLight);
+}
+
+/*
+ * Prompt bar compaction.
+ *
+ * Upstream stretches the primary action column to the full height of the input
+ * and then spaces its buttons apart, so a two-button column renders as two
+ * buttons and a hole. The attachment column does the same thing with 8px
+ * padding around 16px icons. UI.md: whitespace must be functional, 1-2px inside
+ * controls and 4px between groups -- a gap that exists because a flex rule said
+ * "stretch" is not doing a job.
+ *
+ * Overridden here rather than in the upstream stylesheet so a merge from
+ * upstream keeps its own layout file intact.
+ */
+.prompt-input-wrapper {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "field field"
+    "actions primary";
+}
+
+.prompt-input-main {
+  grid-area: field;
+}
+
+.prompt-input-actions {
+  grid-area: actions;
+  align-self: flex-start;
+  flex-direction: row;
+  align-items: center;
+  width: auto;
+  padding: 2px;
+  gap: 2px;
+}
+
+.prompt-input-actions .prompt-nav-column {
+  flex-direction: row;
+  align-items: center;
+}
+
+.prompt-input-primary-actions {
+  grid-area: primary;
+  align-self: flex-start;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  width: auto;
+  padding: 2px;
+  gap: 2px;
+  border-inline-start: none;
+}
+
+.prompt-input-primary-actions .stop-button {
+  width: 28px;
+  height: 28px;
+}
+
+.prompt-input-primary-actions .queue-button {
+  font-size: 10px;
+  min-height: 22px;
+  padding: 0 6px;
+  border: 1px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surfaceRaised);
+  color: var(--textPrimary);
+}
+
+.prompt-input-primary-actions .queue-button:active:not(:disabled) {
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background: var(--surface);
+}
+
+.prompt-input-primary-actions .queue-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.prompt-input-primary-actions .queue-button-count {
+  margin-inline-start: 2px;
+  color: var(--textSecondary);
+}
+
+/*
+ * The narrow layout re-declares these with an attribute selector, so the rules
+ * above lose on specificity and the padding survived at 4px/8px/8px. Matched
+ * here rather than raised with !important: the layout is legitimately
+ * different at this width, only its spacing was wrong.
+ */
+.session-center-column[data-session-center-width="narrow"] .prompt-input-actions,
+.session-center-column[data-session-center-width="narrow"] .prompt-input-primary-actions {
+  padding: 2px 4px;
+  gap: 2px;
+}
+
+/* One 24px control does not need a 1100px strip to sit in. */
+.prompt-nav-buttons {
+  width: auto;
+}
+
+/* Scrollbars: bevelled, no rounding, no fade. */
+* {
+  scrollbar-color: var(--surfaceRaised) var(--background);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surfaceRaised);
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--background);
+}

@@ -1,0 +1,192 @@
+@import "./tokens.css";
+
+/* Reusable component utilities using tokens */
+
+/* Base token utility helpers */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-inverted {
+  color: var(--text-inverted);
+}
+
+.text-accent {
+  color: var(--accent-primary);
+}
+
+.bg-surface-base {
+  background-color: var(--surface-base);
+}
+
+.bg-surface-secondary {
+  background-color: var(--surface-secondary);
+}
+
+.bg-surface-muted {
+  background-color: var(--surface-muted);
+}
+
+.border-base {
+  border-color: var(--border-base);
+}
+
+.icon-muted {
+  color: var(--text-muted);
+}
+
+.icon-accent {
+  color: var(--accent-primary);
+}
+
+.icon-danger-hover:hover {
+  color: var(--status-error);
+}
+
+.icon-accent-hover:hover {
+  color: var(--accent-primary);
+}
+
+.ring-accent-inset {
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
+}
+
+/* Shared button + chip helpers */
+:is(.button-primary,
+    button.button-primary,
+    .button-secondary,
+    button.button-secondary,
+    .button-danger,
+    button.button-danger,
+    .button-tertiary,
+    button.button-tertiary) {
+  @apply inline-flex items-center justify-center gap-2 font-medium transition-colors rounded-md;
+  border: 1px solid transparent;
+}
+
+:is(.button-primary,
+    button.button-primary,
+    .button-secondary,
+    button.button-secondary,
+    .button-danger,
+    button.button-danger,
+    .button-tertiary,
+    button.button-tertiary):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus-ring-offset), 0 0 0 4px var(--focus-ring-color);
+}
+
+:is(.button-primary,
+    button.button-primary,
+    .button-secondary,
+    button.button-secondary,
+    .button-danger,
+    button.button-danger,
+    .button-tertiary,
+    button.button-tertiary):disabled {
+  @apply cursor-not-allowed opacity-50;
+}
+
+:is(.attachment-chip,
+    .neutral-badge,
+    .status-badge) {
+  @apply inline-flex items-center gap-1;
+  border-radius: var(--chip-radius);
+}
+
+/* Focus helpers */
+.focus-ring-accent:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--accent-primary);
+}
+
+/* Form controls */
+.form-input {
+  @apply w-full px-3 py-2 text-sm;
+  background-color: var(--surface-base);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--accent-primary);
+}
+
+/* Shared animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Shared layout helpers */
+.status-dot {
+  @apply w-1 h-1 rounded-full;
+}
+
+.kbd {
+  @apply inline-flex items-center gap-0.5 font-mono text-xs px-1.5 py-0.5 rounded;
+  background-color: var(--surface-secondary);
+  border: 1px solid var(--border-base);
+  color: var(--text-primary);
+}
+
+.kbd-separator {
+  @apply opacity-50;
+}
+
+/*
+  Shortcut hints are useful on desktop native apps, but are noisy/irrelevant on
+  touch-first devices and in WebUI where browser shortcuts often conflict.
+*/
+html[data-runtime-host="web"] .keyboard-hints,
+html[data-runtime-host="web"] .kbd-hint,
+html[data-runtime-platform="mobile"] .keyboard-hints,
+html[data-runtime-platform="mobile"] .kbd-hint,
+html[data-keyboard-hints="hide"] .keyboard-hints,
+html[data-keyboard-hints="hide"] .kbd-hint {
+  display: none !important;
+}
+
+/* Truncate from the start (keeps end visible; good for paths) */
+.truncate-start {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+
+/* Prevent iOS Safari auto-zoom on text input focus */
+@media (pointer: coarse) {
+  input[type="text"],
+  input:not([type]),
+  textarea {
+    font-size: 16px !important;
+  }
+}

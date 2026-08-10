@@ -1,0 +1,44 @@
+export const appMessages = {
+  "app.launchError.title": "לא ניתן להפעיל את OpenCode",
+  "app.launchError.description": "OpenCode לא הצליח להפעיל את סביבת העבודה הזו. בדוק את פלט השגיאה למטה או את הגדרות OpenCode.",
+  "app.launchError.binaryPathLabel": "נתיב הקובץ הבינארי",
+  "app.launchError.errorOutputLabel": "פלט שגיאה",
+  "app.launchError.openAdvancedSettings": "פתח הגדרות OpenCode",
+  "app.launchError.close": "סגור",
+  "app.launchError.closeTitle": "סגור (Esc)",
+  "app.launchError.fallbackMessage": "הפעלת סביבת העבודה נכשלה",
+  "app.launchError.invalidConfig": "תצורת OpenCode אינה תקינה",
+
+  "app.stopInstance.confirmMessage": "לעצור את מופע OpenCode? פעולה זו תעצור את השרת.",
+  "app.stopInstance.title": "עצור מופע",
+  "app.stopInstance.confirmLabel": "עצור",
+  "app.stopInstance.cancelLabel": "המשך להריץ",
+  "app.stopInstance.toast.error": "עצירת סביבת העבודה נכשלה.",
+
+  "emptyState.logoAlt": "לוגו SAIWORK",
+  "emptyState.brandTitle": "SAIWORK",
+  "emptyState.tagline": "בחר תיקייה כדי להתחיל לתכנת עם AI",
+  "emptyState.actions.selectFolder": "בחר תיקייה",
+  "emptyState.actions.selecting": "בוחר...",
+  "emptyState.keyboardShortcut": "קיצור מקלדת: {shortcut}",
+  "emptyState.examples": "דוגמאות: {example}",
+  "emptyState.multipleInstances": "ניתן לפתוח מספר מופעים של אותה תיקייה",
+
+  "releases.upgradeRequired.title": "נדרש שדרוג",
+  "releases.upgradeRequired.message.withVersion": "שדרג ל-SAIWORK {version} כדי להשתמש בממשק המעודכן.",
+  "releases.upgradeRequired.message.noVersion": "שדרג את SAIWORK כדי להשתמש בממשק המעודכן.",
+  "releases.upgradeRequired.action.getUpdate": "קבל עדכון",
+
+  "releases.uiUpdated.title": "הממשק עודכן",
+  "releases.uiUpdated.message": "הממשק עודכן לגרסה {version}.",
+
+  "releases.devUpdateAvailable.title": "גרסת פיתוח זמינה",
+  "releases.devUpdateAvailable.message": "גרסת פיתוח חדשה זמינה: {version}.",
+  "releases.devUpdateAvailable.action": "צפה בגרסה",
+
+  "theme.mode.system": "מערכת",
+  "theme.mode.light": "בהיר",
+  "theme.mode.dark": "כהה",
+  "theme.toggle.title": "ערכת נושא: {mode}",
+  "theme.toggle.ariaLabel": "ערכת נושא: {mode}",
+} as const
