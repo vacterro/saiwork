@@ -110,17 +110,15 @@ const SessionSidebar: Component<SessionSidebarProps> = (props) => (
                 {props.leftPinned() ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
               </IconButton>
             </Show>
-            <Show when={props.drawerState() === "floating-open"}>
-              <IconButton
-                size="small"
-                color="inherit"
-                aria-label={props.t("instanceShell.leftDrawer.toggle.close")}
-                title={props.t("instanceShell.leftDrawer.toggle.close")}
-                onClick={props.onCloseLeftDrawer}
-              >
-                <MenuOpenIcon fontSize="small" />
-              </IconButton>
-            </Show>
+            <IconButton
+              size="small"
+              color="inherit"
+              aria-label={props.t("instanceShell.leftDrawer.toggle.close")}
+              title={props.t("instanceShell.leftDrawer.toggle.close")}
+              onClick={props.onCloseLeftDrawer}
+            >
+              <MenuOpenIcon fontSize="small" />
+            </IconButton>
           </div>
         </div>
         <div class="session-sidebar-shortcuts">

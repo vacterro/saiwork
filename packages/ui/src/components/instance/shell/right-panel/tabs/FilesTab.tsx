@@ -8,6 +8,7 @@ import { Markdown } from "../../../../markdown"
 import { copyToClipboard } from "../../../../../lib/clipboard"
 import { showToastNotification } from "../../../../../lib/notifications"
 import { useTheme } from "../../../../../lib/theme"
+import { shortcutKeyFromEvent } from "../../../../../lib/keyboard-registry"
 
 const LazyMonacoFileViewer = lazy(() =>
   import("../../../../file-viewer/monaco-file-viewer").then((module) => ({ default: module.MonacoFileViewer })),
@@ -208,7 +209,7 @@ const FilesTab: Component<FilesTabProps> = (props) => {
   )
 
   const handleMarkdownPreviewKeyDown = (event: KeyboardEvent) => {
-    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return
+    if (!(event.ctrlKey || event.metaKey) || shortcutKeyFromEvent(event).toLowerCase() !== "s") return
     if (props.browserSelectedSaving() || !props.browserSelectedDirty()) return
     event.preventDefault()
     handleSave()

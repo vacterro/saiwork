@@ -1,5 +1,8 @@
 # Wake Lock Behavior
 
+> **Provenance:** Baseline wake-lock behavior and this specification are adapted
+> from CodeNomad's 0.18.0 development line.
+
 ## Product Rule
 
 SaiWork only requests a wake lock for qualifying active work that is already running and can continue without continuous foreground interaction. The goal is to prevent idle system sleep where the platform supports that behavior without intentionally keeping the display awake.

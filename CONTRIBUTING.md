@@ -2,16 +2,19 @@
 
 Thank you for your interest in contributing! This guide will help you get started.
 
+> **Provenance:** Baseline package layout and development conventions are
+> adapted from CodeNomad's 0.18.0 development line.
+
 ## Prerequisites
 
-- **Node.js 18+** and npm
+- **Node.js 20.19+ (20.x) or 22.12+** and npm
 - **OpenCode CLI** in your `PATH` (the server connects to the OpenCode binary to manage workspaces)
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/vacterro/saiwork.git
-cd SaiWork
+cd saiwork
 npm install
 npm run dev
 ```
@@ -22,8 +25,7 @@ Browse [open issues](https://github.com/vacterro/saiwork/issues) and look for th
 
 | Label | Meaning |
 |---|---|
-| `ready-to-work` | Clear scope, ready for anyone to pick up |
-| `good-first-issue` | Good for first-time contributors |
+| `good first issue` | Good for first-time contributors |
 | `enhancement` | New feature requests |
 | `bug` | Bug reports |
 
@@ -41,9 +43,9 @@ cd SaiWork
 # Add the upstream remote
 git remote add upstream https://github.com/vacterro/saiwork.git
 
-# Create a branch from upstream/dev
+# Create a branch from upstream/saiwork
 git fetch upstream
-git checkout -b fix/your-branch-name upstream/dev
+git checkout -b fix/your-branch-name upstream/saiwork
 ```
 
 ### 2. Branch Naming
@@ -90,10 +92,10 @@ the question to move behind newer entries and break interruption order."
 git push origin your-branch-name
 ```
 
-Then open a pull request on GitHub targeting the `dev` branch.
+Then open a pull request on GitHub targeting the `saiwork` branch.
 
 **PR checklist:**
-- [ ] Branch is based on latest `upstream/dev`
+- [ ] Branch is based on latest `upstream/saiwork`
 - [ ] One issue per PR (don't mix unrelated changes)
 - [ ] Type checking passes: `npm run typecheck` (root) or the workspace-specific script matching your change area
 - [ ] Tests pass (if applicable)

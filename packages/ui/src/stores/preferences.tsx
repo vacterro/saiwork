@@ -145,7 +145,7 @@ export interface UiSettings {
    * User overrides for SAIWORK-specific keyboard shortcuts, keyed by shortcut
    * id (e.g. "window-snap-preset"). Each entry replaces the default binding.
    */
-  shortcutOverrides: Record<string, { key: string; modifiers: { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean } }>
+  shortcutOverrides: Record<string, { key: string; modifiers: { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean }; physical?: boolean }>
 
   // OS notifications
   osNotificationsEnabled: boolean
@@ -389,7 +389,7 @@ function normalizeUiSettings(input?: Partial<UiSettings> | null): UiSettings {
         : defaultUiSettings.activeWindowPreset,
     shortcutOverrides:
       sanitized.shortcutOverrides && typeof sanitized.shortcutOverrides === "object" && !Array.isArray(sanitized.shortcutOverrides)
-        ? sanitized.shortcutOverrides as Record<string, { key: string; modifiers: { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean } }>
+        ? sanitized.shortcutOverrides as Record<string, { key: string; modifiers: { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean }; physical?: boolean }>
         : {},
     osNotificationsEnabled: sanitized.osNotificationsEnabled ?? defaultUiSettings.osNotificationsEnabled,
     osNotificationsAllowWhenVisible:

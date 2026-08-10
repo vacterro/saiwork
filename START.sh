@@ -6,13 +6,13 @@ set -u
 cd "$(dirname "$0")"
 
 echo "============================================"
-echo " SAIWORK 0.0.1"
+echo " SAIWORK 0.0.2"
 echo "============================================"
 echo
 
 if ! command -v node >/dev/null 2>&1; then
   echo "[FAIL] Node.js not found on PATH."
-  echo "       Install Node.js 18 or newer from https://nodejs.org and run this again."
+  echo "       Install Node.js 20.19+ (20.x) or 22.12+ from https://nodejs.org."
   exit 1
 fi
 

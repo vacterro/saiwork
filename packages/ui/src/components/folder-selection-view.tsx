@@ -21,6 +21,7 @@ import { RemoteServerDialog } from "./remote-server-dialog"
 import { useRemoteServerProfiles } from "../lib/hooks/use-remote-server-profiles"
 import { useNow } from "../lib/hooks/use-now"
 import { formatRelativeTime } from "../lib/relative-time"
+import { shortcutKeyFromEvent } from "../lib/keyboard-registry"
 
 const saiWorkLogo = new URL("../images/SaiWork-Icon.png", import.meta.url).href
 const GITHUB_URL = "https://github.com/vacterro/saiwork"
@@ -116,7 +117,7 @@ const FolderSelectionView: Component<FolderSelectionViewProps> = (props) => {
       return
     }
 
-    const normalizedKey = e.key.toLowerCase()
+    const normalizedKey = shortcutKeyFromEvent(e).toLowerCase()
     const isBrowseShortcut = (e.metaKey || e.ctrlKey) && !e.shiftKey && normalizedKey === "n"
     const blockedKeys = ["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", "Enter"]
 

@@ -22,6 +22,36 @@ export interface KeyboardShortcut {
   description: string
   context?: "global" | "input" | "messages"
   condition?: () => boolean
+  physical?: boolean
+}
+
+const CODE_KEY_ALIASES: Record<string, string> = {
+  Backquote: "`",
+  Minus: "-",
+  Equal: "=",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Backslash: "\\",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Space: "Space",
+}
+
+/** Resolve a layout-independent shortcut key from the physical key code. */
+export function shortcutKeyFromEvent(event: Pick<KeyboardEvent, "key" | "code">): string {
+  const code = event.code ?? ""
+  const letter = /^Key([A-Z])$/.exec(code)
+  if (letter) return letter[1].toLowerCase()
+
+  const digit = /^(?:Digit|Numpad)([0-9])$/.exec(code)
+  if (digit) return digit[1]
+
+  if (CODE_KEY_ALIASES[code]) return CODE_KEY_ALIASES[code]
+  if (code && code !== "Unidentified") return code
+  return event.key === " " ? "Space" : event.key
 }
 
 class KeyboardRegistry {
@@ -36,10 +66,10 @@ class KeyboardRegistry {
   }
 
   /** Replace the key/modifiers of an already-registered shortcut. */
-  reconfigure(id: string, key: string, modifiers: KeyboardShortcut["modifiers"]) {
+  reconfigure(id: string, key: string, modifiers: KeyboardShortcut["modifiers"], physical = true) {
     const existing = this.shortcuts.get(id)
     if (!existing) return
-    this.shortcuts.set(id, { ...existing, key, modifiers })
+    this.shortcuts.set(id, { ...existing, key, modifiers, physical })
   }
 
   get(id: string) {
@@ -62,10 +92,12 @@ class KeyboardRegistry {
 
   private matches(event: KeyboardEvent, shortcut: KeyboardShortcut): boolean {
     const shortcutKey = shortcut.key.toLowerCase()
-    const eventKey = event.key ? event.key.toLowerCase() : ""
-    const eventCode = event.code ? event.code.toLowerCase() : ""
+    const eventKey = event.key === " " ? "space" : event.key?.toLowerCase() ?? ""
+    const physicalKey = shortcutKeyFromEvent(event).toLowerCase()
 
-    const keyMatch = eventKey === shortcutKey || eventCode === shortcutKey
+    const keyMatch = shortcut.physical === false
+      ? eventKey === shortcutKey
+      : physicalKey === shortcutKey
     const ctrlMatch = event.ctrlKey === (shortcut.modifiers.ctrl ?? false)
     const metaMatch = event.metaKey === (shortcut.modifiers.meta ?? false)
     const shiftMatch = event.shiftKey === (shortcut.modifiers.shift ?? false)

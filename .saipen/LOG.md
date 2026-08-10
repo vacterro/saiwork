@@ -35,3 +35,9 @@
 - 10.08.26 15:42 [E-410] [parent: E-409] RUN: push 1dde9baa -> pushed (user "saipen push") — committed + pushed rebindable shortcuts (Settings > Keyboard shortcuts, shortcutOverrides), queue count without "pending", relative message age, api-client JSON guard, AGENTS.md tooling-hygiene note + STATE human_note (playwright hang prevention); remote saiwork = 1dde9baa, tree clean
 - 10.08.26 15:42 [E-411] [parent: E-410] DEC: cleared execution_intent converge + converge_target ship — ship v0.0.2 done and published; ongoing work is ordinary post-ship maintenance, so the converge contract (and its ccc SHIP-evidence check against HEAD) no longer applies; state returns to normal
 - 10.08.26 15:51 [E-412] [parent: E-411] RUN: DONE -> Alt+D toggles sessions sidebar — sessionSidebarVisible signal (persisted) + Alt+D global shortcut (rebindable via Settings > Keyboard shortcuts) + instance-shell2 effect (skip initial run so it can't fight restore/pin): hidden = unpin+close, shown = open floating drawer; pushed 871bce2b; verify: UI typecheck PASS, npm test exit 0 (575 UI pass), validate PASS
+- 10.08.26 16:59 [E-413] [parent: E-412] [T-071] RUN: DONE -> provenance/docs/About corrected; links PASS
+- 10.08.26 16:59 [E-414] [parent: E-413] [T-072] RUN: DONE -> collapse + layout-neutral shortcuts; UI 580 PASS
+- 10.08.26 16:59 [E-415] [parent: E-414] RUN: npm test + typecheck + diff review -> PASS
+- 10.08.26 17:01 [E-416] [parent: E-415] DEC: checkpoint transition BUILD -> VERIFY -> DONE
+- 10.08.26 17:01 [E-417] [parent: E-416] DEC: E-416 invalid; final transition VALIDATE -> DONE per CORE 1.6
+- 10.08.26 17:03 [E-418] [parent: E-417] [T-071] RUN: final unsupported Tauri compile claim removed

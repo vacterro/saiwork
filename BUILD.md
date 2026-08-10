@@ -2,10 +2,18 @@
 
 This guide explains how to build distributable binaries for SaiWork.
 
+> **Provenance:** Baseline packaging and this guide are adapted from CodeNomad's
+> 0.18.0 development line. SAIWORK-specific packaging changes are summarized in
+> the [root README](README.md).
+
+> **Packaging status:** Target configuration exists, but the current `^38.0.0`
+> Electron version range is rejected by `electron-builder` version resolution.
+> No binary was produced during this pass; an exact dependency pin is required
+> before these packaging commands can complete.
+
 ## Prerequisites
 
-- **Bun** - Package manager and runtime
-- **Node.js** - For electron-builder
+- **Node.js 20.19+ (20.x) or 22.12+ and npm**
 - **Electron Builder** - Installed via devDependencies
 
 ## Quick Start
@@ -16,42 +24,42 @@ All commands now run inside the workspace packages. From the repo root you can t
 npm run build --workspace @saiwork/electron-app
 ```
 
-### Build for Current Platform (macOS default)
+### Default macOS build
 
 ```bash
-bun run build:binaries
+npm run build:binaries --workspace @saiwork/electron-app
 ```
 
-This builds for macOS (Universal - Intel + Apple Silicon) by default.
+This builds separate macOS artifacts for Intel and Apple Silicon by default.
 
 ## Platform-Specific Builds
 
 ### macOS
 
 ```bash
-# Universal (Intel + Apple Silicon) - Recommended
-bun run build:mac
+# Intel and Apple Silicon
+npm run build:mac --workspace @saiwork/electron-app
 
 # Intel only (x64)
-bun run build:mac-x64
+npm run build:mac-x64 --workspace @saiwork/electron-app
 
 # Apple Silicon only (ARM64)
-bun run build:mac-arm64
+npm run build:mac-arm64 --workspace @saiwork/electron-app
 ```
 
-**Output formats:** `.dmg`, `.zip`
+**Output format:** `.zip`
 
 ### Windows
 
 ```bash
 # x64 (64-bit Intel/AMD)
-bun run build:win
+npm run build:win --workspace @saiwork/electron-app
 
 # ARM64 (Windows on ARM)
-bun run build:win-arm64
+npm run build:win-arm64 --workspace @saiwork/electron-app
 ```
 
-**Output formats:** `.exe` (NSIS installer), `.zip`
+**Output formats:** portable `.exe`, `.zip`
 
 ### Linux
 
@@ -60,7 +68,8 @@ bun run build:win-arm64
 npm run build:linux --workspace @saiwork/electron-app
 
 # Tauri Debian package (x64)
-npm exec --workspace @saiwork/tauri-app -- tauri build --bundles deb
+npm run sync:version --workspace @saiwork/tauri-app
+npm run build --workspace @saiwork/tauri-app -- --bundles deb
 ```
 
 **Release formats:** Electron `.tar.gz` portable archive and Tauri `.deb` installer.
@@ -68,7 +77,7 @@ npm exec --workspace @saiwork/tauri-app -- tauri build --bundles deb
 ### Build All Platforms
 
 ```bash
-bun run build:all
+npm run build:all --workspace @saiwork/electron-app
 ```
 
 ⚠️ **Note:** Cross-platform builds may have limitations. Build on the target platform for best results.
@@ -87,23 +96,26 @@ Build artifacts are generated in package-specific output directories:
 
 ```
 packages/electron-app/release/
-└── SaiWork-Electron-linux-x64-0.18.0.tar.gz
+└── SaiWork-Electron-linux-x64-{version}.tar.gz
 
 packages/tauri-app/target/release/bundle/deb/
-└── SaiWork_0.18.0_amd64.deb
+└── SaiWork_{version}_amd64.deb
 ```
 
 ## File Naming Convention
 
 ```
-SaiWork-Electron-{os}-{arch}-{version}.{ext}
+SaiWork-Electron-macos-{arch}-{version}.zip
+SAIWORK-{arch}-{version}.zip
+SAIWORK-portable-{arch}-{version}.exe
+SaiWork-Electron-linux-{arch}-{version}.tar.gz
 SaiWork-Tauri-{os}-{arch}-{version}.{ext}
 ```
 
-- **version**: From package.json (e.g., `0.18.0`)
+- **version**: From package.json (e.g., `0.0.2`)
 - **os**: `macos`, `windows`, `linux`
 - **arch**: `x64`, `arm64`, `universal`
-- **ext**: `dmg`, `zip`, `exe`, `deb`, `tar.gz`
+- **ext**: Tauri release extension, such as `zip` or `deb`
 
 The Tauri build directory uses Tauri's native Debian filename. CI renames the package to the convention above when preparing release assets.
 
@@ -111,8 +123,8 @@ The Tauri build directory uses Tauri's native Debian filename. CI renames the pa
 
 ### macOS
 
-- **Build on:** macOS 10.13+
-- **Run on:** macOS 10.13+
+- **Build on:** A macOS/Xcode version supported by Electron 38
+- **Run on:** macOS 12+
 - **Code signing:** Optional (recommended for distribution)
 
 ### Windows
@@ -144,7 +156,7 @@ Install the Electron and Tauri build dependencies documented by their upstream p
 
 ```bash
 # Install dependencies
-bun install
+npm install
 ```
 
 ### Build is slow
@@ -158,13 +170,13 @@ bun install
 **Development:**
 
 ```bash
-bun run dev           # Hot reload, no packaging
+npm run dev           # Hot reload, no packaging
 ```
 
 **Production:**
 
 ```bash
-bun run build:binaries # Full build + packaging
+npm run build:binaries --workspace @saiwork/electron-app # Full build + packaging
 ```
 
 ## CI/CD Integration
@@ -184,25 +196,34 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun run build:mac
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: npm
+      - run: npm ci
+      - run: npm run build:mac --workspace @saiwork/electron-app
 
   build-win:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun run build:win
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: npm
+      - run: npm ci
+      - run: npm run build:win --workspace @saiwork/electron-app
 
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun run build:linux
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: npm
+      - run: npm ci
+      - run: npm run build:linux --workspace @saiwork/electron-app
 ```
 
 ## Advanced Configuration
@@ -223,8 +244,8 @@ See [electron-builder docs](https://www.electron.build/) for details.
 
 To update the binaries:
 
-1. Run `node scripts/generate-icons.js images/SaiWork-Icon.png electron/resources` to round the corners and emit fresh `icon.icns`, `icon.ico`, and `icon.png` files.
-2. (Optional) Pass `--radius` to tweak the corner curvature or `--name` to change the filename prefix.
+1. Run `node packages/electron-app/scripts/generate-icons.js images/SaiWork-Icon.png packages/electron-app/electron/resources --radius 0` to emit fresh square `icon.icns`, `icon.ico`, and `icon.png` files.
+2. Pass a different `--radius` only if the product's square-corner rule changes.
 3. If you prefer manual control, export `images/SaiWork-Icon.png` with your tool of choice and place the generated files in `electron/resources/`.
 
 ## Clean Build
@@ -232,8 +253,8 @@ To update the binaries:
 Remove previous builds:
 
 ```bash
-rm -rf release/ dist/
-bun run build:binaries
+rm -rf packages/electron-app/release/ packages/electron-app/dist/
+npm run build:binaries --workspace @saiwork/electron-app
 ```
 
 ## FAQ
@@ -242,13 +263,13 @@ bun run build:binaries
 A: Yes, but native binaries (e.g., DMG) require the target OS.
 
 **Q: How large are the binaries?**  
-A: Approximately 100-150 MB (includes Electron runtime).
+A: Size depends on platform, architecture, and bundled runtime; inspect the generated artifact.
 
 **Q: Do I need code signing?**  
 A: Not required, but recommended for public distribution to avoid security warnings.
 
 **Q: How do I update the version?**  
-A: Update `version` in `package.json`, then rebuild.
+A: Run `npm run bumpVersion -- <version>`, then rebuild.
 
 ## Support
 

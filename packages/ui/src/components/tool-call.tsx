@@ -43,6 +43,7 @@ import {
 } from "./tool-call/utils"
 import { getLogger } from "../lib/logger"
 import { useSpeech } from "../lib/hooks/use-speech"
+import { shortcutKeyFromEvent } from "../lib/keyboard-registry"
 import { createFollowScroll } from "../lib/follow-scroll"
 import ActionOverflowMenu, { type ActionOverflowMenuItem } from "./action-overflow-menu"
 import SpeechActionButton from "./speech-action-button"
@@ -253,7 +254,7 @@ function ToolCallDetails(props: {
       if (event.key === "Enter") {
         event.preventDefault()
         void handlePermissionResponse(permission, "once")
-      } else if (event.key === "a" || event.key === "A") {
+      } else if (shortcutKeyFromEvent(event).toLowerCase() === "a") {
         event.preventDefault()
         void handlePermissionResponse(permission, "always")
       }

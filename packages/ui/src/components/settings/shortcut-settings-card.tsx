@@ -1,6 +1,6 @@
-import { For, Show, createSignal, type Component } from "solid-js"
+import { For, Show, createEffect, createSignal, onCleanup, type Component } from "solid-js"
 import { useI18n } from "../../lib/i18n"
-import { keyboardRegistry, type KeyboardShortcut } from "../../lib/keyboard-registry"
+import { keyboardRegistry, shortcutKeyFromEvent, type KeyboardShortcut } from "../../lib/keyboard-registry"
 import { useConfig } from "../../stores/preferences"
 
 const SAIWORK_SHORTCUT_IDS = [
@@ -40,10 +40,12 @@ export const ShortcutSettingsCard: Component = () => {
   const config = useConfig()
   const [capturing, setCapturing] = createSignal<CaptureState | null>(null)
 
-  const saiworkShortcuts = () =>
-    SAIWORK_SHORTCUT_IDS
+  const saiworkShortcuts = () => {
+    config.preferences().shortcutOverrides
+    return SAIWORK_SHORTCUT_IDS
       .map((id) => keyboardRegistry.get(id))
       .filter((s): s is KeyboardShortcut => Boolean(s))
+  }
 
   const startCapture = (id: string) => {
     const current = keyboardRegistry.get(id)
@@ -53,7 +55,7 @@ export const ShortcutSettingsCard: Component = () => {
 
   const handleCaptureKeyDown = (event: KeyboardEvent) => {
     event.preventDefault()
-    event.stopPropagation()
+    event.stopImmediatePropagation()
     const capture = capturing()
     if (!capture) return
 
@@ -67,16 +69,17 @@ export const ShortcutSettingsCard: Component = () => {
     if (["Control", "Meta", "Shift", "Alt", "AltGraph"].includes(event.key)) return
 
     const next = {
-      key: event.key === " " ? "Space" : event.key,
+      key: shortcutKeyFromEvent(event),
       modifiers: {
         ctrl: event.ctrlKey,
         meta: event.metaKey,
         alt: event.altKey,
         shift: event.shiftKey,
       },
+      physical: true,
     }
 
-    keyboardRegistry.reconfigure(capture.id, next.key, next.modifiers)
+    keyboardRegistry.reconfigure(capture.id, next.key, next.modifiers, next.physical)
     config.updatePreferences({
       shortcutOverrides: {
         ...(config.preferences().shortcutOverrides ?? {}),
@@ -85,6 +88,12 @@ export const ShortcutSettingsCard: Component = () => {
     })
     setCapturing(null)
   }
+
+  createEffect(() => {
+    if (!capturing() || typeof window === "undefined") return
+    window.addEventListener("keydown", handleCaptureKeyDown, true)
+    onCleanup(() => window.removeEventListener("keydown", handleCaptureKeyDown, true))
+  })
 
   return (
     <div class="settings-card">
@@ -135,14 +144,6 @@ export const ShortcutSettingsCard: Component = () => {
         </For>
       </div>
 
-      {/* Invisible capture handler: while capturing, any keydown rebinds. */}
-      <Show when={capturing()}>
-        <div
-          style={{ position: "fixed", inset: 0, "z-index": 1300 }}
-          onKeyDown={handleCaptureKeyDown}
-          tabindex={-1}
-        />
-      </Show>
     </div>
   )
 }

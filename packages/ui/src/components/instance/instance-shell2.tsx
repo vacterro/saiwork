@@ -4,6 +4,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  on,
   onCleanup,
   onMount,
   type Accessor,
@@ -30,7 +31,7 @@ import PermissionApprovalModal from "../permission-approval-modal"
 import SessionView from "../session/session-view"
 import SaipenBar from "../saipen-bar"
 import SplitPicker from "../split-picker"
-import { sessionSidebarVisible, showSaipenBar } from "../../stores/ui"
+import { sessionSidebarVisible, setSessionSidebarVisible, showSaipenBar } from "../../stores/ui"
 import {
   activatePane,
   closePaneAt,
@@ -203,6 +204,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     leftToggleButtonEl,
     rightToggleButtonEl,
     measureDrawerHost,
+    onLeftClose: () => setSessionSidebarVisible(false),
   })
 
   const {
@@ -232,13 +234,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   // Alt+D (session-sidebar-toggle) shows/hides the sessions sidebar across any
   // active shell. Hidden = unpinned + closed; shown = drawer open (floating).
   // The initial run is skipped so it cannot fight the persisted pin/restore.
-  let sessionSidebarInit = true
-  createEffect(() => {
-    const visible = sessionSidebarVisible()
-    if (sessionSidebarInit) {
-      sessionSidebarInit = false
-      return
-    }
+  createEffect(on(sessionSidebarVisible, (visible) => {
     if (visible) {
       if (leftPinned()) unpinLeftDrawer()
       if (!leftOpen()) setLeftOpen(true)
@@ -246,7 +242,13 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
       if (leftPinned()) unpinLeftDrawer()
       if (leftOpen()) setLeftOpen(false)
     }
-  })
+  }, { defer: true }))
+
+  const closeSessionSidebar = () => {
+    setSessionSidebarVisible(false)
+    if (leftPinned()) unpinLeftDrawer()
+    closeLeftDrawer()
+  }
 
   // When the user switches away from this instance (e.g., taps a different
   // instance/project tab while a floating drawer is open on phone), close any
@@ -279,8 +281,8 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
       const rightPaper = rightContent?.closest(".MuiDrawer-paper")
       if (leftPaper?.contains(target) || rightPaper?.contains(target)) return
 
-      if (!leftPinned() && leftOpen()) setLeftOpen(false)
-      if (!rightPinned() && rightOpen()) setRightOpen(false)
+      if (!leftPinned() && leftOpen()) closeLeftDrawer()
+      if (!rightPinned() && rightOpen()) closeRightDrawer()
     }
 
     document.addEventListener("pointerdown", handleFloatingDrawerPointerDown, true)
@@ -746,7 +748,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
             onDraftModelChange={handleDraftModelChange}
             onPinLeftDrawer={pinLeftDrawer}
             onUnpinLeftDrawer={unpinLeftDrawer}
-            onCloseLeftDrawer={closeLeftDrawer}
+            onCloseLeftDrawer={closeSessionSidebar}
             setContentEl={setLeftDrawerContentEl}
           />
         </Box>
@@ -763,7 +765,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
         anchor={isRTL() ? "right" : "left"}
         variant="temporary"
         open={leftOpen()}
-        onClose={closeLeftDrawer}
+        onClose={closeSessionSidebar}
         ModalProps={modalProps}
         sx={{
           zIndex: 60,
@@ -826,7 +828,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
           onDraftModelChange={handleDraftModelChange}
           onPinLeftDrawer={pinLeftDrawer}
           onUnpinLeftDrawer={unpinLeftDrawer}
-          onCloseLeftDrawer={closeLeftDrawer}
+          onCloseLeftDrawer={closeSessionSidebar}
           setContentEl={setLeftDrawerContentEl}
         />
       </Drawer>
@@ -1044,6 +1046,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
             ref={setLeftToggleButtonEl}
             color="inherit"
             onClick={() => {
+              setSessionSidebarVisible(true)
               if (singleSessionMode()) {
                 setLeftOpen(true)
                 measureDrawerHost()

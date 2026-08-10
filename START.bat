@@ -7,14 +7,14 @@ rem Installs dependencies on first run, then starts the desktop app with logs he
 cd /d "%~dp0"
 
 echo ============================================
-echo  SAIWORK 0.0.1
+echo  SAIWORK 0.0.2
 echo ============================================
 echo.
 
 where node >nul 2>nul
 if errorlevel 1 (
   echo [FAIL] Node.js not found on PATH.
-  echo        Install Node.js 18 or newer from https://nodejs.org and run this again.
+  echo        Install Node.js 20.19+ ^(20.x^) or 22.12+ from https://nodejs.org.
   echo.
   if not defined SAIWORK_HIDDEN pause
   exit /b 1

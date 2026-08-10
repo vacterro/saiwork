@@ -26,6 +26,7 @@ import { buildSessionSearchMatches } from "../lib/session-search"
 import type { SessionSearchMatch } from "../lib/session-search"
 import { resolveThinkingExpansionDefault, resolveToolVisibility } from "./tool-call/tool-registry"
 import { collectToolDeletionCompanionPartIds, executeBulkDeletionPlan } from "./tool-deletion-companions"
+import { shortcutKeyFromEvent } from "../lib/keyboard-registry"
 
 const MESSAGE_SCROLL_CACHE_SCOPE = "message-stream"
 const QUOTE_SELECTION_MAX_LENGTH = 2000
@@ -1357,7 +1358,7 @@ export default function MessageSection(props: MessageSectionProps) {
   createEffect(() => {
     if (typeof document === "undefined") return
     const handleKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase()
+      const key = shortcutKeyFromEvent(event).toLowerCase()
       const isModSearch = (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && key === "f"
       if (isModSearch && isActive()) {
         const modalOpen = Boolean(document.querySelector('[role="dialog"][aria-modal="true"]'))

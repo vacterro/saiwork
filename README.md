@@ -1,125 +1,59 @@
 # SAIWORK
 
-**Version 0.0.2** — a SAIPEN-native fork of [CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad) 0.18.0.
+**Version 0.0.2** - a downstream fork based on [CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad)'s 0.18.0 development commit [`67cb394e`](https://github.com/NeuralNomadsAI/CodeNomad/commit/67cb394e8f38854383bd57a0794274a024ef3d93).
 
-**Fork provenance:** SAIWORK preserves the upstream CodeNomad Git history. GitHub's
-total commit count therefore includes upstream work and must not be interpreted as
-SAIWORK-specific development. Fork-specific changes are documented below.
+**Fork provenance:** SAIWORK preserves the upstream CodeNomad Git history on the
+[`backup/pre-squash-history`](https://github.com/vacterro/saiwork/tree/backup/pre-squash-history)
+branch. The default `saiwork` branch was squash-imported on August 10, 2026 and
+does not contain CodeNomad's commits or contributor history. GitHub commit counts
+for the backup branch therefore include upstream work and must not be interpreted
+as SAIWORK-specific development. Fork-specific changes are documented below.
 
-**Connect agents. Work on projects seamlessly.**
+**Connect agents. Work on projects.**
 
-SAIWORK turns OpenCode into a desktop workspace where agents join projects
-without breaking flow. It adds the three things a saipen operator needs: the
-protocol loaded before the first token, a prompt queue that survives a long run,
-and an interface that obeys `saipen/UI.md`.
+SAIWORK extends CodeNomad with SAIPEN integration, a persistent prompt queue,
+and fork-specific desktop and UI workflows.
 
 ---
 
 ## Upstream / inherited
 
 CodeNomad provides the desktop workspace foundation: multi-instance workspaces,
-remote access, session management, voice input, git worktrees, SideCars, command
-palette, file browser, auth, notifications, and i18n. Those features remain
-credited to CodeNomad and behave as they do upstream.
+remote access, session management, voice input, Git worktrees, SideCars, command
+palette, file browser, authentication, notifications, theming, and i18n. Those
+capabilities originate upstream. SAIWORK modifies some integrations but does not
+claim their baseline implementation.
 
-## What I changed (SAIWORK delta)
+## What I changed
 
-Every item below is verified SAIWORK-specific code in this repository — it does
-not exist in upstream CodeNomad.
+I maintain SAIWORK as a focused downstream fork of CodeNomad for long-running
+AI-assisted development.
 
-### SAIPEN protocol injection before agent work
+My work in this fork focuses on:
 
-Every workspace SAIWORK opens gets `BOOT.md` and `STYLE.md` injected into
-OpenCode's `instructions`, so the cold-start kernel and the voice contract are
-in context before the agent's first token.
-
-The protocol is read from the live install, never vendored. The install root is
-resolved in this order, first hit wins:
-
-1. `saipen_home:` in the opened project's `.saipen/STATE.md`
-2. the `saipen.home` setting in the SAIWORK server config
-3. the `SAIPEN_HOME` environment variable
-4. `~/saipen`, then `~/.saipen`
-
-Both protocol layouts are supported: `<home>/saipen/BOOT.md` and
-`<home>/BOOT.md`. If neither exists, SAIWORK logs why and starts the session
-without injection rather than guessing.
-
-`GET /api/saipen/status?folder=<path>` reports exactly which files a session
-will receive, plus the state of every sub-agent in the project.
-
-### Persistent prompt / task queue
-
-Stack prompts while the agent works; each one is sent when the session goes
-idle. Queues persist across restarts, per session.
-
-- `Alt+Enter` queues instead of sending
-- reorder, edit, and delete entries in place
-- pause and resume (`Ctrl/Cmd+Shift+Q`) — a paused queue sends nothing
-- send the head immediately without waiting for idle
-- a failed send goes back to the front of the queue instead of vanishing
-
-Shell commands and slash commands are never queued: both resolve against state
-that may have moved by the time the queue drains.
-
-### SAIPEN command / sub-agent state visibility
-
-The `CORE.md` §1.10 shortcut table as buttons, above the prompt:
-
-`gg` `hh` `cc` `ccc` `ss` `sss` `dd` `aa` `qq` `qqq` `ee` `eee` `pp` `tt` `sc`
-
-Argument-less shortcuts send on click. `gg` and `dd` need text, so they land in
-the prompt for you to finish instead of firing bare. Expanding the bar shows the
-phase, ticket and timestamp each sub-agent last wrote to its own `STATE.md` —
-so "is the wiki fresh, are the docs translated" is answered from the record
-rather than from memory. Toggle with `Ctrl/Cmd+Shift+K`.
-
-The SAIPENVIEW tab buttons open Status, Board, Log, State and Plan views
-straight from `.saipen/` — every file editable in place, with the panel staying
-mounted so toggling never re-fetches.
-
-SAIPEN Goal Auto is a three-state control (on / off / on-but-queue-off) that
-keeps enqueueing `saipen continue` while `BOARD.md` has TODO work, per-project
-overrides included; it stops the moment the board is empty and never re-arms a
-duplicate continue.
-
-### Portable / local Windows workflow
-
-`START_HIDDEN.vbs` starts the app console-free. Portable builds keep settings,
-sessions and window state in a `saiwork-data` folder beside the executable; an
-empty `saiwork-data` folder or `SAIWORK_DATA_DIR` redirects storage there.
-Window presets (Settings > Window) save and restore layouts and snap the active
-window with `Ctrl/Cmd+Q`; the menu bar can be hidden.
-
-### Vintage Golden UI layer
-
-The whole interface follows `saipen/UI.md`: Verdana without antialiasing, 2px
-bevels, zero rounded corners, zero shadows, zero animation, one palette in every
-theme mode. The upstream token file is left untouched and overridden by
-`packages/ui/src/styles/vintage-golden.css`, so merges from upstream stay
-reviewable.
-
-### Isolation of fork-specific code
-
-Fork-specific code lives in its own files (`saipen/core.ts`, `prompt-queue.ts`,
-`saipen-bar.tsx`, `vintage-golden.css`, `shortcuts/saiwork.ts`) so upstream
-merges stay reviewable.
-
-### Split panes and detached windows
-
-Run two sessions side by side: the SAIPEN bar's Split button opens a picker of
-your other sessions (this project's and other projects' active ones, already
-shown excluded), and each pane gets its own OS window via its Detach button.
-The divider between panes is draggable; detached panes re-attach back into the
-shell. Pane state is per-window and per-instance.
+- integrating configurable live-path SAIPEN `BOOT.md` and `STYLE.md`
+  instructions before new OpenCode process launches, with project, config,
+  environment, and fallback resolution plus launch-state reporting;
+- adding a persistent per-session prompt queue with edit, reorder, delete,
+  pause/resume, idle or manual dispatch, and rejected-send restoration to the
+  queue front before pausing;
+- exposing SAIPEN shortcut controls, allowlisted project-state views and edits,
+  discovered subSaipen state, and Goal Auto queueing controls in the UI;
+- adding a console-free Windows launcher, portable Electron `userData` routing,
+  single-window geometry presets, snap controls, and menu visibility settings;
+- applying a Vintage structural UI layer with a Golden default and selectable
+  palettes while leaving CodeNomad's token definitions unchanged;
+- adding split session panes and detached session windows; and
+- placing major fork feature cores in dedicated files while keeping substantial
+  integration changes explicit in shared CodeNomad files.
 
 ---
 
 ## Requirements
 
 - **[OpenCode CLI](https://opencode.ai)** in your `PATH`
-- **Node.js 18+**
-- A saipen install, if you want the protocol injection (clone
+- **Node.js 20.19+ (20.x) or 22.12+**
+- A SAIPEN install, if you want the protocol injection (clone
   `github.com/vacterro/saipen`)
 
 ## Running it
@@ -129,7 +63,7 @@ shell. Pane state is per-window and per-instance.
 `START.bat` only when you want a visible debug console.
 
 It checks Node, warns if `opencode` is missing, installs dependencies on the
-first run, and starts the desktop app. Nothing else to configure.
+first run, and starts the desktop app.
 
 Same thing by hand, if you prefer:
 
@@ -138,23 +72,20 @@ npm install
 npm run dev
 ```
 
-Electron is the primary shell for 0.0.2. The Tauri shell still compiles but is
-not polished.
+Electron is the primary shell for 0.0.2. The Tauri shell remains experimental.
 
-### Portable build
+### Portable target
 
-```bash
-npm run build:win --workspace @saiwork/electron-app
-```
+The Electron package defines a one-file Windows portable target named
+`SAIWORK-portable-{arch}-{version}.exe`. No SAIWORK binary release has been
+published. The current Electron version range must be pinned before
+`electron-builder` can produce the artifact, so this documentation pass did not
+claim or publish a working binary.
 
-Produces `SAIWORK-portable-x64-0.0.2.exe` in `packages/electron-app/release/` —
-one file, no installer, no registry writes. It keeps its settings, sessions and
-window state in a `saiwork-data` folder beside itself, so the whole thing moves
-with a USB stick.
-
-The same applies to any build: drop an empty `saiwork-data` folder next to the
-executable and SAIWORK stores everything there instead of in your profile.
-`SAIWORK_DATA_DIR` overrides the location outright.
+An empty `saiwork-data` folder beside an Electron executable redirects
+Electron's `userData` there; `SAIWORK_DATA_DIR` overrides that location. Server
+configuration, OpenCode data, and some client/window state retain separate
+home-directory paths, so this is not a fully self-contained USB profile.
 
 ### Server mode
 
@@ -173,10 +104,10 @@ There are no published npm packages yet — build from source.
 npm test
 ```
 
-Runs all three suites -- UI, server, Electron -- and fails on the first one that
-fails. The UI suite needs `--conditions=browser`: several tests import
-`solid-toast`, which calls a client-only API while the module loads, so under
-Node's default resolution solid hands back its server build and the file throws
+Runs all four suites -- UI, server, OpenCode plugin, and Electron -- and fails on
+the first one that fails. The UI suite needs `--conditions=browser`: several
+tests import `solid-toast`, which calls a client-only API while the module loads,
+so under Node's default resolution solid hands back its server build and the file throws
 before a single test runs. The script already passes the flag.
 
 ---
@@ -190,18 +121,15 @@ before a single test runs. The script already passes the flag.
 | `packages/electron-app` | Desktop shell |
 | `packages/tauri-app` | Tauri shell (experimental) |
 
-## Staying current with upstream
+## Upstream reference
 
-The `upstream` remote points at CodeNomad. SAIWORK preserves the upstream Git
-history, so repository commit totals on GitHub include CodeNomad's work —
-they are not SAIWORK-specific development. Fork-specific code is kept in its
-own files (`saipen/core.ts`, `prompt-queue.ts`, `saipen-bar.tsx`,
-`vintage-golden.css`, `shortcuts/saiwork.ts`) so a merge touches as little
-shared code as possible.
+The `upstream` remote points at CodeNomad. Because the default `saiwork` branch
+was squash-imported and has no merge base with CodeNomad, upstream updates must
+be reviewed and ported explicitly rather than applied with a plain `git merge`.
 
 ```bash
 git fetch upstream
-git merge upstream/main
+git diff 67cb394e..upstream/dev
 ```
 
 ---

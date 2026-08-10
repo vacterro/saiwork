@@ -1,7 +1,7 @@
 import { activeInstanceId } from "../stores/instances"
 import { selectAppTabByIndex } from "../stores/app-tabs"
 import { activeSessionId, setActiveSession, getSessionFamily, activeParentSessionId } from "../stores/sessions"
-import { keyboardRegistry } from "./keyboard-registry"
+import { keyboardRegistry, shortcutKeyFromEvent } from "./keyboard-registry"
 import { isMac } from "./keyboard-utils"
 
 export function setupTabKeyboardShortcuts(
@@ -29,23 +29,25 @@ export function setupTabKeyboardShortcuts(
   })
 
   window.addEventListener("keydown", (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
+    const key = shortcutKeyFromEvent(e).toLowerCase()
+
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && key === "p") {
       e.preventDefault()
       handleCommandPalette()
       return
     }
 
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key >= "1" && e.key <= "9") {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && key >= "1" && key <= "9") {
       e.preventDefault()
-      selectAppTabByIndex(parseInt(e.key) - 1)
+      selectAppTabByIndex(parseInt(key) - 1)
     }
 
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key >= "1" && e.key <= "9") {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && key >= "1" && key <= "9") {
       e.preventDefault()
       const instanceId = activeInstanceId()
       if (!instanceId) return
 
-      const index = parseInt(e.key) - 1
+      const index = parseInt(key) - 1
       const parentId = activeParentSessionId().get(instanceId)
       if (!parentId) return
 
@@ -57,17 +59,17 @@ export function setupTabKeyboardShortcuts(
       }
     }
 
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "n") {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && key === "n") {
       e.preventDefault()
       handleNewInstance()
     }
 
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "w") {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && key === "w") {
       e.preventDefault()
       void handleCloseActiveTab()
     }
 
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "w") {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && key === "w") {
       e.preventDefault()
       const instanceId = activeInstanceId()
       if (!instanceId) return

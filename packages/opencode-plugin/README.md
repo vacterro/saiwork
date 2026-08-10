@@ -1,5 +1,9 @@
 # SaiWork OpenCode Plugin
 
+> **Provenance:** Baseline plugin implementation and this documentation are
+> adapted from CodeNomad's 0.18.0 development line. SAIWORK-specific changes
+> are summarized in the [root README](../../README.md).
+
 ## TLDR
 Packaged OpenCode plugin injected into every OpenCode instance that SaiWork launches. It provides the SaiWork bridge for local event exchange between the CLI server and OpenCode.
 

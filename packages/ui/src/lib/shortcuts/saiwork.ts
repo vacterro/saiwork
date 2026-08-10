@@ -5,6 +5,7 @@ import { toggleSaipenBar, toggleShortcutsOverlay, toggleSessionSidebar } from ".
 import { snapWindowToPreset } from "../native/window-snap"
 
 type KeyboardShortcutModifiers = { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean }
+type KeyboardBinding = { key: string; modifiers: KeyboardShortcutModifiers; physical: boolean }
 
 /**
  * SAIWORK-only shortcuts.
@@ -14,9 +15,11 @@ type KeyboardShortcutModifiers = { ctrl?: boolean; meta?: boolean; shift?: boole
  * what upstream leaves free: Ctrl/Cmd+Shift with K and Q, plus F1.
  */
 export function registerSaiWorkShortcuts() {
-  const override = (id: string, fallback: { key: string; modifiers: KeyboardShortcutModifiers }) => {
+  const override = (id: string, fallback: { key: string; modifiers: KeyboardShortcutModifiers }): KeyboardBinding => {
     const custom = preferences().shortcutOverrides?.[id]
-    return custom && custom.key ? { key: custom.key, modifiers: custom.modifiers } : fallback
+    return custom && custom.key
+      ? { key: custom.key, modifiers: custom.modifiers, physical: custom.physical ?? false }
+      : { ...fallback, physical: true }
   }
 
   const saipenBar = override("saipen-bar-toggle", {
@@ -28,6 +31,7 @@ export function registerSaiWorkShortcuts() {
     group: "panels",
     key: saipenBar.key,
     modifiers: saipenBar.modifiers,
+    physical: saipenBar.physical,
     handler: () => toggleSaipenBar(),
     description: "toggle SAIPEN bar",
     context: "global",
@@ -42,6 +46,7 @@ export function registerSaiWorkShortcuts() {
     group: "panels",
     key: queueToggle.key,
     modifiers: queueToggle.modifiers,
+    physical: queueToggle.physical,
     handler: () => toggleQueueEnabled(),
     description: "toggle prompt queue mode",
     context: "global",
@@ -59,6 +64,7 @@ export function registerSaiWorkShortcuts() {
     group: "panels",
     key: snapPreset.key,
     modifiers: snapPreset.modifiers,
+    physical: snapPreset.physical,
     handler: () => {
       const active = preferences().windowPresets.find(
         (preset) => preset.id === preferences().activeWindowPreset,
@@ -78,6 +84,7 @@ export function registerSaiWorkShortcuts() {
     group: "panels",
     key: overlay.key,
     modifiers: overlay.modifiers,
+    physical: overlay.physical,
     handler: () => toggleShortcutsOverlay(),
     description: "keyboard shortcuts",
     context: "global",
@@ -92,6 +99,7 @@ export function registerSaiWorkShortcuts() {
     group: "panels",
     key: sessionSidebar.key,
     modifiers: sessionSidebar.modifiers,
+    physical: sessionSidebar.physical,
     handler: () => toggleSessionSidebar(),
     description: "toggle sessions sidebar",
     context: "global",

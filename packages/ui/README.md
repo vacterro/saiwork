@@ -2,9 +2,14 @@
 
 This package contains the frontend user interface for SaiWork, built with [SolidJS](https://www.solidjs.com/) and [Tailwind CSS](https://tailwindcss.com/).
 
+> **Provenance:** Baseline UI implementation and this documentation are adapted
+> from CodeNomad's 0.18.0 development line. SAIWORK-specific changes are
+> summarized in the [root README](../../README.md).
+
 ## Overview
 
-The UI is designed to be a high-performance, low-latency cockpit for managing OpenCode sessions. It connects to the SaiWork server (either running locally via CLI or embedded in the Electron app).
+The UI manages OpenCode sessions through the SaiWork server, either running
+locally or embedded in the Electron app.
 
 ## Features
 

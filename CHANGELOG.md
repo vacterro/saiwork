@@ -1,9 +1,9 @@
 # Changelog
 
-## 0.0.2 (2026-08-10)
+## [Unreleased] - 0.0.2
 
-Work-in-progress SAIWORK UI, tracked since `0.0.1` in `.saipen/LOG.md`
-(E-001..E-363).
+Work-in-progress SAIWORK UI. References such as `T-061` and `E-386` below are
+internal `.saipen` work-log identifiers, not Git commits or release history.
 
 ### Hardening & isolation (T-061..T-068, E-386..E-401)
 
@@ -32,9 +32,9 @@ Work-in-progress SAIWORK UI, tracked since `0.0.1` in `.saipen/LOG.md`
 ### SAIPEN
 
 - **Multi-session split panes** (`T-048`, E-312/E-313/E-325/E-326/E-329): the
-  session area splits into draggable panes (5px col-resize handle, flex-grow
-  weights 0.1–0.9), per-window, per-instance isolation via a pure `panes.ts`
-  model plus a reactive `stores/panes.ts` bridge. Split is **choosable**: the
+  session area splits into side-by-side panes with per-window, per-instance
+  isolation via a pure `panes.ts` model plus a reactive `stores/panes.ts`
+  bridge. Split is **choosable**: the
   bar Split button opens a session picker (this project's other sessions +
   other projects' active sessions, already-shown excluded) instead of
   auto-splitting; split panes outside the active family no longer show
@@ -48,9 +48,9 @@ Work-in-progress SAIWORK UI, tracked since `0.0.1` in `.saipen/LOG.md`
   `.saipen/kitchen/*.md` plans; five direct tab buttons
   Status/Board/Log/State/Plan; per-tab empty states; collapsible plan rows.
 - **Interactive memory editing**: `PUT /api/saipen/file` (strict allowlist,
-  traversal-proof, 256KB cap) with Edit/Save/Cancel textareas on every view
-  panel tab and each plan; panel stays mounted (`display:none`) so toggling
-  never re-fetches.
+  traversal-proof, 256KB cap) with Edit/Save/Cancel controls for displayed
+  allowlisted files; Status remains read-only, and the panel stays mounted
+  (`display:none`) while toggled off.
 - **Sub-agent freshness table**: manifest rows expose lifecycle, OUTBOX package
   verdicts, freshness errors, and issues; fixed layout + word-wrap.
 - **SAIPEN bar** (single-line): smart shrink (rare production commands
@@ -81,8 +81,8 @@ Work-in-progress SAIWORK UI, tracked since `0.0.1` in `.saipen/LOG.md`
 
 ### Prompt queue
 
-- `Alt+Enter` queues; reorder/edit/delete; pause/resume
-  (`Ctrl/Cmd+Shift+Q`); queues persist per session.
+- `Alt+Enter` queues; reorder/edit/delete; explicit pause/resume controls;
+  queues persist per session.
 - **Send all / Separately** (`queueSendMode`): all-mode combines queued texts
   into one message/one answer, re-queues on error; failed send restores the
   draft into the input.
@@ -110,6 +110,9 @@ Work-in-progress SAIWORK UI, tracked since `0.0.1` in `.saipen/LOG.md`
 - Pinned left sidebar auto-hides when the instance has only one session
   (floating drawer stays); Model button opens the floating drawer regardless
   of pin state.
+- Sessions sidebar has an always-visible collapse button. Registered shortcuts
+  and direct letter/number shortcuts use physical key codes, so bindings such
+  as `Alt+D` work across keyboard layouts; new custom bindings do the same.
 
 ### Vintage Golden / UX polish
 
@@ -125,8 +128,8 @@ Work-in-progress SAIWORK UI, tracked since `0.0.1` in `.saipen/LOG.md`
 
 ### Reliability & bug fixes (highlights)
 
-- Full suite kept green across the build (513+ UI tests at the last count,
-  `npm test exit 0` on every change): queue idempotent failed-head restore,
+- Local validation recorded passing test runs during development; this is not a
+  per-commit CI guarantee. Covered behavior includes queue idempotent failed-head restore,
   Goal Auto dispatch guards, model-pin resolution (invalid pins inherit the
   session model, unavailable models disabled), raw-text rendering for user
   messages (backslashes, quotes, underscores, backticks survive Markdown),
@@ -135,18 +138,19 @@ Work-in-progress SAIWORK UI, tracked since `0.0.1` in `.saipen/LOG.md`
 
 ## 0.0.1
 
-First SAIWORK release. Fork of CodeNomad 0.18.0.
+First tagged SAIWORK version, based on CodeNomad's 0.18.0 development commit
+`67cb394e`.
 
 ### SAIPEN
 
-- SAIPEN Core is injected into every workspace through OpenCode's `instructions`
-  field, so `BOOT.md` and `STYLE.md` are in context before the agent's first
-  token. The protocol is read from the live install, never vendored.
+- When SAIPEN integration is enabled and the files resolve, SAIWORK adds the
+  live `BOOT.md` and `STYLE.md` paths to OpenCode's `instructions` before a new
+  OpenCode process launches. The protocol is not vendored.
 - The install root resolves from the opened project's `.saipen/STATE.md`, then
   server config, then `SAIPEN_HOME`, then `~/saipen` and `~/.saipen`. Both
   `<home>/saipen/BOOT.md` and `<home>/BOOT.md` layouts are supported.
-- `GET /api/saipen/status?folder=<path>` reports which files a session receives
-  and the state of every sub-agent in the project.
+- `GET /api/saipen/status?folder=<path>` reports configured and effective
+  instruction paths plus discovered subSaipen state.
 - SAIPEN command bar with the 15 shortcuts from `CORE.md` §1.10, plus a table
   showing what each sub-agent last recorded in its own `STATE.md`.
   Toggle: `Ctrl/Cmd+Shift+K`.
@@ -158,7 +162,7 @@ First SAIWORK release. Fork of CodeNomad 0.18.0.
 - Reorder, edit and delete entries; pause and resume with `Ctrl/Cmd+Shift+Q`.
 - A failed send returns to the front of the queue instead of being lost.
 - Queues persist across restarts, per session.
-- Shell and slash commands are never queued.
+- Shell commands and recognized slash commands bypass the queue.
 
 ### Vintage Golden
 
@@ -186,8 +190,8 @@ First SAIWORK release. Fork of CodeNomad 0.18.0.
 - `START_HIDDEN.vbs` starts Windows development mode without a console and logs
   to `dev.log`; `START.bat` remains the visible debug launcher. `START.sh`
   handles macOS and Linux.
-- Windows `portable` target: a single executable with no installer and no
-  registry writes.
-- Portable data: a `saiwork-data` folder beside the executable holds all state.
-  `SAIWORK_DATA_DIR` overrides the location.
-- App id `ai.saipen.saiwork`, per-project data directory `.saiwork`.
+- Windows `portable` target: a single executable with no installer.
+- Portable Electron data: a `saiwork-data` folder beside the executable redirects
+  Electron `userData`; `SAIWORK_DATA_DIR` overrides that location. Server,
+  OpenCode, and some client/window state retain separate home-directory paths.
+- App id `ai.saipen.saiwork.client`, per-project data directory `.saiwork`.

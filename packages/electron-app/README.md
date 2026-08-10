@@ -2,6 +2,10 @@
 
 This package contains the native desktop application shell for SaiWork, built with [Electron](https://www.electronjs.org/).
 
+> **Provenance:** Baseline desktop implementation and this documentation are
+> adapted from CodeNomad's 0.18.0 development line. SAIWORK-specific changes
+> are summarized in the [root README](../../README.md).
+
 ## Overview
 
 The Electron app wraps the SaiWork UI and Server into a standalone executable. It provides deeper system integration, such as:

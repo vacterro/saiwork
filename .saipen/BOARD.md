@@ -1,19 +1,21 @@
-# BOARD -- SAIWORK 0.0.1
+# BOARD -- SAIWORK 0.0.2
 
-Fork of CodeNomad 0.18.0, rebranded in place on branch `saiwork`.
+Downstream source based on CodeNomad 0.18.0 development commit `67cb394e`.
+Default `saiwork` was squash-imported; inherited history remains on `backup/pre-squash-history`.
 Remotes: `origin` -> github.com/vacterro/saiwork, `upstream` -> github.com/NeuralNomadsAI/CodeNomad.
 
 ## Decisions
 
-- D-01 Rebrand in place, same working tree, branch `saiwork`. Upstream kept for merges.
-- D-02 Electron is the primary shell for 0.0.1. Tauri kept compiling, not polished.
+- D-01 Default branch is a squash import. Upstream is retained for comparison and
+  explicit ports, not plain merges; inherited history is preserved on the backup branch.
+- D-02 Electron is the primary shell for 0.0.2. Tauri remains experimental.
 - D-03 SAIPEN Core loads via opencode `instructions[]` pointing at the live
   `saipen_home` protocol dir -- never a copy, so upstream protocol edits apply at once.
-- D-04 Prompt queue is full FreeBuff-style: reorder, edit, delete, pause/resume,
-  auto-send on idle. Shell and slash commands are excluded by design.
-- D-05 Vintage Golden (saipen `UI.md`) is the default and only palette, applied as an
-  override layer (`vintage-golden.css`) so upstream `tokens.css` stays untouched.
-- D-06 Fork-specific code lives in its own files to keep upstream merges cheap:
+- D-04 Prompt queue supports reorder, edit, delete, pause/resume and idle dispatch.
+  Shell commands and recognized slash commands bypass it.
+- D-05 Vintage structure and Golden default are applied by an override layer
+  (`vintage-golden.css`); selectable Wintage palettes exist and upstream `tokens.css` stays untouched.
+- D-06 Major fork feature cores live in dedicated files to keep tree comparisons explicit:
   `saipen/core.ts`, `routes/saipen.ts`, `prompt-queue.ts`, `prompt-queue-panel.tsx`,
   `saipen-bar.tsx`, `saipen-commands.ts`, `shortcuts/saiwork.ts`,
   `shortcuts-overlay.tsx`, `vintage-golden.css`.
@@ -55,7 +57,11 @@ the gate that keeps them from coming back, then wave 1's remaining findings.
 
 ## DONE
 
-- [x] T-070 README provenance pass + version-drift fix: added "Fork provenance" notice (commit totals include upstream CodeNomad history, not SAIWORK-specific); split README into "Upstream / inherited" vs "What I changed (SAIWORK delta)" with every delta claim verified against code (saipen injection, prompt queue, SAIPEN bar/VIEW/Goal Auto, portable workflow, vintage-golden, split panes); fixed stale 0.0.1 references (electron shell, portable exe name) -> 0.0.2; GitHub About description updated via gh | verify: README claims cross-checked against repo files (prompt-queue.ts, saipen/core.ts, saipen-bar.tsx, vintage-golden.css, split-picker.ts, window-snap.ts), no 0.0.1 drift remains | review_passes: 1
+- [x] T-072 Make sidebar collapse obvious + shortcuts layout-neutral: collapse button is always visible for pinned/floating sessions sidebar; every registry shortcut and direct letter/number shortcut resolves physical `KeyboardEvent.code`; new rebinds store `physical: true`, legacy overrides retain `event.key` semantics; Escape/click-away sync visibility and restore focus | verify: UI typecheck PASS, 580 UI tests PASS, 5 focused layout tests PASS, two review passes clean | review_passes: 2
+
+- [x] T-071 Finish employer/public provenance pass: documented exact `67cb394e` CodeNomad basis and default-branch squash vs `backup/pre-squash-history`; reduced "What I changed" to 7 code-backed delta bullets; credited inherited package/docs baseline; removed false npm/Winget release, portable-state, direct-merge, performance/reliability, version and build claims; About changed to truthful "persistent prompt queues" wording; stale public docs normalized | verify: claim map against current code + actual upstream base, README links 6/6 PASS, markdown/diff check PASS, two review passes clean | review_passes: 2
+
+- [x] T-070 Initial README provenance draft + version-drift fix, superseded by T-071 after audit found the default-branch squash boundary and unsupported absolute claims | verify: superseded by T-071 | review_passes: 1
 
 - [x] T-069 Fix "app turns itself back on" on quit: before-quit ran startShutdown and on ANY failure called restoreWindowAfterRejectedShutdown, resurrecting the window and leaving the app alive (user saw the app reopen and hunt sessions); now a failed shutdown logs "not contained" and exits with code 1 instead of showing the window again; removed the dead restoreWindow helper | verify: electron typecheck PASS, `npm test` exit 0 (118 electron pass) | review_passes: 1
 

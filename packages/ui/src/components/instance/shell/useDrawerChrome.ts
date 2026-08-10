@@ -28,6 +28,7 @@ export interface UseDrawerChromeOptions {
   leftToggleButtonEl: Accessor<HTMLElement | null>
   rightToggleButtonEl: Accessor<HTMLElement | null>
   measureDrawerHost?: () => void
+  onLeftClose?: () => void
 }
 
 export interface DrawerChromeApi {
@@ -207,6 +208,7 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
     if (leftDrawerState() === "pinned") return
     blurIfInside(options.leftDrawerContentEl())
     setLeftOpen(false)
+    options.onLeftClose?.()
     focusTarget(options.leftToggleButtonEl())
   }
 
@@ -222,6 +224,7 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
     if (!leftPinned() && leftOpen()) {
       setLeftOpen(false)
       blurIfInside(options.leftDrawerContentEl())
+      options.onLeftClose?.()
       focusTarget(options.leftToggleButtonEl())
       handled = true
     }

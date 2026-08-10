@@ -1,6 +1,11 @@
 # SaiWork Server
 
-**SaiWork Server** is the high-performance engine behind the SaiWork cockpit. It transforms your machine into a robust development host, managing the lifecycle of multiple OpenCode instances and providing the low-latency data streams that long-haul builders demand. It bridges your local filesystem with the UI, ensuring that whether you are on localhost or a remote tunnel, you have the speed, clarity, and control of a native workspace.
+> **Provenance:** Baseline server implementation and this documentation are
+> adapted from CodeNomad's 0.18.0 development line. SAIWORK-specific changes
+> are summarized in the [root README](../../README.md).
+
+**SaiWork Server** manages OpenCode processes and serves workspace, API, and
+event data to local or remote clients.
 
 ## Features & Capabilities
 
@@ -9,30 +14,32 @@
 - **Remote Access**: Host SaiWork on a powerful workstation and access it from your lightweight laptop.
 - **Code Anywhere**: Tunnel in via VPN or SSH to code securely from coffee shops or while traveling.
 - **Multi-Device**: The responsive web client works on tablets and iPads, turning any screen into a dev terminal.
-- **Always-On**: Run as a background service so your sessions are always ready when you connect.
+- **Long-running host**: Keep the server process running for later connections.
 
 ### ⚡️ Workspace Power
 
 - **Multi-Instance**: Juggle multiple OpenCode sessions side-by-side with per-instance tabs.
-- **Long-Context Native**: Scroll through massive transcripts without hitches.
+- **Session transcripts**: Browse and manage OpenCode session history.
 - **Deep Task Awareness**: Monitor background tasks and child sessions without losing your flow.
 - **Command Palette**: A single, global palette to jump tabs, launch tools, and fire shortcuts.
 
 ## Prerequisites
 
 - **OpenCode**: `opencode` must be installed and configured on your system.
-- Node.js 18+ and npm (for running or building from source).
+- Node.js 20.19+ (20.x) or 22.12+ and npm (for this monorepo build).
 - A workspace folder on disk you want to serve.
 - Optional: a Chromium-based browser if you want `--launch` to open the UI automatically.
 
 ## Usage
 
-### Run via npx (Recommended)
+### Build from source
 
-You can run SaiWork directly without installing it:
+SAIWORK is not published to npm. Build and run the server from this repository:
 
-```sh
-npx @saiwork/saiwork --password <your-password> --launch
+```bash
+npm install
+npm run build --workspace @saiwork/saiwork
+node packages/server/dist/bin.js --password <your-password> --launch
 ```
 
 > **Authentication required:** The server requires a password. Pass it via `--password`, the `SAIWORK_SERVER_PASSWORD` environment variable, or create an `auth.json` file (see [Authentication](#authentication) below).
@@ -40,33 +47,10 @@ npx @saiwork/saiwork --password <your-password> --launch
 To list all CLI options:
 
 ```sh
-npx @saiwork/saiwork --help
+node packages/server/dist/bin.js --help
 ```
 
-On startup, SaiWork prints two URLs:
-
-- `Local Connection URL : ...` (used by desktop shells)
-- `Remote Connection URL : ...` (used by browsers/other machines when remote access is enabled)
-
-### Install Globally
-
-Or install it globally to use the `saiwork` command:
-
-```sh
-npm install -g @saiwork/saiwork
-saiwork --password <your-password> --launch
-```
-
-### Install Locally (per-project)
-
-If you prefer to install SaiWork into a project and run the local binary:
-
-```sh
-npm install @saiwork/saiwork
-npx saiwork --password <your-password> --launch
-```
-
-(`npx saiwork ...` will use `./node_modules/.bin/saiwork` when present.)
+On startup, SaiWork prints local and remote connection URLs.
 
 ### Common Flags
 
@@ -96,23 +80,8 @@ You can configure the server using flags or environment variables:
 | `--ui-dir <path>` | `CLI_UI_DIR` | Directory containing the built UI bundle |
 | `--ui-dev-server <url>` | `CLI_UI_DEV_SERVER` | Proxy UI requests to a running dev server (requires `--https=false --http=true`) |
 | `--ui-no-update` | `CLI_UI_NO_UPDATE` | Disable remote UI updates |
-| `--ui-auto-update <enabled>` | `CLI_UI_AUTO_UPDATE` | Enable remote UI updates (`true` |
+| `--ui-auto-update <enabled>` | `CLI_UI_AUTO_UPDATE` | Enable remote UI updates (`true`) |
 | `--ui-manifest-url <url>` | `CLI_UI_MANIFEST_URL` | Remote UI manifest URL |
-
-### Dev Releases (Advanced)
-
-If you want the latest bleeding-edge builds (published as GitHub pre-releases), use the dev package:
-
-```sh
-npx @saiwork/saiwork-dev --password <your-password> --launch
-```
-
-These environment variables control how SaiWork checks for dev updates:
-
-| Env Variable | Description |
-|-------------|-------------|
-| `SAIWORK_UPDATE_CHANNEL` | Update channel (use `dev` to enable dev build update checks) |
-| `SAIWORK_GITHUB_REPO` | GitHub repo used for dev release checks (default `vacterro/saiwork`) |
 
 ### HTTP vs HTTPS
 
@@ -120,13 +89,13 @@ These environment variables control how SaiWork checks for dev updates:
 - To run plain HTTP only (useful for development):
 
 ```sh
-saiwork --https=false --http=true
+node packages/server/dist/bin.js --https=false --http=true
 ```
 
 - To run both HTTPS (for remote) and HTTP loopback (for desktop):
 
 ```sh
-saiwork --https=true --http=true
+node packages/server/dist/bin.js --https=true --http=true
 ```
 
 ### Remote Access Binding Rules
@@ -147,7 +116,7 @@ If `--https=true` and you do not provide `--tls-key/--tls-cert`, SaiWork generat
 Certificates are valid for about 30 days and rotate automatically on startup when needed. You can add extra SANs via:
 
 ```sh
-saiwork --tlsSANs "localhost,127.0.0.1,my-hostname,192.168.1.10"
+node packages/server/dist/bin.js --tlsSANs "localhost,127.0.0.1,my-hostname,192.168.1.10"
 ```
 
 > **Browser warning:** Self-signed certificates trigger a "Your connection is not private" warning in browsers on first visit. This is expected and safe for local development (127.0.0.1 / localhost):
