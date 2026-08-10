@@ -30,7 +30,7 @@ import PermissionApprovalModal from "../permission-approval-modal"
 import SessionView from "../session/session-view"
 import SaipenBar from "../saipen-bar"
 import SplitPicker from "../split-picker"
-import { showSaipenBar } from "../../stores/ui"
+import { sessionSidebarVisible, showSaipenBar } from "../../stores/ui"
 import {
   activatePane,
   closePaneAt,
@@ -228,6 +228,25 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     handleLeftAppBarButtonClick,
     handleRightAppBarButtonClick,
   } = drawerChrome
+
+  // Alt+D (session-sidebar-toggle) shows/hides the sessions sidebar across any
+  // active shell. Hidden = unpinned + closed; shown = drawer open (floating).
+  // The initial run is skipped so it cannot fight the persisted pin/restore.
+  let sessionSidebarInit = true
+  createEffect(() => {
+    const visible = sessionSidebarVisible()
+    if (sessionSidebarInit) {
+      sessionSidebarInit = false
+      return
+    }
+    if (visible) {
+      if (leftPinned()) unpinLeftDrawer()
+      if (!leftOpen()) setLeftOpen(true)
+    } else {
+      if (leftPinned()) unpinLeftDrawer()
+      if (leftOpen()) setLeftOpen(false)
+    }
+  })
 
   // When the user switches away from this instance (e.g., taps a different
   // instance/project tab while a floating drawer is open on phone), close any

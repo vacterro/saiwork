@@ -74,6 +74,25 @@ function setPromptQueueExpanded(value: boolean) {
 const [instanceTabOrder, setInstanceTabOrder] = createSignal<string[]>([])
 const [sessionTabOrder, setSessionTabOrder] = createSignal<Map<string, string[]>>(new Map())
 
+/**
+ * Global "sessions sidebar" visibility toggle (Alt+D). The left drawer state
+ * lives per-shell in useDrawerChrome; this signal lets a global shortcut hide
+ * or reveal the sessions sidebar across any active shell. True = visible.
+ */
+const SESSION_SIDEBAR_KEY = "saiwork.session-sidebar.visible"
+const [sessionSidebarVisible, setSessionSidebarVisibleSignal] = createSignal(
+  readPersistedFlag(SESSION_SIDEBAR_KEY, true),
+)
+
+function setSessionSidebarVisible(value: boolean) {
+  setSessionSidebarVisibleSignal(value)
+  writePersistedFlag(SESSION_SIDEBAR_KEY, value)
+}
+
+function toggleSessionSidebar() {
+  setSessionSidebarVisible(!sessionSidebarVisible())
+}
+
 function reorderInstanceTabs(newOrder: string[]) {
   setInstanceTabOrder(newOrder)
 }
@@ -101,6 +120,9 @@ export {
   setSessionTabOrder,
   reorderInstanceTabs,
   reorderSessionTabs,
+  sessionSidebarVisible,
+  setSessionSidebarVisible,
+  toggleSessionSidebar,
   showSaipenBar,
   setShowSaipenBar,
   toggleSaipenBar,

@@ -8,6 +8,7 @@ const SAIWORK_SHORTCUT_IDS = [
   "prompt-queue-toggle",
   "window-snap-preset",
   "shortcuts-overlay",
+  "session-sidebar-toggle",
 ]
 
 const SAIWORK_SHORTCUT_LABEL_KEYS: Record<string, string> = {
@@ -15,6 +16,7 @@ const SAIWORK_SHORTCUT_LABEL_KEYS: Record<string, string> = {
   "prompt-queue-toggle": "settings.shortcuts.queueToggle",
   "window-snap-preset": "settings.shortcuts.snapPreset",
   "shortcuts-overlay": "settings.shortcuts.overlay",
+  "session-sidebar-toggle": "settings.shortcuts.sessionSidebar",
 }
 
 function formatBinding(shortcut: KeyboardShortcut): string {

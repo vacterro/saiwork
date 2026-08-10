@@ -1,7 +1,7 @@
 import { keyboardRegistry } from "../keyboard-registry"
 import { isMac } from "../keyboard-utils"
 import { preferences, toggleQueueEnabled } from "../../stores/preferences"
-import { toggleSaipenBar, toggleShortcutsOverlay } from "../../stores/ui"
+import { toggleSaipenBar, toggleShortcutsOverlay, toggleSessionSidebar } from "../../stores/ui"
 import { snapWindowToPreset } from "../native/window-snap"
 
 type KeyboardShortcutModifiers = { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean }
@@ -80,6 +80,20 @@ export function registerSaiWorkShortcuts() {
     modifiers: overlay.modifiers,
     handler: () => toggleShortcutsOverlay(),
     description: "keyboard shortcuts",
+    context: "global",
+  })
+
+  const sessionSidebar = override("session-sidebar-toggle", {
+    key: "d",
+    modifiers: { alt: true },
+  })
+  keyboardRegistry.register({
+    id: "session-sidebar-toggle",
+    group: "panels",
+    key: sessionSidebar.key,
+    modifiers: sessionSidebar.modifiers,
+    handler: () => toggleSessionSidebar(),
+    description: "toggle sessions sidebar",
     context: "global",
   })
 }

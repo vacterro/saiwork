@@ -141,6 +141,7 @@ export const settingsMessages = {
   "settings.shortcuts.queueToggle": "Toggle prompt queue",
   "settings.shortcuts.snapPreset": "Snap window to layout preset",
   "settings.shortcuts.overlay": "Open keyboard reference",
+  "settings.shortcuts.sessionSidebar": "Toggle sessions sidebar",
   "settings.shortcuts.pressKeys": "Press keys...",
   "settings.scope.server": "Server setting",
   "settings.common.enabled": "Enabled",

@@ -141,6 +141,7 @@ export const settingsMessages = {
   "settings.shortcuts.queueToggle": "Вкл/выкл очередь промптов",
   "settings.shortcuts.snapPreset": "Привязать окно к пресету",
   "settings.shortcuts.overlay": "Открыть справку клавиш",
+  "settings.shortcuts.sessionSidebar": "Показать/скрыть сайдбар сессий",
   "settings.shortcuts.pressKeys": "Нажмите клавиши...",
   "settings.scope.server": "Настройка сервера",
   "settings.common.enabled": "Включено",
