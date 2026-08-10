@@ -12,6 +12,8 @@ import { deleteMessage } from "../stores/session-actions"
 import { isTauriHost } from "../lib/runtime-env"
 import type { DeleteHoverState } from "../types/delete-hover"
 import { useSpeech } from "../lib/hooks/use-speech"
+import { useNow } from "../lib/hooks/use-now"
+import { formatRelativeTime } from "../lib/relative-time"
 import ActionOverflowMenu, { type ActionOverflowMenuItem } from "./action-overflow-menu"
 import { getMessageDurationMs, getMessageStartedAt, inferReasoningDurationMs } from "../lib/message-timing"
 import { recordReply as recordThinkingReply } from "../stores/thinking-stats"
@@ -46,6 +48,7 @@ interface MessageItemProps {
 
 export default function MessageItem(props: MessageItemProps) {
   const { t } = useI18n()
+  const now = useNow()
   const [copied, setCopied] = createSignal(false)
   const [deletingMessage, setDeletingMessage] = createSignal(false)
   const [deletingUpTo, setDeletingUpTo] = createSignal(false)
@@ -172,6 +175,8 @@ export default function MessageItem(props: MessageItemProps) {
     const date = new Date(createdTimestamp())
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
+
+  const relativeTime = () => formatRelativeTime(createdTimestamp(), now(), t)
 
   const timestampIso = () => new Date(createdTimestamp()).toISOString()
 
@@ -546,7 +551,12 @@ export default function MessageItem(props: MessageItemProps) {
               <span class="message-speaker-label" data-role={isUser() ? "user" : "assistant"} title={workedDurationTooltip() || undefined}>
                 {speakerLabel()}
               </span>
-              <time class="message-timestamp message-timestamp-inline" dateTime={timestampIso()}>{timestamp()}</time>
+              <time class="message-timestamp message-timestamp-inline" dateTime={timestampIso()}>
+                {timestamp()}
+                <Show when={!isUser() && createdTimestamp()}>
+                  <span class="message-timestamp-relative">({relativeTime()})</span>
+                </Show>
+              </time>
             </div>
 
             <Show when={metaText() && showMetaInline()}>

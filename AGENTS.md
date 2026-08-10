@@ -1,5 +1,23 @@
 # AGENT NOTES
 
+## Tooling hygiene (hang prevention)
+
+- `playwright cli` commands are LONG-LIVED: `open`, `attach`, `goto` keep a
+  daemon/browser process alive and do not exit on their own. NEVER pipe them
+  through `Select-Object -First` / `Select-String` expecting completion — the
+  pipe blocks until the tool exits, which it will not, and the session hangs.
+- Run playwright commands ONLY with a hard timeout (the shell tool's own
+  `timeout` argument), or run `playwright cli open <url>` detached and use
+  non-blocking probes (`Invoke-WebRequest http://127.0.0.1:9225/json` with a
+  short TimeoutSec) to inspect state instead of interactive attach.
+- To inspect the real Electron renderer, enable `SAIWORK_DEBUG_PORT` (user
+  env) BEFORE launching, then poll `http://127.0.0.1:<port>/json`. If the port
+  is unresponsive, the renderer main thread is blocked — stop poking CDP and
+  diagnose the renderer instead.
+- Prefer code reading + tests over live-browser interaction for verification;
+  the dev loop (vite + esbuild HMR) is fragile on Windows and can SIGABRT
+  mid-session, which looks like a UI hang.
+
 ## Styling Guidelines
 - Reuse the existing token & utility layers before introducing new CSS variables or custom properties. Extend `src/styles/tokens.css` / `src/styles/utilities.css` if a shared pattern is needed.
 - Keep aggregate entry files (e.g., `src/styles/controls.css`, `messaging.css`, `panels.css`) lean—they should only `@import` feature-specific subfiles located inside `src/styles/{components|messaging|panels}`.

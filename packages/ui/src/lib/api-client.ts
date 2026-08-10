@@ -165,6 +165,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (response.status === 204) {
       return undefined as T
     }
+    const contentType = response.headers.get("content-type") ?? ""
+    if (!contentType.includes("application/json")) {
+      // A 2xx that is not JSON is an SPA fallback or a misdirected request
+      // (e.g. the vite dev server returned index.html because no API base was
+      // configured). Surface it clearly instead of a confusing JSON parse
+      // error ("Unexpected token '<'").
+      const body = await response.text()
+      throw new Error(
+        `Expected JSON from ${path} but got ${contentType || "no content-type"}${body ? ` (${body.slice(0, 120)})` : ""}`,
+      )
+    }
     return (await response.json()) as T
   } catch (error) {
     logHttp(`${method} ${path} failed`, { durationMs: Date.now() - startedAt, error })

@@ -174,6 +174,15 @@ if (isMac) {
   app.commandLine.appendSwitch("disable-spell-checking")
 }
 
+// Optional external debugging: set SAIWORK_DEBUG_PORT to attach a CDP client
+// (e.g. playwright) to the real Electron renderer. Off by default; the browser
+// tab and the Electron window are not the same surface, so a hang that only
+// reproduces in the window needs a window-level view. The switch must be set
+// before the app is ready.
+if (process.env.SAIWORK_DEBUG_PORT) {
+  app.commandLine.appendSwitch("remote-debugging-port", process.env.SAIWORK_DEBUG_PORT)
+}
+
 function getIconPath() {
   if (app.isPackaged) {
     return join(process.resourcesPath, "icon.png")

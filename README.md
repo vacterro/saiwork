@@ -2,6 +2,10 @@
 
 **Version 0.0.2** — a SAIPEN-native fork of [CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad) 0.18.0.
 
+**Fork provenance:** SAIWORK preserves the upstream CodeNomad Git history. GitHub's
+total commit count therefore includes upstream work and must not be interpreted as
+SAIWORK-specific development. Fork-specific changes are documented below.
+
 **Connect agents. Work on projects seamlessly.**
 
 SAIWORK turns OpenCode into a desktop workspace where agents join projects
@@ -11,9 +15,19 @@ and an interface that obeys `saipen/UI.md`.
 
 ---
 
-## What this fork changes
+## Upstream / inherited
 
-### SAIPEN Core is loaded before the session starts
+CodeNomad provides the desktop workspace foundation: multi-instance workspaces,
+remote access, session management, voice input, git worktrees, SideCars, command
+palette, file browser, auth, notifications, and i18n. Those features remain
+credited to CodeNomad and behave as they do upstream.
+
+## What I changed (SAIWORK delta)
+
+Every item below is verified SAIWORK-specific code in this repository — it does
+not exist in upstream CodeNomad.
+
+### SAIPEN protocol injection before agent work
 
 Every workspace SAIWORK opens gets `BOOT.md` and `STYLE.md` injected into
 OpenCode's `instructions`, so the cold-start kernel and the voice contract are
@@ -34,7 +48,21 @@ without injection rather than guessing.
 `GET /api/saipen/status?folder=<path>` reports exactly which files a session
 will receive, plus the state of every sub-agent in the project.
 
-### SAIPEN command bar
+### Persistent prompt / task queue
+
+Stack prompts while the agent works; each one is sent when the session goes
+idle. Queues persist across restarts, per session.
+
+- `Alt+Enter` queues instead of sending
+- reorder, edit, and delete entries in place
+- pause and resume (`Ctrl/Cmd+Shift+Q`) — a paused queue sends nothing
+- send the head immediately without waiting for idle
+- a failed send goes back to the front of the queue instead of vanishing
+
+Shell commands and slash commands are never queued: both resolve against state
+that may have moved by the time the queue drains.
+
+### SAIPEN command / sub-agent state visibility
 
 The `CORE.md` §1.10 shortcut table as buttons, above the prompt:
 
@@ -44,26 +72,26 @@ Argument-less shortcuts send on click. `gg` and `dd` need text, so they land in
 the prompt for you to finish instead of firing bare. Expanding the bar shows the
 phase, ticket and timestamp each sub-agent last wrote to its own `STATE.md` —
 so "is the wiki fresh, are the docs translated" is answered from the record
-rather than from memory.
+rather than from memory. Toggle with `Ctrl/Cmd+Shift+K`.
 
-Toggle with `Ctrl/Cmd+Shift+K`.
+The SAIPENVIEW tab buttons open Status, Board, Log, State and Plan views
+straight from `.saipen/` — every file editable in place, with the panel staying
+mounted so toggling never re-fetches.
 
-### Prompt queue
+SAIPEN Goal Auto is a three-state control (on / off / on-but-queue-off) that
+keeps enqueueing `saipen continue` while `BOARD.md` has TODO work, per-project
+overrides included; it stops the moment the board is empty and never re-arms a
+duplicate continue.
 
-Stack prompts while the agent works; each one is sent when the session goes
-idle.
+### Portable / local Windows workflow
 
-- `Alt+Enter` queues instead of sending
-- reorder, edit, and delete entries in place
-- pause and resume (`Ctrl/Cmd+Shift+Q`) — a paused queue sends nothing
-- send the head immediately without waiting for idle
-- a failed send goes back to the front of the queue instead of vanishing
-- queues persist across restarts, per session
+`START_HIDDEN.vbs` starts the app console-free. Portable builds keep settings,
+sessions and window state in a `saiwork-data` folder beside the executable; an
+empty `saiwork-data` folder or `SAIWORK_DATA_DIR` redirects storage there.
+Window presets (Settings > Window) save and restore layouts and snap the active
+window with `Ctrl/Cmd+Q`; the menu bar can be hidden.
 
-Shell commands and slash commands are never queued: both resolve against state
-that may have moved by the time the queue drains.
-
-### Vintage Golden
+### Vintage Golden UI layer
 
 The whole interface follows `saipen/UI.md`: Verdana without antialiasing, 2px
 bevels, zero rounded corners, zero shadows, zero animation, one palette in every
@@ -71,8 +99,11 @@ theme mode. The upstream token file is left untouched and overridden by
 `packages/ui/src/styles/vintage-golden.css`, so merges from upstream stay
 reviewable.
 
-`F1` opens the keyboard reference, which reads the live shortcut registry rather
-than a hand-written list.
+### Isolation of fork-specific code
+
+Fork-specific code lives in its own files (`saipen/core.ts`, `prompt-queue.ts`,
+`saipen-bar.tsx`, `vintage-golden.css`, `shortcuts/saiwork.ts`) so upstream
+merges stay reviewable.
 
 ### Split panes and detached windows
 
@@ -81,35 +112,6 @@ your other sessions (this project's and other projects' active ones, already
 shown excluded), and each pane gets its own OS window via its Detach button.
 The divider between panes is draggable; detached panes re-attach back into the
 shell. Pane state is per-window and per-instance.
-
-### SAIPENVIEW
-
-The SAIPEN bar's tab buttons open Status, Board, Log, State and Plan views
-straight from `.saipen/` — every file editable in place (state, board, log,
-and each `kitchen/*.md` plan), with the panel staying mounted so toggling never
-re-fetches.
-
-### SAIPEN Goal Auto
-
-A three-state control (on / off / on-but-queue-off) keeps enqueueing
-`saipen continue` while `BOARD.md` has TODO work, per-project overrides
-included. It stops the moment the board is empty and never re-arms a duplicate
-continue.
-
-### Window presets
-
-Save and restore window layouts from Settings > Window: add, edit, delete and
-activate presets, then snap the active window with `Ctrl/Cmd+Q` (center,
-clamped and inside the work area). The menu bar can be hidden entirely via
-Advanced settings.
-
----
-
-## Everything upstream does, SAIWORK still does
-
-Multi-instance workspaces, remote access, session management, voice input, git
-worktrees, SideCars, command palette, file browser, auth, notifications, and
-i18n all work as they do in CodeNomad.
 
 ---
 
@@ -136,7 +138,7 @@ npm install
 npm run dev
 ```
 
-Electron is the primary shell for 0.0.1. The Tauri shell still compiles but is
+Electron is the primary shell for 0.0.2. The Tauri shell still compiles but is
 not polished.
 
 ### Portable build
@@ -145,7 +147,7 @@ not polished.
 npm run build:win --workspace @saiwork/electron-app
 ```
 
-Produces `SAIWORK-portable-x64-0.0.1.exe` in `packages/electron-app/release/` —
+Produces `SAIWORK-portable-x64-0.0.2.exe` in `packages/electron-app/release/` —
 one file, no installer, no registry writes. It keeps its settings, sessions and
 window state in a `saiwork-data` folder beside itself, so the whole thing moves
 with a USB stick.
@@ -190,8 +192,10 @@ before a single test runs. The script already passes the flag.
 
 ## Staying current with upstream
 
-The `upstream` remote points at CodeNomad. Fork-specific code is kept in its own
-files (`saipen/core.ts`, `prompt-queue.ts`, `saipen-bar.tsx`,
+The `upstream` remote points at CodeNomad. SAIWORK preserves the upstream Git
+history, so repository commit totals on GitHub include CodeNomad's work —
+they are not SAIWORK-specific development. Fork-specific code is kept in its
+own files (`saipen/core.ts`, `prompt-queue.ts`, `saipen-bar.tsx`,
 `vintage-golden.css`, `shortcuts/saiwork.ts`) so a merge touches as little
 shared code as possible.
 

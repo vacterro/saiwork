@@ -227,7 +227,7 @@ export const messagingMessages = {
   "promptInput.queueAll.attachmentsBlocked": "Remove attachments before queueing across instances",
   "promptQueue.title": "Queue",
   "promptQueue.empty": "Queue is empty. Alt+Enter adds the prompt instead of sending it.",
-  "promptQueue.count": "{count} pending",
+  "promptQueue.count": "{count}",
   "promptQueue.paused": "Paused",
   "promptQueue.mode.queued": "Queue new prompts",
   "promptQueue.mode.direct": "Send new prompts directly",

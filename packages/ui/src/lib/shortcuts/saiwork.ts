@@ -4,6 +4,8 @@ import { preferences, toggleQueueEnabled } from "../../stores/preferences"
 import { toggleSaipenBar, toggleShortcutsOverlay } from "../../stores/ui"
 import { snapWindowToPreset } from "../native/window-snap"
 
+type KeyboardShortcutModifiers = { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean }
+
 /**
  * SAIWORK-only shortcuts.
  *
@@ -12,21 +14,34 @@ import { snapWindowToPreset } from "../native/window-snap"
  * what upstream leaves free: Ctrl/Cmd+Shift with K and Q, plus F1.
  */
 export function registerSaiWorkShortcuts() {
+  const override = (id: string, fallback: { key: string; modifiers: KeyboardShortcutModifiers }) => {
+    const custom = preferences().shortcutOverrides?.[id]
+    return custom && custom.key ? { key: custom.key, modifiers: custom.modifiers } : fallback
+  }
+
+  const saipenBar = override("saipen-bar-toggle", {
+    key: "k",
+    modifiers: { ctrl: !isMac(), meta: isMac(), shift: true },
+  })
   keyboardRegistry.register({
     id: "saipen-bar-toggle",
     group: "panels",
-    key: "k",
-    modifiers: { ctrl: !isMac(), meta: isMac(), shift: true },
+    key: saipenBar.key,
+    modifiers: saipenBar.modifiers,
     handler: () => toggleSaipenBar(),
     description: "toggle SAIPEN bar",
     context: "global",
   })
 
+  const queueToggle = override("prompt-queue-toggle", {
+    key: "q",
+    modifiers: { ctrl: !isMac(), meta: isMac(), shift: true },
+  })
   keyboardRegistry.register({
     id: "prompt-queue-toggle",
     group: "panels",
-    key: "q",
-    modifiers: { ctrl: !isMac(), meta: isMac(), shift: true },
+    key: queueToggle.key,
+    modifiers: queueToggle.modifiers,
     handler: () => toggleQueueEnabled(),
     description: "toggle prompt queue mode",
     context: "global",
@@ -35,11 +50,15 @@ export function registerSaiWorkShortcuts() {
   // Plain Ctrl+Q snaps the window to the active layout preset. Not Cmd+Q on
   // mac: that is the quit accelerator, so plain Control+Q everywhere avoids
   // stealing it.
+  const snapPreset = override("window-snap-preset", {
+    key: "q",
+    modifiers: { ctrl: true },
+  })
   keyboardRegistry.register({
     id: "window-snap-preset",
     group: "panels",
-    key: "q",
-    modifiers: { ctrl: true },
+    key: snapPreset.key,
+    modifiers: snapPreset.modifiers,
     handler: () => {
       const active = preferences().windowPresets.find(
         (preset) => preset.id === preferences().activeWindowPreset,
@@ -50,11 +69,15 @@ export function registerSaiWorkShortcuts() {
     context: "global",
   })
 
+  const overlay = override("shortcuts-overlay", {
+    key: "F1",
+    modifiers: {},
+  })
   keyboardRegistry.register({
     id: "shortcuts-overlay",
     group: "panels",
-    key: "F1",
-    modifiers: {},
+    key: overlay.key,
+    modifiers: overlay.modifiers,
     handler: () => toggleShortcutsOverlay(),
     description: "keyboard shortcuts",
     context: "global",

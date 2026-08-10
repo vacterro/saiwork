@@ -55,6 +55,8 @@ the gate that keeps them from coming back, then wave 1's remaining findings.
 
 ## DONE
 
+- [x] T-070 README provenance pass + version-drift fix: added "Fork provenance" notice (commit totals include upstream CodeNomad history, not SAIWORK-specific); split README into "Upstream / inherited" vs "What I changed (SAIWORK delta)" with every delta claim verified against code (saipen injection, prompt queue, SAIPEN bar/VIEW/Goal Auto, portable workflow, vintage-golden, split panes); fixed stale 0.0.1 references (electron shell, portable exe name) -> 0.0.2; GitHub About description updated via gh | verify: README claims cross-checked against repo files (prompt-queue.ts, saipen/core.ts, saipen-bar.tsx, vintage-golden.css, split-picker.ts, window-snap.ts), no 0.0.1 drift remains | review_passes: 1
+
 - [x] T-069 Fix "app turns itself back on" on quit: before-quit ran startShutdown and on ANY failure called restoreWindowAfterRejectedShutdown, resurrecting the window and leaving the app alive (user saw the app reopen and hunt sessions); now a failed shutdown logs "not contained" and exits with code 1 instead of showing the window again; removed the dead restoreWindow helper | verify: electron typecheck PASS, `npm test` exit 0 (118 electron pass) | review_passes: 1
 
 - [x] T-068 Remove orphan UI components x7: deleted session-picker.tsx, advanced-settings-modal.tsx, notifications-settings-modal.tsx, remote-access-overlay.tsx, message-list-header.tsx, theme-mode-toggle.tsx, code-block-inline.tsx — all confirmed zero-referenced (static + dynamic, ui + electron), all tracked at HEAD (recoverable); reference sweep done before deletion | verify: UI typecheck PASS, `npm test` exit 0 (575 UI pass) | review_passes: 1

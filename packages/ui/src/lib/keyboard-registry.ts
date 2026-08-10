@@ -35,6 +35,13 @@ class KeyboardRegistry {
     this.shortcuts.delete(id)
   }
 
+  /** Replace the key/modifiers of an already-registered shortcut. */
+  reconfigure(id: string, key: string, modifiers: KeyboardShortcut["modifiers"]) {
+    const existing = this.shortcuts.get(id)
+    if (!existing) return
+    this.shortcuts.set(id, { ...existing, key, modifiers })
+  }
+
   get(id: string) {
     return this.shortcuts.get(id)
   }

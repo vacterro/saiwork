@@ -5,6 +5,7 @@ import { useConfig } from "../../stores/preferences"
 import { LocaleSelector } from "../locale-selector"
 import { BehaviorSettingRows } from "./behavior-setting-rows"
 import { StartupStateSettingsCard } from "./startup-state-settings-card"
+import { ShortcutSettingsCard } from "./shortcut-settings-card"
 
 export const GeneralSettingsSection: Component = () => {
   const { t } = useI18n()
@@ -44,6 +45,8 @@ export const GeneralSettingsSection: Component = () => {
       </div>
 
       <StartupStateSettingsCard />
+
+      <ShortcutSettingsCard />
 
       <div class="settings-card">
         <div class="settings-stack">

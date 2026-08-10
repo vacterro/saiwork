@@ -156,6 +156,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.message-timestamp-relative {
+  margin-inline-start: 4px;
+  font-style: italic;
+  opacity: 0.75;
+}
+
 .message-meta-timing {
   display: inline-flex;
   align-items: center;

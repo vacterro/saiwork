@@ -141,6 +141,12 @@ export interface UiSettings {
   windowPresets: WindowPreset[]
   activeWindowPreset: string | null
 
+  /**
+   * User overrides for SAIWORK-specific keyboard shortcuts, keyed by shortcut
+   * id (e.g. "window-snap-preset"). Each entry replaces the default binding.
+   */
+  shortcutOverrides: Record<string, { key: string; modifiers: { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean } }>
+
   // OS notifications
   osNotificationsEnabled: boolean
   osNotificationsAllowWhenVisible: boolean
@@ -253,6 +259,7 @@ const defaultUiSettings: UiSettings = {
     { id: "preset-centered", name: "Centered 1200x800", width: 1200, height: 800 },
   ],
   activeWindowPreset: "preset-centered",
+  shortcutOverrides: {},
 
   osNotificationsEnabled: false,
   osNotificationsAllowWhenVisible: false,
@@ -380,6 +387,10 @@ function normalizeUiSettings(input?: Partial<UiSettings> | null): UiSettings {
       typeof sanitized.activeWindowPreset === "string"
         ? sanitized.activeWindowPreset
         : defaultUiSettings.activeWindowPreset,
+    shortcutOverrides:
+      sanitized.shortcutOverrides && typeof sanitized.shortcutOverrides === "object" && !Array.isArray(sanitized.shortcutOverrides)
+        ? sanitized.shortcutOverrides as Record<string, { key: string; modifiers: { ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean } }>
+        : {},
     osNotificationsEnabled: sanitized.osNotificationsEnabled ?? defaultUiSettings.osNotificationsEnabled,
     osNotificationsAllowWhenVisible:
       sanitized.osNotificationsAllowWhenVisible ?? defaultUiSettings.osNotificationsAllowWhenVisible,
