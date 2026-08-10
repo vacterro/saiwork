@@ -1,4 +1,5 @@
-<img width="945" height="1071" alt="clipboard_20260809_054546_d3a52611" src="https://github.com/user-attachments/assets/e645c9be-5a86-48ae-8856-8f9e2b410d0d" />
+<img width="256" height="256" alt="SAIPEN_Orange1" src="https://github.com/user-attachments/assets/d71315d6-1c39-444e-8623-0c87a15fb420" />
+
 # SAIWORK
 
 **Version 0.0.2** - a downstream fork based on [CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad)'s 0.18.0 development commit [`67cb394e`](https://github.com/NeuralNomadsAI/CodeNomad/commit/67cb394e8f38854383bd57a0794274a024ef3d93).
