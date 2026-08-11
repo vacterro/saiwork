@@ -358,7 +358,17 @@ function checkMetadata(rootDir, errors = []) {
     let dependenciesInstalled = false
     for (const line of workflow.split(/\r?\n/)) {
       if (/^  [A-Za-z0-9_-]+:\s*$/.test(line)) dependenciesInstalled = false
-      if (/\brun:\s*(?:npm ci\b|node .*\bci --workspaces\b)/.test(line)) dependenciesInstalled = true
+      const command = line.replace(/\s+#.*$/, "")
+      const workspaceRootOptions = [
+        ...command.matchAll(/(?:^|\s)--(?:(no)-)?include-workspace-root(?:=(true|false))?(?=\s|$)/g),
+      ]
+      const workspaceRootEnabled = workspaceRootOptions.length > 0
+        && !workspaceRootOptions.at(-1)[1]
+        && workspaceRootOptions.at(-1)[2] !== "false"
+      if (
+        /\brun:\s*(?:npm ci\b|node .*\bci --workspaces\b)/.test(command)
+        && workspaceRootEnabled
+      ) dependenciesInstalled = true
       if (line.includes("npm run bumpVersion") && !dependenciesInstalled) return false
     }
     return true

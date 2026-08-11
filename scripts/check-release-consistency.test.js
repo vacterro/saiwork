@@ -95,7 +95,7 @@ function makeFixture() {
   write(path.join(rootDir, ".github/workflows/release.yml"), "on:\n  push:\n    branches:\n      - saiwork\n")
   write(
     path.join(rootDir, ".github/workflows/reusable-release.yml"),
-    "run: npm ci --workspaces --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+    "run: npm ci --workspaces --include-workspace-root --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
   )
   write(path.join(rootDir, ".github/workflows/release-ui.yml"), "run: npm run release:check\n")
   write(path.join(rootDir, ".github/workflows/manual-npm-publish.yml"), "run: npm run release:check\n")
@@ -153,20 +153,49 @@ test("requires release dependencies before version metadata", () => {
   const rootDir = makeFixture()
   write(
     path.join(rootDir, ".github/workflows/reusable-release.yml"),
-    "run: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm ci --workspaces --include=optional\nrun: npm run release:check\n",
+    "run: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm ci --workspaces --include-workspace-root --include=optional\nrun: npm run release:check\n",
   )
 
   assert.ok(checkMetadata(rootDir).some((error) => error.includes("install dependencies before bumpVersion")))
 
   write(
     path.join(rootDir, ".github/workflows/reusable-release.yml"),
-    "run: npm ci --workspaces --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+    "run: npm ci --workspaces --include-workspace-root --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
   )
   write(
     path.join(rootDir, ".github/workflows/build-and-upload.yml"),
-    "  windows:\n    steps:\n      - run: npm run bumpVersion -- 0.0.3 --allow-same-version\n      - run: npm ci --workspaces --include=optional\npath: packages/electron-app/release/*.exe\n",
+    "  windows:\n    steps:\n      - run: npm run bumpVersion -- 0.0.3 --allow-same-version\n      - run: npm ci --workspaces --include-workspace-root --include=optional\npath: packages/electron-app/release/*.exe\n",
   )
   assert.ok(checkMetadata(rootDir).some((error) => error.includes("build workflow must install dependencies before every bumpVersion")))
+  fs.rmSync(rootDir, { recursive: true, force: true })
+})
+
+test("requires workspace root installation to be enabled", () => {
+  const rootDir = makeFixture()
+  const workflowPath = path.join(rootDir, ".github/workflows/reusable-release.yml")
+  write(
+    workflowPath,
+    "run: npm ci --workspaces --include-workspace-root=false\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+  )
+  assert.ok(checkMetadata(rootDir).some((error) => error.includes("reusable release workflow must install dependencies")))
+
+  write(
+    workflowPath,
+    "run: npm ci --workspaces # --include-workspace-root\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+  )
+  assert.ok(checkMetadata(rootDir).some((error) => error.includes("reusable release workflow must install dependencies")))
+
+  write(
+    workflowPath,
+    "run: npm ci --workspaces --include-workspace-root --include-workspace-root=false\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+  )
+  assert.ok(checkMetadata(rootDir).some((error) => error.includes("reusable release workflow must install dependencies")))
+
+  write(
+    workflowPath,
+    "run: npm ci --workspaces --include-workspace-root --no-include-workspace-root\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+  )
+  assert.ok(checkMetadata(rootDir).some((error) => error.includes("reusable release workflow must install dependencies")))
   fs.rmSync(rootDir, { recursive: true, force: true })
 })
 

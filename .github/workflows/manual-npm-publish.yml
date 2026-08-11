@@ -72,7 +72,7 @@ jobs:
           node "$tool_dir/node_modules/npm/bin/npm-cli.js" --version
 
       - name: Install dependencies
-        run: node "$PINNED_NPM_CLI" ci --workspaces
+        run: node "$PINNED_NPM_CLI" ci --workspaces --include-workspace-root
 
       - name: Set publish metadata
         shell: bash
