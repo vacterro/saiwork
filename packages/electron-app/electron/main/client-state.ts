@@ -86,7 +86,7 @@ interface ParsedClientState {
 }
 
 function parseClientState(value: string): ParsedClientState {
-  const defaults: PersistedClientState = { version: CLIENT_STATE_VERSION, restoreEnabled: false }
+  const defaults: PersistedClientState = { version: CLIENT_STATE_VERSION, restoreEnabled: true }
   try {
     const candidate = JSON.parse(value) as Record<string, unknown>
     if (candidate && typeof candidate.version === "number" && candidate.version > CLIENT_STATE_VERSION) {
@@ -98,7 +98,7 @@ function parseClientState(value: string): ParsedClientState {
 
     const state: PersistedClientState = {
       version: CLIENT_STATE_VERSION,
-      restoreEnabled: typeof candidate.restoreEnabled === "boolean" ? candidate.restoreEnabled : false,
+      restoreEnabled: typeof candidate.restoreEnabled === "boolean" ? candidate.restoreEnabled : true,
     }
     if (Object.prototype.hasOwnProperty.call(candidate, "snapshot")) {
       state.snapshot = candidate.snapshot
@@ -143,7 +143,7 @@ export class ClientStateManager {
   private readonly lockPath: string
   private readonly legacyTauriDataPath: string | null
   private readonly owner: ProcessOwner
-  private state: PersistedClientState = { version: CLIENT_STATE_VERSION, restoreEnabled: false }
+  private state: PersistedClientState = { version: CLIENT_STATE_VERSION, restoreEnabled: true }
   private writeQueue: Promise<void> = Promise.resolve()
   private drainAndReleasePromise: Promise<void> | undefined
   private crossHostRegistration: CrossHostRegistration | undefined
@@ -280,6 +280,7 @@ export class ClientStateManager {
   saveClientState(snapshot: unknown, rendererToken?: unknown): Promise<boolean> {
     const disposition = this.getMutationDisposition()
     if (disposition) return disposition
+    if (rendererToken !== undefined) this.assertRendererAccessToken(rendererToken)
 
     const serialized = JSON.stringify(snapshot)
     if (serialized === undefined) {
@@ -292,7 +293,7 @@ export class ClientStateManager {
     const normalizedSnapshot = JSON.parse(serialized) as unknown
     return this.mutateAndPersist((state) => {
       state.snapshot = normalizedSnapshot
-    }, true, rendererToken)
+    }, true)
   }
 
   setRestoreEnabled(enabled: boolean, rendererToken?: unknown): Promise<boolean> {
@@ -302,6 +303,7 @@ export class ClientStateManager {
     if (typeof enabled !== "boolean") {
       throw new TypeError("Restore enabled must be a boolean")
     }
+    if (rendererToken !== undefined) this.assertRendererAccessToken(rendererToken)
 
     return this.mutateAndPersist((state) => {
       state.restoreEnabled = enabled
@@ -312,7 +314,7 @@ export class ClientStateManager {
         delete state.window
         this.persistenceSuppressed = true
       }
-    }, false, rendererToken)
+    }, false)
   }
 
   clearClientState(rendererToken?: unknown): Promise<boolean> {
@@ -322,6 +324,7 @@ export class ClientStateManager {
     if (this.frozen) {
       return Promise.reject(new Error("Client state persistence is frozen for shutdown"))
     }
+    if (rendererToken !== undefined) this.assertRendererAccessToken(rendererToken)
 
     const clearingFutureEnvelope = this.unsupportedFutureEnvelope
 
@@ -330,7 +333,7 @@ export class ClientStateManager {
       delete state.window
       this.unsupportedFutureEnvelope = false
       this.persistenceSuppressed = !clearingFutureEnvelope
-    }, false, rendererToken)
+    }, false)
   }
 
   saveWindowState(windowState: NativeWindowState): Promise<boolean> {
@@ -371,7 +374,7 @@ export class ClientStateManager {
         console.warn("[client-state] failed to read state", error)
       }
       return {
-        state: { version: CLIENT_STATE_VERSION, restoreEnabled: false },
+        state: { version: CLIENT_STATE_VERSION, restoreEnabled: true },
         unsupportedFutureEnvelope: false,
       }
     }
@@ -441,10 +444,8 @@ export class ClientStateManager {
   private mutateAndPersist(
     mutate: (state: PersistedClientState) => void,
     skipWhenSuppressed = false,
-    rendererToken?: unknown,
   ): Promise<boolean> {
     const operation = this.writeQueue.catch(() => {}).then(async () => {
-      if (rendererToken !== undefined) this.assertRendererAccessToken(rendererToken)
       if (skipWhenSuppressed && this.persistenceSuppressed) {
         return
       }
@@ -454,7 +455,7 @@ export class ClientStateManager {
       const previousUnsupportedFutureEnvelope = this.unsupportedFutureEnvelope
       try {
         mutate(this.state)
-        await this.writeAtomically(JSON.stringify(this.state), rendererToken)
+        await this.writeAtomically(JSON.stringify(this.state))
       } catch (error) {
         this.state = previousState
         this.persistenceSuppressed = previousPersistenceSuppressed
@@ -471,14 +472,14 @@ export class ClientStateManager {
     })
   }
 
-  private async writeAtomically(serializedState: string, rendererToken?: unknown): Promise<void> {
+  private async writeAtomically(serializedState: string): Promise<void> {
     const temporaryPath = join(
       dirname(this.statePath),
       `.${CLIENT_STATE_FILENAME}.${this.owner.pid}.${this.owner.runToken}.tmp`,
     )
     try {
       await this.writeState(temporaryPath, serializedState)
-      this.assertReplacementAllowed(rendererToken)
+      this.assertReplacementAllowed()
       await rename(temporaryPath, this.statePath)
     } catch (error) {
       await rm(temporaryPath, { force: true }).catch(() => {})
@@ -486,8 +487,7 @@ export class ClientStateManager {
     }
   }
 
-  private assertReplacementAllowed(rendererToken?: unknown): void {
-    if (rendererToken !== undefined) this.assertRendererAccessToken(rendererToken)
+  private assertReplacementAllowed(): void {
     if (!this.isPrimary || !isProcessOwnerLockOwned(this.lockPath, this.owner)) {
       throw new Error("Client state ownership changed before atomic replacement")
     }

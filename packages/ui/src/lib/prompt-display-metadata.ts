@@ -107,21 +107,24 @@ function createPastedLookup(attachments: Attachment[]): Map<string, string> {
   return lookup
 }
 
-export function resolvePastedPlaceholders(prompt: string, attachments: Attachment[] = []): string {
-  const result = resolvePathMentions(prompt, attachments)
-  if (!hasPastedPlaceholders(result)) {
-    return result
+export function resolvePastedTextPlaceholders(prompt: string, attachments: Attachment[] = []): string {
+  if (!hasPastedPlaceholders(prompt)) {
+    return prompt
   }
 
   const lookup = createPastedLookup(attachments)
   if (lookup.size === 0) {
-    return result
+    return prompt
   }
 
-  return result.replace(createAttachmentPlaceholderRegex("pasted"), (fullMatch, counter: string) => {
+  return prompt.replace(createAttachmentPlaceholderRegex("pasted"), (fullMatch, counter: string) => {
     const replacement = lookup.get(counter)
     return typeof replacement === "string" ? replacement : fullMatch
   })
+}
+
+export function resolvePastedPlaceholders(prompt: string, attachments: Attachment[] = []): string {
+  return resolvePastedTextPlaceholders(resolvePathMentions(prompt, attachments), attachments)
 }
 
 export function preparePromptDisplayText(prompt: string, attachments: Attachment[] = []): PreparedPromptDisplayText {

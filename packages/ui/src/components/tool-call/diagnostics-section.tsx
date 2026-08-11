@@ -20,8 +20,8 @@ export function renderDiagnosticsSection(
         <span class="tool-call-icon" aria-hidden="true">
           {expanded ? "▼" : "▶"}
         </span>
-        <span class="tool-call-emoji" aria-hidden="true">
-          🛠
+        <span class="tool-call-tag" aria-hidden="true">
+          LSP
         </span>
         <span class="tool-call-summary">{t("toolCall.diagnostics.title")}</span>
         <span class="tool-call-diagnostics-file" title={fileLabel}>

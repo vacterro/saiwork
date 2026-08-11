@@ -468,6 +468,8 @@ export type WorkspaceEventType =
   | "instance.dataChanged"
   | "instance.event"
   | "instance.eventStatus"
+  | "saipen.changed"
+  | "queue.changed"
   | "yolo.stateChanged"
   | "yolo.autoAccepted"
 
@@ -484,6 +486,20 @@ export type WorkspaceEventPayload =
   | { type: "instance.dataChanged"; instanceId: string; data: InstanceData }
   | { type: "instance.event"; instanceId: string; event: InstanceStreamEvent }
   | { type: "instance.eventStatus"; instanceId: string; status: InstanceStreamStatus; reason?: string }
+  | {
+      type: "saipen.changed"
+      /** Canonical workspace folder the `.saipen` files belong to. */
+      folder: string
+      /** Relative `.saipen` paths that changed, e.g. "STATE.md" or "kitchen/plan-a.md". */
+      files: string[]
+    }
+  | {
+      type: "queue.changed"
+      /** `<instanceId>:<sessionId>` key of the mutated queue. */
+      key: string
+      /** Full authoritative queue state after the mutation. */
+      state: QueueState
+    }
   | { type: "yolo.stateChanged"; instanceId: string; sessionId: string; enabled: boolean }
   | { type: "yolo.autoAccepted"; instanceId: string; sessionId: string; permissionId: string }
 
@@ -648,18 +664,60 @@ export interface SaipenPlanFile {
   content: string
 }
 
+export type SaipenBoardTicketStatus = "todo" | "doing" | "done" | "blocked"
+
+export interface SaipenBoardTicket {
+  id: string
+  status: SaipenBoardTicketStatus
+  text: string
+}
+
+export interface SaipenBoardSection {
+  title: string
+  tickets: SaipenBoardTicket[]
+}
+
+/** One entry in the shared prompt queue. */
+export interface QueuedPrompt {
+  id: string
+  text: string
+  /** Opaque attachment payloads; the server stores and returns them verbatim. */
+  attachments: unknown[]
+  createdAt: number
+}
+
+/** Cap on the serialized attachments of a single queued prompt. */
+export const MAX_QUEUED_ATTACHMENT_BYTES = 512 * 1024
+
+/** Authoritative state of one `<instanceId>:<sessionId>` queue. */
+export interface QueueState {
+  items: QueuedPrompt[]
+  paused: boolean
+  /** SHA-256 of the serialized items+paused; the CAS guard for mutations. */
+  revision: string
+}
+
+export interface QueueListResponse {
+  queues: Record<string, QueueState>
+}
+
+
 /** Raw `.saipen` files for the SAIPENVIEW panel. */
 export interface SaipenViewResponse {
   /** STATE.md frontmatter text, or null when absent. */
   state: string | null
   /** BOARD.md full text, or null when absent. */
   board: string | null
+  /** BOARD.md parsed into canonical sections (section-aware status). */
+  boardSections: SaipenBoardSection[]
   /** LOG.md tail (capped), or null when absent. */
   log: string | null
   /** True when the LOG tail was truncated. */
   logTruncated: boolean
   /** Kitchen plan files, newest first, content capped per file. */
   plans: SaipenPlanFile[]
+  /** SHA-256 of each editable `.saipen` file, keyed by relative path. */
+  revisions: Record<string, string>
   /** True when the folder has no `.saipen` directory at all. */
   missing: boolean
 }

@@ -135,6 +135,10 @@ export const toolCallMessages = {
   "toolCall.status.running": "运行中",
   "toolCall.status.completed": "已完成",
   "toolCall.status.error": "错误",
+  "toolCall.status.short.pending": "等待",
+  "toolCall.status.short.running": "运行",
+  "toolCall.status.short.completed": "完成",
+  "toolCall.status.short.error": "错误",
   "toolCall.status.unknown": "未知",
 
   "toolCall.applyPatch.action.preparing": "正在准备 apply_patch...",

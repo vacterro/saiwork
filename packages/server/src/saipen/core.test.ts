@@ -4,7 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, it } from "node:test"
 
-import { readSaipenProjectState, readSaipenSubStates } from "./core"
+import { readSaipenHomeFromProjectState, readSaipenProjectState, readSaipenSubStates } from "./core"
 
 const roots: string[] = []
 
@@ -37,6 +37,43 @@ describe("readSaipenProjectState", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-"))
     roots.push(root)
     assert.equal(readSaipenProjectState(root), null)
+  })
+
+  it("reads the current canonical fixture regardless of body prose", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-"))
+    roots.push(root)
+    const memory = path.join(root, ".saipen")
+    mkdirSync(memory)
+    writeFileSync(
+      path.join(memory, "STATE.md"),
+      `---
+phase: DONE
+task: none
+next_action: "PHASE HUNT"
+blocker: none
+transition_from: SHIP
+saipen_home: "V:\\\\___VAC\\\\__K\\\\__CODE\\\\_AI_STUFF_AGENTIC\\\\_SAIPEN"
+updated: 2026-08-10T23:22:18Z
+---
+
+Notes below must never redefine state.
+phase: BUILD
+next_action: "PHASE BUILD T-086"
+`,
+    )
+    writeFileSync(path.join(memory, "BOARD.md"), "## TODO\n- [ ] T-001 Next\n")
+
+    assert.deepEqual(readSaipenProjectState(root), {
+      phase: "DONE",
+      nextAction: "PHASE HUNT",
+      todoCount: 1,
+      doingCount: 0,
+      blockedCount: 0,
+    })
+    assert.equal(
+      readSaipenHomeFromProjectState(root),
+      "V:\\___VAC\\__K\\__CODE\\_AI_STUFF_AGENTIC\\_SAIPEN",
+    )
   })
 })
 
@@ -93,6 +130,23 @@ describe("readSaipenSubStates", () => {
         ["missing", "missing"],
       ],
     )
+  })
+
+  it("marks a sub state with duplicate scalars malformed", () => {
+    const root = createSubsRoot(["dup"])
+    const directory = path.join(root, ".saipen", "extensions", "subs", "dup")
+    mkdirSync(path.join(directory, "kitchen"), { recursive: true })
+    writeFileSync(
+      path.join(directory, "STATE.md"),
+      `---\nphase: SCOUT\nphase: DONE\ntask: TEST-001\nnext_action: "PHASE SCOUT TEST-001"\nblocker: none\nagent: dup\nrole_revision: sha256:current\nupdated: 2026-08-08T12:00:00Z\n---\n`,
+    )
+    writeFileSync(path.join(directory, "kitchen", "OUTBOX.md"), "# OUTBOX\n")
+
+    const sub = readSaipenSubStates(root).find((entry) => entry.name === "dup")
+    assert.ok(sub)
+    assert.equal(sub.lifecycle, "malformed")
+    assert.equal(sub.phase, "SCOUT")
+    assert.ok(sub.issues.some((issue) => issue.includes("Duplicate scalar phase")))
   })
 
   it("reports every OUTBOX package verdict and detects stale role evidence", () => {

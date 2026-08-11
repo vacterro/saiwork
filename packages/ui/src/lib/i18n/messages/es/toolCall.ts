@@ -135,6 +135,10 @@ export const toolCallMessages = {
   "toolCall.status.running": "En ejecución",
   "toolCall.status.completed": "Completado",
   "toolCall.status.error": "Error",
+  "toolCall.status.short.pending": "Pend",
+  "toolCall.status.short.running": "Ejec",
+  "toolCall.status.short.completed": "OK",
+  "toolCall.status.short.error": "Err",
   "toolCall.status.unknown": "Desconocido",
 
   "toolCall.applyPatch.action.preparing": "Preparando apply_patch...",

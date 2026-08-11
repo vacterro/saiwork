@@ -29,6 +29,9 @@ import type {
   RemoteServerProbeResponse,
   VoiceModeStateResponse,
   YoloStateResponse,
+  QueueListResponse,
+  QueuedPrompt as ServerQueuedPrompt,
+  QueueState as ServerQueueState,
   WorkspaceCloneRequest,
   WorkspaceCloneResponse,
   WorktreeGitCommitRequest,
@@ -51,6 +54,7 @@ import type {
   WorktreeGitDiffResponse,
   WorktreeGitStatusResponse,
 } from "../../../server/src/api-types"
+import type { QueueMutation as ServerQueueMutation } from "../../../server/src/queue/manager"
 import { getClientIdentity } from "./client-identity"
 import { getLogger } from "./logger"
 import { attachEventSourceHandlers } from "./event-source-handlers"
@@ -142,6 +146,14 @@ async function readErrorMessage(response: Response): Promise<string> {
   return text
 }
 
+/** Thrown when an optimistic-concurrency write hit a changed file. */
+export class SaipenConflictError extends Error {
+  constructor(message: string, readonly currentRevision: string) {
+    super(message)
+    this.name = "SaipenConflictError"
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = API_BASE ? new URL(path, API_BASE).toString() : path
   const headers = normalizeHeaders(init?.headers)
@@ -155,6 +167,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   try {
     const response = await fetch(url, { ...init, headers, credentials: init?.credentials ?? "include" })
+    if (response.status === 409 && method === "PUT") {
+      const text = await response.text()
+      let currentRevision = ""
+      try {
+        const parsed = JSON.parse(text) as { error?: unknown; currentRevision?: unknown }
+        if (typeof parsed?.currentRevision === "string") currentRevision = parsed.currentRevision
+        if (typeof parsed?.error === "string" && parsed.error.trim()) {
+          logHttp(`${method} ${path} -> 409`, { durationMs: Date.now() - startedAt, error: parsed.error })
+          throw new SaipenConflictError(parsed.error, currentRevision)
+        }
+      } catch (error) {
+        if (error instanceof SaipenConflictError) throw error
+      }
+      logHttp(`${method} ${path} -> 409`, { durationMs: Date.now() - startedAt })
+      throw new SaipenConflictError(text || "SAIPEN file changed externally", currentRevision)
+    }
     if (!response.ok) {
       const message = await readErrorMessage(response)
       logHttp(`${method} ${path} -> ${response.status}`, { durationMs: Date.now() - startedAt, error: message })
@@ -221,11 +249,71 @@ export const serverApi = {
     return request<SaipenViewResponse>(`/api/saipen/view${query}`)
   },
 
-  writeSaipenFile(folder: string, relativePath: string, content: string): Promise<{ ok: boolean }> {
+  writeSaipenFile(
+    folder: string,
+    relativePath: string,
+    content: string,
+    expectedRevision: string,
+  ): Promise<{ ok: boolean; revision: string }> {
     return request(`/api/saipen/file`, {
       method: "PUT",
-      body: JSON.stringify({ folder, relativePath, content }),
+      body: JSON.stringify({ folder, relativePath, content, expectedRevision }),
     })
+  },
+
+  fetchQueues(key?: string): Promise<QueueListResponse> {
+    const query = key ? `?key=${encodeURIComponent(key)}` : ""
+    return request<QueueListResponse>(`/api/queue${query}`)
+  },
+
+  async mutateQueue(
+    key: string,
+    expectedRevision: string,
+    mutation: ServerQueueMutation,
+  ): Promise<
+    | { status: "ok"; state: ServerQueueState; dequeued?: ServerQueuedPrompt }
+    | { status: "conflict"; currentRevision: string }
+    | { status: "failed"; code: "empty" | "paused" | "too-large" | "invalid" }
+  > {
+    const url = API_BASE ? new URL("/api/queue/mutate", API_BASE).toString() : "/api/queue/mutate"
+    const headers = normalizeHeaders(undefined)
+    headers["Content-Type"] = "application/json"
+    const startedAt = Date.now()
+    logHttp("POST /api/queue/mutate")
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ key, expectedRevision, ...mutation }),
+    })
+    let parsed: Record<string, unknown> | null = null
+    try {
+      parsed = (await response.json()) as Record<string, unknown>
+    } catch {
+      parsed = null
+    }
+    if (response.status === 200 && parsed?.ok === true) {
+      logHttp("POST /api/queue/mutate -> 200", { durationMs: Date.now() - startedAt })
+      return {
+        status: "ok",
+        state: parsed.state as ServerQueueState,
+        dequeued: parsed.dequeued as ServerQueuedPrompt | undefined,
+      }
+    }
+    if (response.status === 409) {
+      logHttp("POST /api/queue/mutate -> 409", { durationMs: Date.now() - startedAt })
+      return {
+        status: "conflict",
+        currentRevision: typeof parsed?.currentRevision === "string" ? parsed.currentRevision : "",
+      }
+    }
+    logHttp(`POST /api/queue/mutate -> ${response.status}`, { durationMs: Date.now() - startedAt })
+    const failedCodes = ["empty", "paused", "too-large", "invalid"] as const
+    const rawCode = typeof parsed?.code === "string" ? parsed.code : "invalid"
+    const code = (failedCodes as readonly string[]).includes(rawCode)
+      ? (rawCode as (typeof failedCodes)[number])
+      : "invalid"
+    return { status: "failed", code }
   },
 
   fetchProviderUsage(providerId: string, modelId?: string): Promise<ProviderUsageResponse> {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { parseBoardSections, parseLogLines, parseStateFrontmatter } from "./saipen-view.ts"
+import { externalChangeAction, parseLogLines, parseStateFrontmatter } from "./saipen-view.ts"
 
 const STATE = `---
 phase: BUILD
@@ -12,6 +12,9 @@ transition_from: SCOUT
 saipen_version: 7
 execution_intent: normal
 updated: 2026-08-08T22:51:00.0000000Z
+agent: opencode
+role_revision: ded-4ae736e4
+saipen_home: "V:\\\\___VAC\\\\__K\\\\__CODE\\\\_AI_STUFF_AGENTIC\\\\_SAIPEN"
 ---`
 
 describe("SAIPEN view parsing", () => {
@@ -23,34 +26,47 @@ describe("SAIPEN view parsing", () => {
     assert.equal(fields.blocker, "none")
     assert.equal(fields.executionIntent, "normal")
     assert.equal(fields.updated, "2026-08-08T22:51:00.0000000Z")
+    assert.equal(fields.agent, "opencode")
+    assert.equal(fields.roleRevision, "ded-4ae736e4")
+    assert.equal(fields.saipenHome, 'V:\\\\___VAC\\\\__K\\\\__CODE\\\\_AI_STUFF_AGENTIC\\\\_SAIPEN')
   })
 
   it("returns nulls for missing or unparsable state", () => {
     assert.deepEqual(parseStateFrontmatter(null), {
       phase: null, task: null, nextAction: null, blocker: null, executionIntent: null, updated: null,
+      agent: null, roleRevision: null, saipenHome: null,
     })
     assert.equal(parseStateFrontmatter("not frontmatter").phase, null)
   })
 
-  it("splits the board into sections with ticket status", () => {
-    const board = `## DOING\n\n- [/] T-048 Something in progress | verify: x\n\n## TODO\n\n- [ ] T-049 Something pending\n\n## DONE\n\n- [x] T-047 Something done\n\n## BLOCKED\n`
-    const sections = parseBoardSections(board)
-    assert.equal(sections.length, 4)
-    assert.equal(sections[0].title, "DOING")
-    assert.deepEqual(sections[0].tickets, [{ id: "T-048", status: "doing", text: "Something in progress | verify: x" }])
-    assert.equal(sections[1].tickets[0].status, "todo")
-    assert.equal(sections[2].tickets[0].status, "done")
-    assert.deepEqual(sections[3].tickets, [])
+  it("reads only the frontmatter block, never body prose", () => {
+    const state = `---\nphase: DONE\nnext_action: "PHASE HUNT"\n---\n\nphase: BUILD\n`
+    const fields = parseStateFrontmatter(state)
+    assert.equal(fields.phase, "DONE")
+    assert.equal(fields.nextAction, "PHASE HUNT")
   })
 
-  it("ignores prose and non-ticket lines inside sections", () => {
-    const board = `## TODO\n\nSome prose note.\n\n- [ ] T-001 Real ticket\n\n- [ ] not-a-ticket\n`
-    const sections = parseBoardSections(board)
-    assert.deepEqual(sections[0].tickets.map((ticket) => ticket.id), ["T-001"])
+  it("keeps the first scalar on a duplicate definition", () => {
+    const state = `---\nphase: DONE\nphase: BUILD\nnext_action: "PHASE HUNT"\n---\n`
+    const fields = parseStateFrontmatter(state)
+    assert.equal(fields.phase, "DONE")
   })
 
   it("keeps non-empty log lines", () => {
     const lines = parseLogLines("- 08.08.26 22:00 [E-300] line one\n\n- 08.08.26 22:01 [E-301] line two\n")
     assert.equal(lines.length, 2)
+  })
+
+  it("refreshes automatically when the editor is clean and the file changed", () => {
+    assert.equal(externalChangeAction(null, ["STATE.md"]), "refresh")
+    assert.equal(externalChangeAction("", ["STATE.md"]), "refresh")
+  })
+
+  it("preserves the draft and marks a conflict when the dirty file changed", () => {
+    assert.equal(externalChangeAction("STATE.md", ["STATE.md"]), "conflict")
+  })
+
+  it("keeps an open draft when an unrelated file changed", () => {
+    assert.equal(externalChangeAction("STATE.md", ["BOARD.md", "kitchen/plan-a.md"]), "refresh")
   })
 })

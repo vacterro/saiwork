@@ -8,6 +8,7 @@ import { createApplicationMenu } from "./menu"
 import { ClientStateManager } from "./client-state"
 import { setupClientStateIPC } from "./client-state-ipc"
 import { ClientStateLifecycle } from "./client-state-lifecycle"
+import { shouldRecreateMainWindow } from "./window-recovery"
 import { ClientStateNavigationController } from "./client-state-navigation"
 import { setupCliIPC } from "./ipc"
 import { configureMediaPermissionHandlers, isAllowedRendererOrigin } from "./permissions"
@@ -443,7 +444,7 @@ function createWindow() {
     height: restoredBounds?.height ?? DEFAULT_WINDOW_HEIGHT,
     useContentSize: true,
     ...(restoredBounds ? { x: restoredBounds.x, y: restoredBounds.y } : {}),
-    minWidth: 800,
+    minWidth: 320,
     minHeight: 600,
     backgroundColor,
     icon: iconPath,
@@ -692,7 +693,7 @@ async function openRemoteWindow(payload: { id: string; name: string; baseUrl: st
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
-    minWidth: 800,
+    minWidth: 320,
     minHeight: 600,
     backgroundColor: "#342012",
     icon: getIconPath(),
@@ -742,7 +743,7 @@ async function openSessionPaneWindow(payload: { instanceId: string; sessionId: s
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
-    minWidth: 600,
+    minWidth: 320,
     minHeight: 400,
     backgroundColor: "#342012",
     icon: getIconPath(),
@@ -954,7 +955,10 @@ app.whenReady().then(() => {
   })
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    // Recreate the main window even when detached session windows survive:
+    // otherwise closing the main surface while a detached pane stays open
+    // leaves the user with no way back to it. T-083.
+    if (shouldRecreateMainWindow(mainWindow)) {
       createWindow()
     }
   })

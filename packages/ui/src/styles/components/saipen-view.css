@@ -164,3 +164,17 @@
   gap: 4px;
   padding-top: 2px;
 }
+
+.saipen-view-conflict {
+  padding: 4px;
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surface);
+  margin-bottom: 4px;
+}
+
+.saipen-view-conflict-text {
+  font-size: 10px;
+  color: var(--dangerText);
+  margin-bottom: 4px;
+}

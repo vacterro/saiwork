@@ -1082,7 +1082,7 @@
   color: var(--text-secondary);
 }
 
-.tool-call-emoji {
+.tool-call-tag {
   @apply text-base mr-1;
 }
 

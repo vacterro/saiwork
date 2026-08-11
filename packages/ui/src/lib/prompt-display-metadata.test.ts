@@ -2,7 +2,12 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { createTextAttachment } from "../types/attachment"
-import { preparePromptDisplayText, resolvePastedPlaceholders, splitPromptDisplaySections } from "./prompt-display-metadata"
+import {
+  preparePromptDisplayText,
+  resolvePastedPlaceholders,
+  resolvePastedTextPlaceholders,
+  splitPromptDisplaySections,
+} from "./prompt-display-metadata"
 
 describe("preparePromptDisplayText", () => {
   it("keeps pasted text fully visible to the model while storing display metadata", () => {
@@ -34,6 +39,16 @@ describe("preparePromptDisplayText", () => {
     const attachment = createTextAttachment("alpha\nbeta\ngamma\ndelta", "pasted #1 (4 lines)", "paste-1.txt")
 
     assert.equal(resolvePastedPlaceholders("Before [ pasted # 1 ] After", [attachment]), "Before alpha\nbeta\ngamma\ndelta After")
+  })
+
+  it("expands pasted text for editing without rewriting path mentions", () => {
+    const pasted = createTextAttachment("pasted body", "pasted #1 (4 lines)", "paste-1.txt")
+    const path = createTextAttachment("notes.txt", "path:notes.txt", "notes.txt")
+
+    assert.equal(
+      resolvePastedTextPlaceholders("Review @notes.txt and [pasted #1]", [pasted, path]),
+      "Review @notes.txt and pasted body",
+    )
   })
 
   it("resolves pasted placeholders when the placeholder casing is edited", () => {

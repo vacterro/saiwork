@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "fs"
 import os from "os"
 import path from "path"
 import { createLogger } from "../logger"
+import { parseStateScalars, readStateScalar } from "./state"
+import { parseBoardSections } from "./board"
 
 const log = createLogger({ component: "saipen-core" })
 
@@ -112,8 +114,9 @@ export function candidateSaipenHomes(configured?: string, workspaceFolder?: stri
  *
  * The value is written by the protocol itself, so a project that has ever been
  * worked on with saipen tells us exactly which install it belongs to. Parsed
- * with a line scan rather than a YAML dependency: the field is a single scalar
- * and STATE.md is authored by a tool, not by hand.
+ * through the canonical STATE scalar parser: frontmatter-scoped and
+ * first-match, so a stray `saipen_home:` inside the body can never shadow the
+ * real one.
  */
 export function readSaipenHomeFromProjectState(workspaceFolder?: string): string | null {
   if (!workspaceFolder) return null
@@ -122,10 +125,7 @@ export function readSaipenHomeFromProjectState(workspaceFolder?: string): string
 
   try {
     const raw = readFileSync(statePath, "utf8")
-    const match = raw.match(/^saipen_home:\s*(.+)$/m)
-    if (!match) return null
-    // Strips the surrounding quotes STATE.md uses for Windows paths.
-    const value = match[1].trim().replace(/^["']|["']$/g, "")
+    const value = readStateScalar(raw, "saipen_home")
     if (!value) return null
     // STATE.md escapes backslashes for YAML; undo that before resolving.
     return value.replace(/\\\\/g, "\\")
@@ -291,27 +291,18 @@ export function readSaipenProjectState(workspaceFolder?: string): SaipenProjectS
     const state = readFileSync(statePath, "utf8")
     const board = readFileSync(boardPath, "utf8")
     const counts = { todoCount: 0, doingCount: 0, blockedCount: 0 }
-    let section: "TODO" | "DOING" | "BLOCKED" | null = null
 
-    for (const line of board.split(/\r?\n/)) {
-      const heading = line.match(/^## (TODO|DOING|BLOCKED)\s*$/)
-      if (heading) {
-        section = heading[1] as "TODO" | "DOING" | "BLOCKED"
-        continue
-      }
-      if (line.startsWith("## ")) {
-        section = null
-        continue
-      }
-      if (!/^- \[(?: |\/)\] T-\d{3}\b/.test(line)) continue
-      if (section === "TODO") counts.todoCount += 1
-      if (section === "DOING") counts.doingCount += 1
-      if (section === "BLOCKED") counts.blockedCount += 1
+    // Section-aware, via the one canonical BOARD parser: a ticket counts
+    // toward the section it sits under, never toward its checkbox state.
+    for (const section of parseBoardSections(board)) {
+      if (section.title === "TODO") counts.todoCount += section.tickets.length
+      if (section.title === "DOING") counts.doingCount += section.tickets.length
+      if (section.title === "BLOCKED") counts.blockedCount += section.tickets.length
     }
 
     return {
-      phase: readScalar(state, "phase"),
-      nextAction: readScalar(state, "next_action"),
+      phase: readStateScalar(state, "phase"),
+      nextAction: readStateScalar(state, "next_action"),
       ...counts,
     }
   } catch (error) {
@@ -418,16 +409,17 @@ function readSubState(subsDir: string, name: string): ParsedSubState {
 
   try {
     const raw = readFileSync(statePath, "utf8")
+    const parsed = parseStateScalars(raw)
     const state = {
-      phase: readScalar(raw, "phase"),
-      task: readScalar(raw, "task"),
-      agent: readScalar(raw, "agent"),
-      updated: readScalar(raw, "updated"),
-      nextAction: readScalar(raw, "next_action"),
-      blocker: readScalar(raw, "blocker"),
-      roleRevision: readScalar(raw, "role_revision"),
+      phase: parsed.values.get("phase") || null,
+      task: parsed.values.get("task") || null,
+      agent: parsed.values.get("agent") || null,
+      updated: parsed.values.get("updated") || null,
+      nextAction: parsed.values.get("next_action") || null,
+      blocker: parsed.values.get("blocker") || null,
+      roleRevision: parsed.values.get("role_revision") || null,
     }
-    const issues: string[] = []
+    const issues: string[] = [...parsed.issues]
     if (!state.phase || !VALID_SUB_PHASES.has(state.phase)) issues.push("Missing or invalid phase")
     if (state.phase && FORBIDDEN_SUB_PHASES.has(state.phase)) issues.push(`Forbidden subSaipen phase ${state.phase}`)
     if (!state.task) issues.push("Missing task")
@@ -553,11 +545,4 @@ export function readSaipenSubStates(workspaceFolder?: string): SaipenSubState[] 
   }
 
   return states
-}
-
-function readScalar(raw: string, field: string): string | null {
-  const match = raw.match(new RegExp(`^${field}:\\s*(.+)$`, "m"))
-  if (!match) return null
-  const value = match[1].trim().replace(/^["']|["']$/g, "")
-  return value.length > 0 ? value : null
 }

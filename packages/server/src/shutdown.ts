@@ -7,7 +7,7 @@ export const SERVER_SHUTDOWN_INCOMPLETE = "SAIWORK_SHUTDOWN_STATUS:incomplete"
 
 export type ServerShutdownOperations = Record<
   "stopInstanceEventBridge" | "stopSidecars" | "stopClientConnections" | "stopRemoteProxySessions" | "stopWorkspaces" |
-  "stopHttpServers" | "stopReleaseMonitor",
+  "stopHttpServers" | "stopReleaseMonitor" | "stopSaipenWatcher" | "stopQueueManager",
   ShutdownOperation
 >
 

@@ -31,6 +31,10 @@ export function getSaipenSubPackageKey(status: SaipenSubPackageStatus): string {
   return packageKeys[status]
 }
 
+export function isSaipenSubReady(status?: SaipenSubPackageStatus): boolean {
+  return status === "ready"
+}
+
 export function getSaipenSubPackageCounts(counts: SaipenSubPackageCounts) {
   return (Object.entries(counts) as Array<[keyof SaipenSubPackageCounts, number]>).filter(([, count]) => count > 0)
 }

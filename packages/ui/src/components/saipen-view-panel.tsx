@@ -1,12 +1,19 @@
-import { For, Match, Show, Switch, createMemo, createSignal, onMount, type Component, type JSX } from "solid-js"
+import { For, Match, Show, Switch, createMemo, createSignal, onCleanup, onMount, type Component, type JSX } from "solid-js"
 import { useI18n } from "../lib/i18n"
-import { serverApi } from "../lib/api-client"
+import { serverApi, SaipenConflictError } from "../lib/api-client"
 import { getLogger } from "../lib/logger"
 import type { SaipenViewResponse } from "../../../server/src/api-types"
-import { parseBoardSections, parseLogLines, parseStateFrontmatter } from "../lib/saipen-view"
+import { externalChangeAction, parseLogLines, parseStateFrontmatter } from "../lib/saipen-view"
+import { serverEvents } from "../lib/server-events"
 import "../styles/components/saipen-view.css"
 
 const log = getLogger("actions")
+
+/** Folder comparison tolerant of trailing separators and case differences. */
+function sameFolder(a: string, b: string): boolean {
+  const normalize = (value: string) => value.replace(/[\\/]+$/, "").toLowerCase()
+  return normalize(a) === normalize(b)
+}
 
 export type SaipenViewTab = "status" | "board" | "log" | "state" | "plan"
 
@@ -34,8 +41,9 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
   const [view, setView] = createSignal<SaipenViewResponse | null>(null)
   const [loadError, setLoadError] = createSignal<string | null>(null)
   const [openPlans, setOpenPlans] = createSignal<Set<string>>(new Set())
-  const [editing, setEditing] = createSignal<{ path: string; content: string } | null>(null)
+  const [editing, setEditing] = createSignal<{ path: string; content: string; revision: string } | null>(null)
   const [draft, setDraft] = createSignal("")
+  const [conflict, setConflict] = createSignal<string | null>(null)
 
   function togglePlan(name: string) {
     setOpenPlans((prev) => {
@@ -48,25 +56,76 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
 
   function beginEdit(path: string, content: string) {
     setDraft(content)
-    setEditing({ path, content })
+    setEditing({ path, content, revision: view()?.revisions?.[path] ?? "" })
+    setConflict(null)
   }
 
   function cancelEdit() {
     setEditing(null)
     setDraft("")
+    setConflict(null)
   }
 
   async function saveEdit() {
     const current = editing()
     if (!current) return
     try {
-      await serverApi.writeSaipenFile(props.folder, current.path, draft())
+      await serverApi.writeSaipenFile(props.folder, current.path, draft(), current.revision)
       setEditing(null)
+      setDraft("")
+      setConflict(null)
       await refresh()
     } catch (error) {
+      if (error instanceof SaipenConflictError) {
+        setConflict(error.message)
+        // Fetch the real current disk state so "Reload current" cannot hand the
+        // user the stale bytes the failed save was based on.
+        void refresh()
+        return
+      }
       log.error("Failed to save saipen file:", error)
       setLoadError(error instanceof Error ? error.message : String(error))
     }
+  }
+
+  function reloadCurrent() {
+    const current = editing()
+    if (!current) return
+    const value = view()
+    let fresh = ""
+    if (current.path === "BOARD.md") fresh = value?.board ?? ""
+    else if (current.path === "STATE.md") fresh = value?.state ?? ""
+    else if (current.path.startsWith("kitchen/")) {
+      const name = current.path.slice("kitchen/".length)
+      fresh = value?.plans?.find((plan) => plan.name === name)?.content ?? ""
+    }
+    setDraft(fresh)
+    setConflict(null)
+  }
+
+  /** Keeps the local draft editable; the user can copy it before deciding. */
+  function keepDraft() {
+    setConflict(null)
+  }
+
+  /**
+   * Live protocol mutations: the server watcher publishes a debounced,
+   * workspace-scoped `saipen.changed` event. A clean editor refreshes
+   * automatically; a dirty editor for the touched file keeps its draft and
+   * marks the conflict so the user resolves it explicitly. A change to some
+   * other file never disturbs an open draft.
+   */
+  function handleExternalChange(changedFiles: string[]) {
+    const current = editing()
+    const action = externalChangeAction(current?.path ?? null, changedFiles)
+    if (action === "conflict") {
+      setConflict(t("saipenView.externalChanged"))
+      // Keep the draft untouched, but refresh the rendered view so "Reload
+      // current" presents the genuinely current disk version.
+      void refresh()
+      return
+    }
+    void refresh()
   }
 
   const currentTabPath = (): string | null => {
@@ -91,6 +150,12 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
 
   onMount(() => {
     void refresh()
+    const stopEvents = serverEvents.on("saipen.changed", (event) => {
+      if (event.type !== "saipen.changed") return
+      if (!sameFolder(event.folder, props.folder)) return
+      handleExternalChange(event.files)
+    })
+    onCleanup(stopEvents)
   })
 
   const currentTabContent = (): string => {
@@ -167,6 +232,21 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
       </Show>
 
       <Show when={editing()}>
+        <Show when={conflict()}>
+          <div class="saipen-view-conflict">
+            <p class="saipen-view-conflict-text">
+              {t("saipenView.conflict")} {conflict()}
+            </p>
+            <div class="saipen-view-edit-actions">
+              <button type="button" onClick={reloadCurrent}>
+                {t("saipenView.conflictReload")}
+              </button>
+              <button type="button" onClick={keepDraft}>
+                {t("saipenView.conflictKeepDraft")}
+              </button>
+            </div>
+          </div>
+        </Show>
         <div class="saipen-view-edit">
           <textarea
             class="saipen-view-edit-area"
@@ -199,7 +279,9 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
 function BoardLogState(props: { tab: SaipenViewTab; view: SaipenViewResponse | null }) {
   const { t } = useI18n()
 
-  const sections = createMemo(() => parseBoardSections(props.view?.board ?? null))
+  // Sections are parsed server-side by the canonical BOARD parser; the panel
+  // only renders the structured payload.
+  const sections = () => props.view?.boardSections ?? []
   const lines = createMemo(() => parseLogLines(props.view?.log ?? null))
   const fields = createMemo(() => parseStateFrontmatter(props.view?.state ?? null))
   const hasState = () => (props.view?.state?.trim().length ?? 0) > 0
@@ -266,6 +348,9 @@ function StateFields(props: { fields: ReturnType<typeof parseStateFrontmatter> }
         ["blocker", fields().blocker],
         ["execution_intent", fields().executionIntent],
         ["updated", fields().updated],
+        ["agent", fields().agent],
+        ["role_revision", fields().roleRevision],
+        ["saipen_home", fields().saipenHome],
       ]}>
         {(entry) => (
           <p class="saipen-view-field">

@@ -1,6 +1,6 @@
 {
     "name": "@saiwork/electron-app",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "SaiWork - AI coding assistant",
     "license": "MIT",
     "author": {
@@ -24,7 +24,7 @@
         "prebuild": "npm run prepare:resources",
         "build": "electron-vite build",
         "typecheck": "tsc --noEmit -p tsconfig.json",
-        "test:native": "node --import tsx --test electron/main/client-state-cross-host.test.ts electron/main/client-state-process.test.ts electron/main/client-state.test.ts electron/main/client-state-ipc.test.ts electron/main/client-state-navigation.test.ts electron/main/client-state-lifecycle.test.ts electron/main/process-stop.test.ts electron/main/renderer-client-state-flush.test.ts electron/main/renderer-origin.test.ts electron/main/serialized-lifecycle.test.ts electron/main/window-state.test.ts",
+        "test:native": "node --import tsx --test electron/main/client-state-cross-host.test.ts electron/main/client-state-process.test.ts electron/main/client-state.test.ts electron/main/client-state-ipc.test.ts electron/main/client-state-navigation.test.ts electron/main/client-state-lifecycle.test.ts electron/main/process-stop.test.ts electron/main/renderer-client-state-flush.test.ts electron/main/renderer-origin.test.ts electron/main/serialized-lifecycle.test.ts electron/main/window-state.test.ts electron/main/window-recovery.test.ts",
         "preview": "electron-vite preview",
         "build:binaries": "node scripts/build.js",
         "build:mac": "node scripts/build.js mac",
@@ -48,7 +48,7 @@
         "7zip-bin": "^5.2.0",
         "app-builder-bin": "^4.2.0",
         "cross-env": "^7.0.3",
-        "electron": "^38.0.0",
+        "electron": "38.0.0",
         "electron-builder": "^24.0.0",
         "electron-vite": "4.0.1",
         "png2icons": "^2.0.1",

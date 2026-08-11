@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from "child_process"
-import { createWriteStream, existsSync, promises as fs } from "fs"
+import { createWriteStream, existsSync, promises as fs, type WriteStream } from "fs"
 import path from "path"
 import { randomBytes } from "crypto"
 import type { EventBus } from "../events/bus"
@@ -20,6 +20,10 @@ interface ManagerDeps {
   workspaceManager: WorkspaceManager
   eventBus: EventBus
   logger: Logger
+  spawnProcess?: typeof spawn
+  createOutputStream?: typeof createWriteStream
+  writeIndex?: (indexPath: string, records: PersistedBackgroundProcess[]) => Promise<void>
+  killProcess?: (child: ChildProcess, signal: NodeJS.Signals) => void
 }
 
 interface RunningProcess {
@@ -84,21 +88,63 @@ export class BackgroundProcessManager {
     const processDir = await this.ensureProcessDir(workspaceId, id)
     const outputPath = path.join(processDir, OUTPUT_FILE)
 
-    const outputStream = createWriteStream(outputPath, { flags: "a" })
+    const outputStream = (this.deps.createOutputStream ?? createWriteStream)(outputPath, { flags: "a" })
+    let outputFailed = false
+    let infrastructureError: unknown
+    let child: ChildProcess | undefined
+    let closeStarted = false
+    let failureKillTimer: NodeJS.Timeout | undefined
+
+    const requestInfrastructureStop = () => {
+      if (!child || child.killed || closeStarted) return
+      this.killBackgroundProcess(child, "SIGTERM")
+      if (failureKillTimer) return
+      failureKillTimer = setTimeout(() => {
+        if (!closeStarted && child) this.killBackgroundProcess(child, "SIGKILL")
+      }, STOP_TIMEOUT_MS)
+      failureKillTimer.unref?.()
+    }
+
+    const handleInfrastructureError = (error: unknown, message: string) => {
+      if (!infrastructureError) {
+        infrastructureError = error
+        this.deps.logger.warn({ err: error, workspaceId, processId: id }, message)
+      }
+      requestInfrastructureStop()
+    }
+
+    outputStream.on("error", (error) => {
+      outputFailed = true
+      if (!outputStream.destroyed) outputStream.destroy()
+      handleInfrastructureError(error, "Background process output stream failed")
+    })
 
     const { shellCommand, shellArgs, spawnOptions } = this.buildShellSpawn(command)
 
-    const child = spawn(shellCommand, shellArgs, {
-      cwd: workspace.path,
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: process.platform !== "win32",
-      windowsHide: true,
-      ...spawnOptions,
+    let spawnedChild: ChildProcess
+    try {
+      spawnedChild = (this.deps.spawnProcess ?? spawn)(shellCommand, shellArgs, {
+        cwd: workspace.path,
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: process.platform !== "win32",
+        windowsHide: true,
+        ...spawnOptions,
+      })
+    } catch (error) {
+      if (!outputStream.destroyed) outputStream.destroy()
+      throw error
+    }
+    child = spawnedChild
+
+    spawnedChild.on("error", (error) => {
+      handleInfrastructureError(error, "Background process child failed")
     })
 
-    child.on("exit", () => {
-      this.killProcessTree(child, "SIGTERM")
+    spawnedChild.on("exit", () => {
+      this.killProcessTree(spawnedChild, "SIGTERM")
     })
+
+    if (infrastructureError) requestInfrastructureStop()
 
     const record: PersistedBackgroundProcess = {
       id,
@@ -107,7 +153,7 @@ export class BackgroundProcessManager {
       command,
       cwd: workspace.path,
       status: "running",
-      pid: child.pid,
+      pid: spawnedChild.pid,
       startedAt: new Date().toISOString(),
       outputSizeBytes: 0,
       notify: options.notify && options.notification
@@ -120,32 +166,81 @@ export class BackgroundProcessManager {
 
     const runningState: RunningProcess = {
       id,
-      child,
+      child: spawnedChild,
       outputPath,
       exitPromise: Promise.resolve(),
       workspaceId,
     }
 
-    const exitPromise = new Promise<void>((resolve) => {
-      child.on("close", async (code) => {
-        await new Promise<void>((resolve) => outputStream.end(resolve))
-        this.running.delete(id)
+    let resolveExit = () => {}
+    let rejectExit = (_error: unknown) => {}
+    const exitPromise = new Promise<void>((resolve, reject) => {
+      resolveExit = resolve
+      rejectExit = reject
+    })
+    void exitPromise.catch((error) => {
+      this.deps.logger.warn({ err: error, workspaceId, processId: id }, "Background process completion failed")
+    })
 
-        const completion = runningState.completion ?? this.completionFromExit(code)
+    runningState.exitPromise = exitPromise
+
+    this.running.set(id, runningState)
+
+    let initialPersistence: Promise<void> = Promise.resolve()
+
+    const finalizeProcess = (code: number | null) => {
+      if (closeStarted) return
+      closeStarted = true
+      if (failureKillTimer) clearTimeout(failureKillTimer)
+
+      void (async () => {
+        try {
+          await initialPersistence
+        } catch (error) {
+          infrastructureError ??= error
+        }
+
+        try {
+          await this.closeOutputStream(outputStream, outputFailed)
+        } catch (error) {
+          handleInfrastructureError(error, "Failed to close background process output")
+        }
+
+        const requestedCompletion = runningState.completion
+        const completion: ProcessCompletion = infrastructureError
+          ? {
+              reason: "failed",
+              endContext: requestedCompletion?.endContext ?? "normal",
+              ...(requestedCompletion?.removeAfterFinalize ? { removeAfterFinalize: true } : {}),
+            }
+          : requestedCompletion ?? this.completionFromExit(code)
 
         record.terminalReason = completion.reason
         record.status = this.statusFromReason(completion.reason)
         record.exitCode = code === null ? undefined : code
         record.stoppedAt = new Date().toISOString()
 
-        await this.finalizeRecord(workspaceId, record, completion)
-        resolve()
-      })
-    })
+        try {
+          await this.finalizeRecord(workspaceId, record, completion)
+        } catch (error) {
+          this.deps.logger.warn({ err: error, workspaceId, processId: id }, "Failed to finalize background process record")
+          record.terminalReason = "failed"
+          record.status = "error"
+          await this.recoverFailedFinalization(workspaceId, record, completion)
+        }
+      })().then(
+        () => {
+          this.running.delete(id)
+          resolveExit()
+        },
+        (error) => {
+          this.running.delete(id)
+          rejectExit(error)
+        },
+      )
+    }
 
-    runningState.exitPromise = exitPromise
-
-    this.running.set(id, runningState)
+    spawnedChild.on("close", finalizeProcess)
 
     let lastPublishAt = 0
     const maybePublishSize = () => {
@@ -157,20 +252,37 @@ export class BackgroundProcessManager {
       this.publishUpdate(workspaceId, record)
     }
 
-    child.stdout?.on("data", (data) => {
+    spawnedChild.stdout?.on("data", (data) => {
+      if (outputFailed) return
       outputStream.write(data)
       record.outputSizeBytes = (record.outputSizeBytes ?? 0) + data.length
       maybePublishSize()
     })
-    child.stderr?.on("data", (data) => {
+    spawnedChild.stderr?.on("data", (data) => {
+      if (outputFailed) return
       outputStream.write(data)
       record.outputSizeBytes = (record.outputSizeBytes ?? 0) + data.length
       maybePublishSize()
     })
 
-    await this.upsertIndex(workspaceId, record)
-    record.outputSizeBytes = await this.getOutputSize(workspaceId, record.id)
-    this.publishUpdate(workspaceId, record)
+    initialPersistence = this.upsertIndex(workspaceId, record)
+
+    try {
+      await initialPersistence
+    } catch (error) {
+      handleInfrastructureError(error, "Failed to persist initial background process record")
+      throw error
+    }
+    if (closeStarted) {
+      await exitPromise
+    } else {
+      record.outputSizeBytes = await this.getOutputSize(workspaceId, record.id)
+      if (closeStarted) {
+        await exitPromise
+      } else {
+        this.publishUpdate(workspaceId, record)
+      }
+    }
     return this.toPublicProcess(record)
   }
 
@@ -327,9 +439,7 @@ export class BackgroundProcessManager {
 
   private killProcessTree(child: ChildProcess, signal: NodeJS.Signals) {
     const pid = child.pid
-    if (!pid) return
-
-    if (process.platform === "win32") {
+    if (pid && process.platform === "win32") {
       const args = this.buildWindowsTaskkillArgs(pid, signal)
       try {
         spawnSync("taskkill", args, { stdio: "ignore" })
@@ -337,7 +447,7 @@ export class BackgroundProcessManager {
       } catch {
         // Fall back to killing the direct child.
       }
-    } else {
+    } else if (pid) {
       try {
         process.kill(-pid, signal)
         return
@@ -419,6 +529,61 @@ export class BackgroundProcessManager {
   private statusFromReason(reason: BackgroundProcessTerminalReason): BackgroundProcessStatus {
     if (reason === "failed") return "error"
     return "stopped"
+  }
+
+  private killBackgroundProcess(child: ChildProcess, signal: NodeJS.Signals) {
+    if (this.deps.killProcess) {
+      this.deps.killProcess(child, signal)
+      return
+    }
+    this.killProcessTree(child, signal)
+  }
+
+  private async closeOutputStream(outputStream: WriteStream, failed: boolean) {
+    if (failed || outputStream.destroyed) {
+      if (!outputStream.destroyed) outputStream.destroy()
+      if (outputStream.closed) return
+      await new Promise<void>((resolve) => outputStream.once("close", resolve))
+      return
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false
+      const complete = (error?: unknown) => {
+        if (settled) return
+        settled = true
+        outputStream.off("error", onError)
+        error ? reject(error) : resolve()
+      }
+      const onError = (error: unknown) => complete(error)
+      outputStream.once("error", onError)
+      try {
+        outputStream.end(() => complete())
+      } catch (error) {
+        complete(error)
+      }
+    })
+  }
+
+  private async recoverFailedFinalization(
+    workspaceId: string,
+    record: PersistedBackgroundProcess,
+    completion: ProcessCompletion,
+  ) {
+    if (completion.removeAfterFinalize) {
+      await this.removeFromIndex(workspaceId, record.id)
+      await this.removeProcessDir(workspaceId, record.id)
+      this.deps.eventBus.publish({
+        type: "instance.event",
+        instanceId: workspaceId,
+        event: { type: "background.process.removed", properties: { processId: record.id } },
+      })
+      return
+    }
+
+    await this.upsertIndex(workspaceId, record)
+    record.outputSizeBytes = await this.getOutputSize(workspaceId, record.id)
+    this.publishUpdate(workspaceId, record)
   }
 
   private async readOutputBytes(outputPath: string, sizeBytes: number, maxBytes?: number): Promise<string> {
@@ -520,6 +685,10 @@ export class BackgroundProcessManager {
   private async writeIndex(workspaceId: string, records: PersistedBackgroundProcess[]) {
     const indexPath = await this.getIndexPath(workspaceId)
     await fs.mkdir(path.dirname(indexPath), { recursive: true })
+    if (this.deps.writeIndex) {
+      await this.deps.writeIndex(indexPath, records)
+      return
+    }
     await fs.writeFile(indexPath, JSON.stringify(records, null, 2))
   }
 

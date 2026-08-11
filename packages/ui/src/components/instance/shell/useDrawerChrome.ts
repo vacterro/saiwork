@@ -14,7 +14,12 @@ import MenuIcon from "@suid/icons-material/Menu"
 
 import type { TranslateParams } from "../../../lib/i18n"
 
-import type { DrawerViewState, LayoutMode } from "./types"
+import {
+  DRAWER_INTERACTIVE_OVERLAY_SELECTOR,
+  isFloatingDrawerOpen,
+  type DrawerViewState,
+  type LayoutMode,
+} from "./types"
 import { persistOpenState, persistPinState, readStoredOpenState, readStoredPinState } from "./storage"
 
 export interface UseDrawerChromeOptions {
@@ -22,6 +27,7 @@ export interface UseDrawerChromeOptions {
   active: Accessor<boolean>
   layoutMode: Accessor<LayoutMode>
   leftPinningSupported: Accessor<boolean>
+  leftForceFloating?: Accessor<boolean>
   rightPinningSupported: Accessor<boolean>
   leftDrawerContentEl: Accessor<HTMLElement | null>
   rightDrawerContentEl: Accessor<HTMLElement | null>
@@ -46,6 +52,7 @@ export interface DrawerChromeApi {
   unpinRight: () => void
   closeLeft: () => void
   closeRight: () => void
+  resetLeftDrawerLocally: () => void
   closeFloatingDrawersIfAny: () => boolean
   leftAppBarButtonLabel: Accessor<string>
   rightAppBarButtonLabel: Accessor<string>
@@ -65,6 +72,7 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
   const [rightOpen, setRightOpen] = createSignal(false)
 
   const measureDrawerHost = () => options.measureDrawerHost?.()
+  const leftForceFloating = () => options.leftForceFloating?.() ?? false
 
   const focusTarget = (element: HTMLElement | null) => {
     if (!element) return
@@ -121,7 +129,7 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
   })
 
   const leftDrawerState = createMemo<DrawerViewState>(() => {
-    if (leftPinned()) return "pinned"
+    if (leftPinned() && !leftForceFloating()) return "pinned"
     return leftOpen() ? "floating-open" : "floating-closed"
   })
 
@@ -151,6 +159,7 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
   }
 
   const pinLeft = () => {
+    if (leftForceFloating()) return
     blurIfInside(options.leftDrawerContentEl())
     batch(() => {
       setLeftPinned(true)
@@ -207,6 +216,10 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
   const closeLeft = () => {
     if (leftDrawerState() === "pinned") return
     blurIfInside(options.leftDrawerContentEl())
+    if (leftPinned()) {
+      setLeftPinned(false)
+      persistPinIfSupported("left", false)
+    }
     setLeftOpen(false)
     options.onLeftClose?.()
     focusTarget(options.leftToggleButtonEl())
@@ -219,9 +232,20 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
     focusTarget(options.rightToggleButtonEl())
   }
 
+  const resetLeftDrawerLocally = () => {
+    batch(() => {
+      setLeftPinned(false)
+      setLeftOpen(false)
+    })
+  }
+
   const closeFloatingDrawersIfAny = () => {
     let handled = false
-    if (!leftPinned() && leftOpen()) {
+    if (isFloatingDrawerOpen(leftOpen(), leftPinned(), leftForceFloating())) {
+      if (leftPinned()) {
+        setLeftPinned(false)
+        persistPinIfSupported("left", false)
+      }
       setLeftOpen(false)
       blurIfInside(options.leftDrawerContentEl())
       options.onLeftClose?.()
@@ -241,6 +265,8 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
     if (typeof window === "undefined") return
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
+      const target = event.target
+      if (target instanceof Element && target.closest(DRAWER_INTERACTIVE_OVERLAY_SELECTOR)) return
       if (!closeFloatingDrawersIfAny()) return
       event.preventDefault()
       event.stopPropagation()
@@ -264,6 +290,7 @@ export function useDrawerChrome(options: UseDrawerChromeOptions): DrawerChromeAp
     unpinRight,
     closeLeft,
     closeRight,
+    resetLeftDrawerLocally,
     closeFloatingDrawersIfAny,
     leftAppBarButtonLabel,
     rightAppBarButtonLabel,

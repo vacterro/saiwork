@@ -6,11 +6,6 @@ This guide explains how to build distributable binaries for SaiWork.
 > 0.18.0 development line. SAIWORK-specific packaging changes are summarized in
 > the [root README](README.md).
 
-> **Packaging status:** Target configuration exists, but the current `^38.0.0`
-> Electron version range is rejected by `electron-builder` version resolution.
-> No binary was produced during this pass; an exact dependency pin is required
-> before these packaging commands can complete.
-
 ## Prerequisites
 
 - **Node.js 20.19+ (20.x) or 22.12+ and npm**
@@ -60,6 +55,11 @@ npm run build:win-arm64 --workspace @saiwork/electron-app
 ```
 
 **Output formats:** portable `.exe`, `.zip`
+
+The build wrapper defaults Windows 7z compression to level 5 because
+electron-builder's level 9 portable archive can exhaust memory with the bundled
+server and Node runtime. Set `ELECTRON_BUILDER_COMPRESSION_LEVEL` explicitly to
+override it.
 
 ### Linux
 

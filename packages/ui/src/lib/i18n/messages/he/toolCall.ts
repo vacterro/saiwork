@@ -135,6 +135,10 @@ export const toolCallMessages = {
   "toolCall.status.running": "רץ",
   "toolCall.status.completed": "הושלם",
   "toolCall.status.error": "שגיאה",
+  "toolCall.status.short.pending": "המתן",
+  "toolCall.status.short.running": "רץ",
+  "toolCall.status.short.completed": "בוצע",
+  "toolCall.status.short.error": "שג׳",
   "toolCall.status.unknown": "לא ידוע",
 
   "toolCall.applyPatch.action.preparing": "מכין apply_patch...",

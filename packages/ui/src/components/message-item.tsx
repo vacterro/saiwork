@@ -667,12 +667,12 @@ export default function MessageItem(props: MessageItemProps) {
         </Show>
 
         <Show when={errorMessage()}>
-          <div class="message-error-block" dir="auto">⚠️ {errorMessage()}</div>
+          <div class="message-error-block" dir="auto"><span aria-hidden="true">[!]</span> {errorMessage()}</div>
         </Show>
 
         <Show when={isGenerating()}>
           <div class="message-generating">
-            <span class="generating-spinner">⏳</span> {t("messageItem.status.generating")}
+            <span class="generating-spinner" aria-hidden="true">...</span> {t("messageItem.status.generating")}
           </div>
         </Show>
 
@@ -772,12 +772,12 @@ export default function MessageItem(props: MessageItemProps) {
 
         <Show when={props.record.status === "sending"}>
           <div class="message-sending">
-            <span class="generating-spinner">●</span> {t("messageItem.status.sending")}
+            <span class="generating-spinner" aria-hidden="true">...</span> {t("messageItem.status.sending")}
           </div>
         </Show>
 
         <Show when={props.record.status === "error"}>
-          <div class="message-error">⚠ {t("messageItem.status.failedToSend")}</div>
+          <div class="message-error"><span aria-hidden="true">[!]</span> {t("messageItem.status.failedToSend")}</div>
         </Show>
       </div>
     </div>

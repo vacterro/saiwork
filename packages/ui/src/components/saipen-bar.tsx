@@ -1,15 +1,12 @@
 import { For, Show, createSignal, createEffect, onCleanup, onMount, type Component } from "solid-js"
-import { Popover } from "@kobalte/core/popover"
 import { useI18n } from "../lib/i18n"
 import { getLogger } from "../lib/logger"
 import { serverApi } from "../lib/api-client"
 import { SAIPEN_COMMANDS, SAIPEN_CATEGORIES, type SaipenCommand } from "../lib/saipen-commands"
-import { getSaipenSubLifecycleKey, getSaipenSubPackageCounts, getSaipenSubPackageKey } from "../lib/saipen-sub-status"
+import { getSaipenSubLifecycleKey, getSaipenSubPackageCounts, getSaipenSubPackageKey, isSaipenSubReady } from "../lib/saipen-sub-status"
 import type { SaipenStatusResponse } from "../../../server/src/api-types"
 import { formatElapsedClock } from "../lib/message-timing"
 import SaipenViewPanel, { type SaipenViewTab } from "./saipen-view-panel"
-import ActionOverflowMenu, { type ActionOverflowMenuItem } from "./action-overflow-menu"
-import { X } from "lucide-solid"
 
 const log = getLogger("actions")
 
@@ -52,7 +49,6 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
   const [loading, setLoading] = createSignal(false)
   const [expanded, setExpanded] = createSignal(false)
   const [viewTab, setViewTab] = createSignal<SaipenViewTab>("status")
-  const [planOpen, setPlanOpen] = createSignal(false)
   const [limitMenuOpen, setLimitMenuOpen] = createSignal(false)
   const [limitMenuPos, setLimitMenuPos] = createSignal({ x: 0, y: 0 })
   let limitMenuRef: HTMLDivElement | undefined
@@ -88,28 +84,54 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
   })
 
   let scrollContainer: HTMLDivElement | undefined
-  let isDragging = false
-  let startX: number
-  let scrollLeft: number
+  let dragState: { pointerId: number; startX: number; scrollLeft: number } | undefined
 
-  const handleMouseDown = (e: MouseEvent) => {
-    if (e.button !== 1 || !scrollContainer) return
-    e.preventDefault()
-    isDragging = true
-    startX = e.pageX - scrollContainer.offsetLeft
-    scrollLeft = scrollContainer.scrollLeft
+  function endScrollDrag(event?: PointerEvent) {
+    if (!dragState || (event && dragState.pointerId !== event.pointerId)) return
+    const pointerId = dragState.pointerId
+    dragState = undefined
+    if (!scrollContainer?.hasPointerCapture(pointerId)) return
+    try {
+      scrollContainer.releasePointerCapture(pointerId)
+    } catch {
+      // Capture may already have been released by the browser.
+    }
   }
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging || !scrollContainer) return
-    e.preventDefault()
-    const x = e.pageX - scrollContainer.offsetLeft
-    const walk = x - startX
-    scrollContainer.scrollLeft = scrollLeft - walk
+  function handlePointerDown(event: PointerEvent) {
+    if (event.button !== 1 || !scrollContainer) return
+    event.preventDefault()
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      scrollLeft: scrollContainer.scrollLeft,
+    }
+    try {
+      scrollContainer.setPointerCapture(event.pointerId)
+    } catch {
+      dragState = undefined
+    }
   }
 
-  const handleMouseUpOrLeave = () => {
-    isDragging = false
+  function handlePointerMove(event: PointerEvent) {
+    if (!dragState || dragState.pointerId !== event.pointerId || !scrollContainer) return
+    if ((event.buttons & 4) === 0) {
+      endScrollDrag(event)
+      return
+    }
+    event.preventDefault()
+    scrollContainer.scrollLeft = dragState.scrollLeft - (event.clientX - dragState.startX)
+  }
+
+  function handleWheel(event: WheelEvent) {
+    if (!scrollContainer || scrollContainer.scrollWidth <= scrollContainer.clientWidth) return
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+    if (delta === 0) return
+    const maxScrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth
+    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, scrollContainer.scrollLeft + delta))
+    if (nextScrollLeft === scrollContainer.scrollLeft) return
+    event.preventDefault()
+    scrollContainer.scrollLeft = nextScrollLeft
   }
 
   function activate(command: SaipenCommand) {
@@ -191,12 +213,12 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
     return status()?.subs.find((entry) => entry.name === sub)
   }
 
-  /** True when the sub's package is ready, so the bar's "done" checkbox is filled. */
+  /** True when the sub's package is ready. */
   function isSubReady(sub?: string): boolean {
-    return subState(sub)?.packageStatus === "ready"
+    return isSaipenSubReady(subState(sub)?.packageStatus)
   }
 
-  /** Checkbox tooltip: verdict plus the package-count breakdown. */
+  /** Status tooltip: verdict plus the package-count breakdown. */
   function subReadyTitle(sub?: string): string {
     const state = subState(sub)
     if (!state) return t("saipen.subs.ready.unknown")
@@ -209,10 +231,17 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
       <div 
         class="saipen-bar-commands"
         ref={scrollContainer}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUpOrLeave}
-        onMouseLeave={handleMouseUpOrLeave}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endScrollDrag}
+        onPointerCancel={endScrollDrag}
+        onLostPointerCapture={() => {
+          dragState = undefined
+        }}
+        onAuxClick={(event) => {
+          if (event.button === 1) event.preventDefault()
+        }}
+        onWheel={handleWheel}
       >
         <div class="saipen-bar-group saipen-bar-left">
           <Show when={props.onToggleGoalAuto}>
@@ -292,24 +321,21 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
         <div class="saipen-bar-group saipen-bar-center">
           <For each={SAIPEN_CATEGORIES}>
             {(category) => (
-              <>
-                <span class="saipen-category">{t(`saipen.category.${category}`)}</span>
+              <div
+                class="saipen-command-category"
+                role="group"
+                aria-label={t(`saipen.category.${category}`)}
+              >
                 <For each={SAIPEN_COMMANDS.filter((command) => command.category === category)}>
                   {(command) => (
-                    <>
-                      <Show when={command.sub && !command.ships}>
-                        <span
-                          class="saipen-sub-ready"
-                          data-state={isSubReady(command.sub) ? "ready" : "pending"}
-                          title={subReadyTitle(command.sub)}
-                        >
-                          {isSubReady(command.sub) ? "☑" : "☐"}
-                        </span>
-                      </Show>
+                    <span class="saipen-command-unit">
                       <button
                         type="button"
                         class="saipen-command"
                         data-tier={commandTier(command)}
+                        data-sub-state={command.sub && !command.ships && subState(command.sub)
+                          ? isSubReady(command.sub) ? "ready" : "pending"
+                          : undefined}
                         onClick={() => activate(command)}
                         title={`${command.shortcut} — ${command.verb} - ${command.summary}${
                           command.argument === "required"
@@ -317,59 +343,17 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
                             : typeof props.shortcutsImmediate === "boolean"
                               ? ` · ${props.shortcutsImmediate ? t("saipen.shortcutMode.runsNow") : t("saipen.shortcutMode.followsQueue")}`
                               : ""
-                        }`}
+                        }${command.sub && !command.ships ? ` · ${subReadyTitle(command.sub)}` : ""}`}
                       >
                         {command.shortcut}
                       </button>
-                    </>
+                    </span>
                   )}
                 </For>
-              </>
+              </div>
             )}
           </For>
 
-          <ActionOverflowMenu
-            label={t("saipen.more.title")}
-            triggerClass="saipen-command-more"
-            minItems={1}
-            items={SAIPEN_COMMANDS.map((command): ActionOverflowMenuItem => ({
-              key: command.shortcut,
-              label: `${command.shortcut} — ${command.verb}`,
-              onSelect: () => activate(command),
-            }))}
-          />
-
-          <Popover open={planOpen()} onOpenChange={setPlanOpen}>
-            <Popover.Trigger class="saipen-command saipen-plan-button" aria-label={t("saipen.plan.openAriaLabel")} title={t("saipen.plan.openHint")}>
-              {t("saipen.plan.button")}
-            </Popover.Trigger>
-            <Popover.Portal>
-              <Popover.Content class="saipen-plan-popover">
-                <div class="saipen-plan-drawer-header">
-                  <span class="saipen-plan-drawer-title">{t("saipen.plan.title")}</span>
-                  <button
-                    type="button"
-                    class="saipen-plan-drawer-close"
-                    aria-label={t("saipen.plan.closeAriaLabel")}
-                    onClick={() => setPlanOpen(false)}
-                  >
-                    <X class="w-4 h-4" aria-hidden="true" />
-                  </button>
-                </div>
-                <div class="saipen-plan-popover-body">
-                  <SaipenViewPanel
-                    folder={props.folder}
-                    tab="plan"
-                    collapsed={false}
-                    onTabChange={() => {}}
-                    onRefreshStatus={() => void refresh()}
-                  />
-                </div>
-                <Popover.Arrow />
-              </Popover.Content>
-            </Popover.Portal>
-          </Popover>
-          
           <Show when={props.onToggleShortcutsImmediate}>
             <button
               type="button"

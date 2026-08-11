@@ -42,6 +42,8 @@ export class EventBus extends EventEmitter {
     this.on("instance.dataChanged", handler)
     this.on("instance.event", handler)
     this.on("instance.eventStatus", handler)
+    this.on("saipen.changed", handler)
+    this.on("queue.changed", handler)
     this.on("yolo.stateChanged", handler)
     this.on("yolo.autoAccepted", handler)
     for (const status of this.instanceStatuses.values()) listener(status)
@@ -58,6 +60,8 @@ export class EventBus extends EventEmitter {
       this.off("instance.dataChanged", handler)
       this.off("instance.event", handler)
       this.off("instance.eventStatus", handler)
+      this.off("saipen.changed", handler)
+      this.off("queue.changed", handler)
       this.off("yolo.stateChanged", handler)
       this.off("yolo.autoAccepted", handler)
     }

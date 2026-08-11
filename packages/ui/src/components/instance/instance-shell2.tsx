@@ -22,7 +22,6 @@ import type { BackgroundProcess } from "../../../../server/src/api-types"
 import { keyboardRegistry, type KeyboardShortcut } from "../../lib/keyboard-registry"
 
 import { isOpen as isCommandPaletteOpen, hideCommandPalette, showCommandPalette } from "../../stores/command-palette"
-import Kbd from "../kbd"
 import InstanceWelcomeView from "../instance-welcome-view"
 import InfoView from "../info-view"
 import CommandPalette from "../command-palette"
@@ -76,7 +75,13 @@ import { openSessionPreview, sessionPreviews, showSessionChat, showSessionPrevie
 import { createSession, executeCustomCommand, getDefaultModel, providers, runShellCommand, sendMessage, setActiveParentSession, updateSessionModel } from "../../stores/sessions"
 import { getAttachments, removeAttachment } from "../../stores/attachments"
 
-import type { LayoutMode } from "./shell/types"
+import {
+  DRAWER_INTERACTIVE_OVERLAY_SELECTOR,
+  getSessionModeDrawerAction,
+  isFloatingDrawerOpen,
+  shouldDismissFloatingDrawer,
+  type LayoutMode,
+} from "./shell/types"
 import {
   DEFAULT_SESSION_SIDEBAR_WIDTH,
   LEFT_DRAWER_STORAGE_KEY,
@@ -169,6 +174,10 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     instanceId: () => props.instance.id,
   })
 
+  const showingInfoView = createMemo(() => activeSessionIdForInstance() === "info")
+  /** Exactly one real session (the "info" pseudo-view is not a session). */
+  const singleSessionMode = createMemo(() => !showingInfoView() && allInstanceSessions().size === 1)
+
   const desktopQuery = useMediaQuery("(min-width: 1280px)")
 
   const tabletQuery = useMediaQuery("(min-width: 768px)")
@@ -189,7 +198,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   const leftPinningSupported = createMemo(() => layoutMode() !== "phone")
   const rightPinningSupported = createMemo(() => layoutMode() !== "phone")
 
-  const { setDrawerHost, drawerContainer, measureDrawerHost, floatingTopPx, floatingHeight } = useDrawerHostMeasure(
+  const { setDrawerHost, measureDrawerHost, floatingTopPx, floatingHeight } = useDrawerHostMeasure(
     () => props.tabBarOffset,
   )
 
@@ -198,6 +207,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     active: () => Boolean(props.isActiveInstance),
     layoutMode,
     leftPinningSupported,
+    leftForceFloating: singleSessionMode,
     rightPinningSupported,
     leftDrawerContentEl,
     rightDrawerContentEl,
@@ -222,6 +232,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     unpinRight: unpinRightDrawer,
     closeLeft: closeLeftDrawer,
     closeRight: closeRightDrawer,
+    resetLeftDrawerLocally,
     closeFloatingDrawersIfAny,
     leftAppBarButtonLabel,
     rightAppBarButtonLabel,
@@ -235,6 +246,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   // active shell. Hidden = unpinned + closed; shown = drawer open (floating).
   // The initial run is skipped so it cannot fight the persisted pin/restore.
   createEffect(on(sessionSidebarVisible, (visible) => {
+    if (!props.isActiveInstance) return
     if (visible) {
       if (leftPinned()) unpinLeftDrawer()
       if (!leftOpen()) setLeftOpen(true)
@@ -250,6 +262,47 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     closeLeftDrawer()
   }
 
+  const handleFloatingDrawerSessionSelect = (sessionId: string) => {
+    handleSessionSelect(sessionId)
+    closeSessionSidebar()
+  }
+
+  const handleFloatingDrawerNewSession = () => {
+    try {
+      return props.onNewSession()
+    } finally {
+      closeSessionSidebar()
+    }
+  }
+
+  let previousSingleSessionMode = singleSessionMode()
+  createEffect(() => {
+    const currentSingleSessionMode = singleSessionMode()
+    const action = getSessionModeDrawerAction({
+      active: Boolean(props.isActiveInstance),
+      open: leftOpen(),
+      pinned: leftPinned(),
+      previousSingleSessionMode,
+      currentSingleSessionMode,
+    })
+    if (action === "close") closeSessionSidebar()
+    else if (action === "reset-local") resetLeftDrawerLocally()
+    previousSingleSessionMode = currentSingleSessionMode
+  })
+
+  let previousActiveSessionId = activeSessionIdForInstance()
+  createEffect(() => {
+    const currentActiveSessionId = activeSessionIdForInstance()
+    if (
+      currentActiveSessionId !== previousActiveSessionId
+      && props.isActiveInstance
+      && isFloatingDrawerOpen(leftOpen(), leftPinned(), singleSessionMode())
+    ) {
+      closeSessionSidebar()
+    }
+    previousActiveSessionId = currentActiveSessionId
+  })
+
   // When the user switches away from this instance (e.g., taps a different
   // instance/project tab while a floating drawer is open on phone), close any
   // open floating drawers so the previous instance's drawer doesn't remain
@@ -258,7 +311,14 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   createEffect(() => {
     const isActive = Boolean(props.isActiveInstance)
     if (wasActiveInstance && !isActive) {
+      if (isFloatingDrawerOpen(leftOpen(), leftPinned(), singleSessionMode())) {
+        closeSessionSidebar()
+      }
       closeFloatingDrawersIfAny()
+    }
+    if (!isActive) {
+      if (isFloatingDrawerOpen(leftOpen(), leftPinned(), singleSessionMode())) setLeftOpen(false)
+      if (isFloatingDrawerOpen(rightOpen(), rightPinned())) setRightOpen(false)
     }
     wasActiveInstance = isActive
   })
@@ -269,9 +329,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     const handleFloatingDrawerPointerDown = (event: PointerEvent) => {
       if (!props.isActiveInstance) return
 
-      const hasFloatingDrawerOpen = (!leftPinned() && leftOpen()) || (!rightPinned() && rightOpen())
-      if (!hasFloatingDrawerOpen) return
-
       const target = event.target
       if (!(target instanceof Node)) return
 
@@ -279,10 +336,25 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
       const rightContent = rightDrawerContentEl()
       const leftPaper = leftContent?.closest(".MuiDrawer-paper")
       const rightPaper = rightContent?.closest(".MuiDrawer-paper")
-      if (leftPaper?.contains(target) || rightPaper?.contains(target)) return
+      const targetInsideDrawer = Boolean(leftPaper?.contains(target) || rightPaper?.contains(target))
+      const targetElement = target instanceof Element ? target : target.parentElement
+      const targetInsideOverlay = Boolean(targetElement?.closest(DRAWER_INTERACTIVE_OVERLAY_SELECTOR))
+      const dismissLeft = shouldDismissFloatingDrawer({
+        open: leftOpen(),
+        pinned: leftPinned(),
+        forceFloating: singleSessionMode(),
+        targetInsideDrawer,
+        targetInsideOverlay,
+      })
+      const dismissRight = shouldDismissFloatingDrawer({
+        open: rightOpen(),
+        pinned: rightPinned(),
+        targetInsideDrawer,
+        targetInsideOverlay,
+      })
 
-      if (!leftPinned() && leftOpen()) closeLeftDrawer()
-      if (!rightPinned() && rightOpen()) closeRightDrawer()
+      if (dismissLeft) closeSessionSidebar()
+      if (dismissRight) closeRightDrawer()
     }
 
     document.addEventListener("pointerdown", handleFloatingDrawerPointerDown, true)
@@ -758,15 +830,11 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   }
 
   const renderLeftFloatingDrawer = () => {
-    const container = drawerContainer()
-    const modalProps = container ? { container: container as Element } : undefined
     return (
       <Drawer
         anchor={isRTL() ? "right" : "left"}
-        variant="temporary"
+        variant="persistent"
         open={leftOpen()}
-        onClose={closeSessionSidebar}
-        ModalProps={modalProps}
         sx={{
           zIndex: 60,
           // The tab bar sits outside the floating drawer. Let its controls
@@ -783,15 +851,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
             color: "var(--text-primary)",
             boxShadow: "none",
             borderRadius: 0,
-            top: floatingTopPx(),
-            height: floatingHeight(),
-          },
-
-          // Keep backdrop dismissal for the area below the tab bar without
-          // covering the tab bar itself.
-          "& .MuiBackdrop-root": {
-            pointerEvents: "auto",
-            backgroundColor: "transparent",
             top: floatingTopPx(),
             height: floatingHeight(),
           },
@@ -820,8 +879,8 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
           isPhoneLayout={isPhoneLayout}
           drawerState={leftDrawerState}
           leftPinned={leftPinned}
-          onSelectSession={handleSessionSelect}
-          onNewSession={props.onNewSession}
+          onSelectSession={handleFloatingDrawerSessionSelect}
+          onNewSession={handleFloatingDrawerNewSession}
           onSidebarAgentChange={props.handleSidebarAgentChange}
           onSidebarModelChange={props.handleSidebarModelChange}
           onDraftAgentChange={handleDraftAgentChange}
@@ -883,15 +942,11 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
         </Box>
       )
     }
-    const container = drawerContainer()
-    const modalProps = container ? { container: container as Element } : undefined
     return (
       <Drawer
         anchor={isRTL() ? "left" : "right"}
-        variant="temporary"
+        variant="persistent"
         open={rightOpen()}
-        onClose={closeRightDrawer}
-        ModalProps={modalProps}
         sx={{
           zIndex: 60,
           // See the matching override on the left drawer for rationale.
@@ -906,12 +961,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
             color: "var(--text-primary)",
             boxShadow: "none",
             borderRadius: 0,
-            top: floatingTopPx(),
-            height: floatingHeight(),
-          },
-          "& .MuiBackdrop-root": {
-            pointerEvents: "auto",
-            backgroundColor: "transparent",
             top: floatingTopPx(),
             height: floatingHeight(),
           },
@@ -958,9 +1007,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     )
   }
 
-  const showingInfoView = createMemo(() => activeSessionIdForInstance() === "info")
-  /** Exactly one real session (the "info" pseudo-view is not a session). */
-  const singleSessionMode = createMemo(() => !showingInfoView() && allInstanceSessions().size === 1)
   const showEmbeddedSidebarToggle = createMemo(() => !singleSessionMode() && !leftPinned() && !leftOpen())
   const activeSessionTitle = createMemo(() => {
     if (showingInfoView()) return null
@@ -1227,7 +1273,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
                 when={!compactHeaderLayout()}
                 fallback={
                   <div class="flex flex-col w-full gap-1.5">
-                    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 w-full">
+                    <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 w-full">
                       <div class="flex min-w-0 items-center gap-2">
                         {renderHeaderLeftSlot()}
                         {renderSessionHeaderIndicators()}
@@ -1250,13 +1296,10 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
                           class="connection-status-button command-palette-button"
                           onClick={handleCommandPaletteClick}
                           aria-label={t("instanceShell.commandPalette.openAriaLabel")}
-                          style={{ flex: "0 0 auto", width: "auto" }}
+                          title={t("instanceShell.commandPalette.openAriaLabel")}
                         >
-                          {t("instanceShell.commandPalette.button")}
+                          +
                         </button>
-                        <span class="connection-status-shortcut-hint kbd-hint">
-                          <Kbd shortcut="cmd+shift+p" />
-                        </span>
                       </div>
 
                       <div class="flex flex-1 items-center justify-end gap-1 min-w-0">
@@ -1373,17 +1416,13 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
                   class="connection-status-button command-palette-button"
                   onClick={handleCommandPaletteClick}
                   aria-label={t("instanceShell.commandPalette.openAriaLabel")}
-                  style={{ flex: "0 0 auto", width: "auto" }}
+                  title={t("instanceShell.commandPalette.openAriaLabel")}
                 >
-                  {t("instanceShell.commandPalette.button")}
+                  +
                 </button>
               </div>
 
               <div class="session-toolbar-right flex-1 flex items-center gap-3">
-                <span class="connection-status-shortcut-hint kbd-hint">
-                  <Kbd shortcut="cmd+shift+p" />
-                </span>
-
                 <div class="ms-auto flex items-center gap-3">
                 <div class="connection-status-meta flex items-center gap-3">
                     <Show when={isSessionPaneWindow()}>

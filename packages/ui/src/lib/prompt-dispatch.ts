@@ -11,7 +11,7 @@ interface DispatchOrdinaryPromptOptions {
     sessionId: string,
     prompt: string,
     attachments: Attachment[],
-  ) => { ok: boolean; reason?: string }
+  ) => Promise<{ ok: boolean; reason?: string }>
   send: (instanceId: string, sessionId: string, prompt: string, attachments: Attachment[]) => Promise<void>
 }
 
@@ -29,7 +29,7 @@ export async function dispatchOrdinaryPrompt(
   options: DispatchOrdinaryPromptOptions,
 ): Promise<PromptDispatchOutcome> {
   if (options.queueEnabled) {
-    const enqueued = options.enqueue(options.instanceId, options.sessionId, options.prompt, options.attachments)
+    const enqueued = await options.enqueue(options.instanceId, options.sessionId, options.prompt, options.attachments)
     if (!enqueued.ok) return { result: "rejected", reason: enqueued.reason }
     return { result: "queued" }
   }

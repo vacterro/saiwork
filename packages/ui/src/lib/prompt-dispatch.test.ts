@@ -13,7 +13,7 @@ describe("prompt dispatch policy", () => {
       sessionId: "session",
       prompt,
       attachments: [],
-      enqueue: (_instanceId, _sessionId, text) => { queued.push(text); return { ok: true } },
+      enqueue: async (_instanceId, _sessionId, text) => { queued.push(text); return { ok: true } },
       send: async (_instanceId, _sessionId, text) => { sent.push(text) },
     })
 
@@ -32,7 +32,7 @@ describe("prompt dispatch policy", () => {
       sessionId: "new-session",
       prompt: "first session prompt",
       attachments: [],
-      enqueue: (_instanceId, _sessionId, text) => { queued.push(text); return { ok: true } },
+      enqueue: async (_instanceId, _sessionId, text) => { queued.push(text); return { ok: true } },
       send: async (_instanceId, _sessionId, text) => { sent.push(text) },
     })
 
@@ -58,7 +58,7 @@ describe("prompt dispatch refusal", () => {
       sessionId: "session",
       prompt: "too big",
       attachments: [],
-      enqueue: () => ({ ok: false, reason: "quota" }),
+      enqueue: async () => ({ ok: false, reason: "quota" }),
       send: async () => { throw new Error("send must not run when queueing") },
     })
 

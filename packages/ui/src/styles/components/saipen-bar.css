@@ -154,141 +154,51 @@
   flex: 0 1 auto;
 }
 
-.saipen-command-more {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 20px;
-  padding: 0 4px;
-}
-
-/* Agent's roadmap plan button -- sits beside the shortcut buttons and opens
-   the plan popover. Accent colour so it reads as "open the roadmap", not as
-   another shortcut. */
-.saipen-plan-button {
-  color: var(--link);
-}
-
-.saipen-plan-button[aria-pressed="true"],
-.saipen-plan-button[data-expanded="true"] {
-  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
-  background: var(--surface);
-}
-
-/* Compact plan popover: the agent's PLAN list in a small floating panel,
-   quick to glance and dismiss -- not a full drawer. */
-.saipen-plan-popover {
-  z-index: 1300;
-  max-width: min(420px, calc(100vw - 24px));
-  max-height: 60vh;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--surface);
-  border: 2px solid;
-  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
-  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.5);
-}
-
-.saipen-plan-popover-body {
-  overflow-y: auto;
-  padding: 4px;
-  min-height: 0;
-}
-
-.saipen-plan-drawer {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-
-.saipen-plan-drawer-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--borderDark);
-  background: var(--surfaceRaised);
-}
-
-.saipen-plan-drawer-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: var(--textPrimary);
-  text-transform: uppercase;
-}
-
-.saipen-plan-drawer-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--border-base);
-  border-radius: 0;
-  background: var(--surface-base);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.saipen-plan-drawer-close:hover {
-  background: var(--surface-hover);
-}
-
-/* Category labels split the shortcut bar into Continue / Plan / Subs groups.
-   They read as separators, so muted and non-interactive. */
-.saipen-category {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: var(--textMuted);
-  padding: 0 6px 0 8px;
-  white-space: nowrap;
-  align-self: center;
-  user-select: none;
-}
-
-.saipen-category:first-child {
-  padding-left: 2px;
-}
-
-/* Per-sub "is the package ready?" checkbox. Filled means the produced
-   package is ready to ship (ee/qq done); empty means it still needs
-   preparing. The label repeats the verdict in the tooltip. */
-.saipen-sub-ready {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  line-height: 1;
-  min-width: 14px;
-  min-height: 16px;
-  padding: 0 2px;
-  cursor: default;
-  user-select: none;
-}
-
-.saipen-sub-ready[data-state="ready"] {
-  color: var(--success);
-}
-
-.saipen-sub-ready[data-state="pending"] {
-  color: var(--textMuted);
-}
-
 .saipen-bar-center button {
   white-space: nowrap;
 }
 
-/* Smart shrinking: the bar is a single line (never wraps into two rows full of
-   empty space). When it is narrow, the rare production round-trips
-   (ccc/ee/eee/qq/qqq/pp) drop off first so the daily drivers stay visible;
-   a genuinely tiny bar keeps the rest by scrolling in one line. */
+.saipen-command-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--borderMuted);
+  flex: 0 0 auto;
+}
+
+.saipen-command-unit {
+  display: inline-flex;
+  align-items: center;
+}
+
+.saipen-command[data-sub-state="ready"] {
+  color: var(--success);
+}
+
+.saipen-command[data-sub-state="pending"] {
+  color: var(--textMuted);
+}
+
+/* Flatten structural regions into one flow while each bordered command
+   category remains intact. Rows fill without reserved grid cells. */
 @container (max-width: 980px) {
-  .saipen-command[data-tier="rare"] {
-    display: none;
+  .saipen-bar-commands {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+  }
+
+  .saipen-bar-left,
+  .saipen-bar-center {
+    display: contents;
+  }
+
+  .saipen-bar-right {
+    display: contents;
   }
 }
 
@@ -299,6 +209,12 @@
   }
   .saipen-bar-group {
     gap: 1px;
+  }
+}
+
+@container (max-width: 480px) {
+  .saipen-bar-commands {
+    padding: 3px;
   }
 }
 

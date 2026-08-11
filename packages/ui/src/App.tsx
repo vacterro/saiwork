@@ -21,7 +21,7 @@ import { useCommands } from "./lib/hooks/use-commands"
 import { useAppLifecycle } from "./lib/hooks/use-app-lifecycle"
 import { useAppSessionRestore } from "./lib/hooks/use-app-session-restore"
 import { loadedRestorableSession } from "./stores/client-state"
-import { shouldShowAppHomeOverlay, shouldShowEmptyAppHome } from "./stores/app-session-restore-gate"
+import { appSessionRestoreGateActive, shouldShowAppHomeOverlay, shouldShowEmptyAppHome } from "./stores/app-session-restore-gate"
 import { getLogger } from "./lib/logger"
 import { launchError, showLaunchError, clearLaunchError } from "./stores/launch-errors"
 import { formatLaunchErrorMessage, isMissingBinaryMessage } from "./lib/launch-errors"
@@ -45,8 +45,13 @@ import {
   disconnectedInstance,
   acknowledgeDisconnectedInstance,
   syncPendingRequests,
+  waitForInstanceInitialHydration,
 } from "./stores/instances"
 import {
+  clearSessionDraftPrompt,
+  getParentSessions,
+  getSessionDraftPrompt,
+  getSessionListError,
   getSessions,
   getSessionRoot,
   activeSessionId,
@@ -56,9 +61,18 @@ import {
   createSession,
   fetchSessions,
   loadMessages,
+  loading,
+  setSessionDraftPrompt,
   updateSessionAgent,
   updateSessionModel,
 } from "./stores/sessions"
+import { addAttachment, clearAttachments, getAttachments } from "./stores/attachments"
+import { NO_SESSION_DRAFT_SESSION_ID } from "./stores/app-session-workspace-hydration"
+import {
+  ensureInitialSession,
+  shouldCreateInitialSession,
+  waitForSessionRestoreBarrier,
+} from "./stores/initial-session"
 import { useForegroundRefresh } from "./lib/hooks/use-foreground-refresh"
 import { messagesLoaded, invalidateSessionMessageLoad } from "./stores/session-state"
 
@@ -314,6 +328,60 @@ const App: Component = () => {
     const instance = activeInstance()
     if (!instance) return null
     return activeSessionId().get(instance.id) || null
+  })
+
+  const initialSessionCreationFailures = new Set<string>()
+
+  function moveNoSessionDraft(instanceId: string, sessionId: string): void {
+    const draft = getSessionDraftPrompt(instanceId, NO_SESSION_DRAFT_SESSION_ID)
+    if (draft) setSessionDraftPrompt(instanceId, sessionId, draft)
+    clearSessionDraftPrompt(instanceId, NO_SESSION_DRAFT_SESSION_ID)
+
+    const draftAttachments = getAttachments(instanceId, NO_SESSION_DRAFT_SESSION_ID)
+    for (const attachment of draftAttachments) addAttachment(instanceId, sessionId, attachment)
+    clearAttachments(instanceId, NO_SESSION_DRAFT_SESSION_ID)
+  }
+
+  createEffect(() => {
+    const restoreActive = appSessionRestoreGateActive()
+    const instanceMap = instances()
+    const currentLoading = loading()
+
+    for (const [instanceId, instance] of instanceMap) {
+      const parentCount = getParentSessions(instanceId).length
+      if (parentCount > 0) initialSessionCreationFailures.delete(instanceId)
+      if (initialSessionCreationFailures.has(instanceId)) continue
+
+      const state = {
+        restoreActive,
+        ready: instance.status === "ready" && Boolean(instance.client),
+        fetching: currentLoading.fetchingSessions.get(instanceId) ?? false,
+        creating: currentLoading.creatingSession.get(instanceId) ?? false,
+        listError: getSessionListError(instanceId),
+        parentCount,
+      }
+      if (!shouldCreateInitialSession(state)) continue
+
+      void ensureInitialSession(instanceId, {
+        waitForHydration: () => waitForInstanceInitialHydration(instanceId),
+        waitForRestore: () => waitForSessionRestoreBarrier(instanceId),
+        canCreate: () => shouldCreateInitialSession({
+          restoreActive: appSessionRestoreGateActive(),
+          ready: instances().get(instanceId)?.status === "ready" && Boolean(instances().get(instanceId)?.client),
+          fetching: loading().fetchingSessions.get(instanceId) ?? false,
+          creating: loading().creatingSession.get(instanceId) ?? false,
+          listError: getSessionListError(instanceId),
+          parentCount: getParentSessions(instanceId).length,
+        }),
+        create: () => createSession(instanceId),
+        moveDraft: (sessionId) => moveNoSessionDraft(instanceId, sessionId),
+        shouldActivate: () => activeSessionId().get(instanceId) !== "info",
+        activate: (sessionId) => setActiveParentSession(instanceId, sessionId),
+      }).catch((error) => {
+        initialSessionCreationFailures.add(instanceId)
+        log.error("Failed to create initial session", { instanceId, error })
+      })
+    }
   })
 
   useForegroundRefresh({

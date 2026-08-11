@@ -14,3 +14,7 @@ out/
 .tmp/
 packages/cloudflare/.wrangler/
 temp/
+
+# SAIPEN runtime journals (transient: SAIOPS op replay + ownership locks)
+.saipen/locks/
+.saipen/recovery/ops/

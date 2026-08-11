@@ -2,6 +2,7 @@ import { For, Show, createSignal, type Component } from "solid-js"
 import { useI18n } from "../lib/i18n"
 import { resolveQueueHint } from "../lib/prompt-queue-hint"
 import { resolveQueueLayout } from "../lib/prompt-queue-layout"
+import { resolvePastedTextPlaceholders } from "../lib/prompt-display-metadata"
 import {
   clearQueue,
   getQueue,
@@ -12,6 +13,9 @@ import {
   updateQueuedPrompt,
 } from "../stores/prompt-queue"
 import { promptQueueExpanded, setPromptQueueExpanded } from "../stores/ui"
+import { getLogger } from "../lib/logger"
+
+const log = getLogger("actions")
 
 interface PromptQueuePanelProps {
   instanceId: string
@@ -52,13 +56,18 @@ const PromptQueuePanel: Component<PromptQueuePanelProps> = (props) => {
       queueEnabled: props.queueEnabled,
     })
 
-  function beginEdit(id: string, text: string) {
+  function beginEdit(id: string, text: string, attachments: Parameters<typeof resolvePastedTextPlaceholders>[1]) {
     setEditingId(id)
-    setDraft(text)
+    setDraft(resolvePastedTextPlaceholders(text, attachments))
+  }
+
+  /** Fires a server mutation without letting a network failure become noise. */
+  function runQuietly(action: () => Promise<unknown>) {
+    void action().catch((error) => log.error("Queue action failed:", error))
   }
 
   function commitEdit(id: string) {
-    updateQueuedPrompt(props.instanceId, props.sessionId, id, draft())
+    runQuietly(() => updateQueuedPrompt(props.instanceId, props.sessionId, id, draft()))
     setEditingId(null)
     setDraft("")
   }
@@ -131,14 +140,14 @@ const PromptQueuePanel: Component<PromptQueuePanelProps> = (props) => {
             </Show>
             <button
               type="button"
-              onClick={() => toggleQueuePaused(props.instanceId, props.sessionId)}
+              onClick={() => runQuietly(() => toggleQueuePaused(props.instanceId, props.sessionId))}
               title={paused() ? t("promptQueue.resume") : t("promptQueue.pause")}
             >
               {paused() ? t("promptQueue.resume") : t("promptQueue.pause")}
             </button>
             <button
               type="button"
-              onClick={() => clearQueue(props.instanceId, props.sessionId)}
+              onClick={() => runQuietly(() => clearQueue(props.instanceId, props.sessionId))}
               disabled={items().length === 0}
               title={t("promptQueue.clear")}
             >
@@ -186,7 +195,7 @@ const PromptQueuePanel: Component<PromptQueuePanelProps> = (props) => {
                           <>
                             <button
                               type="button"
-                              onClick={() => moveQueuedPrompt(props.instanceId, props.sessionId, item.id, -1)}
+                              onClick={() => runQuietly(() => moveQueuedPrompt(props.instanceId, props.sessionId, item.id, -1))}
                               disabled={index() === 0}
                               title={t("promptQueue.moveUp")}
                               aria-label={t("promptQueue.moveUp")}
@@ -195,7 +204,7 @@ const PromptQueuePanel: Component<PromptQueuePanelProps> = (props) => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => moveQueuedPrompt(props.instanceId, props.sessionId, item.id, 1)}
+                              onClick={() => runQuietly(() => moveQueuedPrompt(props.instanceId, props.sessionId, item.id, 1))}
                               disabled={index() === items().length - 1}
                               title={t("promptQueue.moveDown")}
                               aria-label={t("promptQueue.moveDown")}
@@ -204,14 +213,14 @@ const PromptQueuePanel: Component<PromptQueuePanelProps> = (props) => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => beginEdit(item.id, item.text)}
+                              onClick={() => beginEdit(item.id, item.text, item.attachments)}
                               title={t("promptQueue.edit")}
                             >
                               {t("promptQueue.edit")}
                             </button>
                             <button
                               type="button"
-                              onClick={() => removeQueuedPrompt(props.instanceId, props.sessionId, item.id)}
+                              onClick={() => runQuietly(() => removeQueuedPrompt(props.instanceId, props.sessionId, item.id))}
                               title={t("promptQueue.remove")}
                               aria-label={t("promptQueue.remove")}
                             >

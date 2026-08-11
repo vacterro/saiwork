@@ -135,6 +135,10 @@ export const toolCallMessages = {
   "toolCall.status.running": "実行中",
   "toolCall.status.completed": "完了",
   "toolCall.status.error": "エラー",
+  "toolCall.status.short.pending": "待機",
+  "toolCall.status.short.running": "実行",
+  "toolCall.status.short.completed": "完了",
+  "toolCall.status.short.error": "異常",
   "toolCall.status.unknown": "不明",
 
   "toolCall.applyPatch.action.preparing": "apply_patch を準備中...",

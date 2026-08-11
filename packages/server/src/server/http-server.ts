@@ -13,12 +13,14 @@ import { WorkspaceManager } from "../workspaces/manager"
 import type { SettingsService } from "../settings/service"
 import { FileSystemBrowser } from "../filesystem/browser"
 import { EventBus } from "../events/bus"
+import type { QueueManager } from "../queue/manager"
 import { registerWorkspaceRoutes } from "./routes/workspaces"
 import { registerSettingsRoutes } from "./routes/settings"
 import { registerFilesystemRoutes } from "./routes/filesystem"
 import { registerConfigFileRoutes } from "./routes/config-files"
 import { registerMetaRoutes } from "./routes/meta"
 import { registerSaipenRoutes } from "./routes/saipen"
+import { registerQueueRoutes } from "./routes/queue"
 import { registerEventRoutes } from "./routes/events"
 import { registerStorageRoutes } from "./routes/storage"
 import { registerPluginRoutes } from "./routes/plugin"
@@ -66,6 +68,7 @@ interface HttpServerDeps {
   settings: SettingsService
   fileSystemBrowser: FileSystemBrowser
   eventBus: EventBus
+  queueManager: QueueManager
   serverMeta: ServerMeta
   instanceStore: InstanceStore
   speechService: SpeechService
@@ -300,7 +303,9 @@ export function createHttpServer(deps: HttpServerDeps) {
   registerSaipenRoutes(app, {
     settings: deps.settings,
     getSaipenLaunchState: (folder) => deps.workspaceManager.getSaipenLaunchState(folder),
+    workspaceManager: deps.workspaceManager,
   })
+  registerQueueRoutes(app, { queueManager: deps.queueManager })
   registerEventRoutes(app, {
     eventBus: deps.eventBus,
     registerClient: registerSseClient,

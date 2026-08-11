@@ -42,3 +42,155 @@
 - 10.08.26 17:01 [E-417] [parent: E-416] DEC: E-416 invalid; final transition VALIDATE -> DONE per CORE 1.6
 - 10.08.26 17:03 [E-418] [parent: E-417] [T-071] RUN: final unsupported Tauri compile claim removed
 - 10.08.26 17:04 [E-419] [parent: E-418] RUN: push a02736cb -> origin/saiwork; public README/About verified
+- 10.08.26 17:30 [E-420] [parent: E-419] [T-073] RUN: build:win -> PASS after exact Electron 38.0.0 pin + default Windows compression level 5; ZIP and portable EXE generated, final artifact/test gates remain
+- 10.08.26 17:30 [E-421] [parent: E-420] [T-074] RUN: root cause -> global cavecrew investigator/reviewer pinned shorthand `haiku`; OpenCode resolved unavailable `haiku/.`; removed both pins so CodeNomad + SAIWORK inherit session model
+- 10.08.26 17:30 [E-422] [parent: E-421] [T-074] RUN: fresh config verify -> PASS for normal CodeNomad profile + isolated SAIWORK XDG_DATA_HOME; both agent definitions contain no model key; plugin tests 8/8 PASS
+- 10.08.26 17:30 [E-423] [parent: E-422] [T-074] DEC: running CodeNomad host retains old agent registry until restart; in-session task still returns exact cached `Model not found: haiku/.`; fresh processes are clean
+- 10.08.26 19:22 [E-424] [parent: E-423] [T-075] RUN: reproduced `reading 'modals'` from renderer console -> SUID ModalManager.remove lost container during temporary Drawer shell cleanup; same stack occurred on two runs
+- 10.08.26 19:22 [E-425] [parent: E-424] [T-075] RUN: DONE -> both floating Drawers use persistent path, existing click-away/Escape dismissal retained, ModalManager bypassed; UI typecheck + focused regression + 581 UI tests PASS
+- 10.08.26 19:32 [E-426] [parent: E-425] [T-076] RUN: conflict audit -> Drawer fix touches only SAIWORK instance-shell2 + regression; upstream 67cb stays temporary; no node_modules/installed CodeNomad edit; app IDs, config, Electron userData and OpenCode data paths are distinct
+- 10.08.26 19:32 [E-427] [parent: E-426] [T-076] RUN: DONE -> live concurrent CodeNomad + SAIWORK smoke opened both drawers and switched 2 tabs with zero page/console errors; stopped SAIWORK test tree, CodeNomad processes remained; root typecheck, server 288 PASS/4 SKIP, Electron 118 PASS
+- 10.08.26 20:34 [E-428] [parent: E-427] [T-073] RUN: typecheck + npm test -> FAIL resource contention; concurrent Node processes hit OOM, UI test workers died without assertion failures; rerun sequentially
+- 10.08.26 20:34 [E-429] [parent: E-428] RUN: validate.py -> PASS (translation-stale warning only)
+- 10.08.26 20:35 [E-430] [parent: E-429] [T-073] RUN: sequential typecheck -> FAIL OOM; host commit reserve 606180 KB, no code diagnostic; VERIFY retry cap reached
+- 10.08.26 20:35 [E-431] [parent: E-430] DEC: user defects -> T-077 drawer dismissal/state sync, T-078 tofu squares replacing text
+- 10.08.26 20:35 [E-432] [parent: E-431] [T-073] DEC: VERIFY -> BLOCKED after 2 OOM attempts; T-077 becomes top workable ticket
+- 10.08.26 20:35 [E-433] [parent: E-432] [T-077] DEC: claimed by opencode; user bug outranks parked package gate
+- 10.08.26 20:38 [E-434] [parent: E-433] RUN: validate.py -> PASS (translation-stale warning only)
+- 10.08.26 20:38 [E-435] [parent: E-434] [T-077] RUN: SCOUT -- stale pin blocks click-away in forced-floating mode; hidden shells restore shared open state; session selection leaves drawer open
+- 10.08.26 20:41 [E-436] [parent: E-435] [T-077] RUN: build -> actual floating-state helper drives click-away/hidden reset; tab, session and new-session transitions dismiss; focused 7/7 + esbuild parse PASS; live CDP unavailable (timeout)
+- 10.08.26 20:42 [E-437] [parent: E-436] [T-077] RUN: focused drawer/TDZ/visibility tests -> PASS 7/7; MANUAL-VERIFY open drawer then click center/switch session/switch tab => drawer stays closed; conf: med (CDP unavailable)
+- 10.08.26 20:46 [E-438] [parent: E-437] [T-077] RUN: REVIEW verify rerun -> PASS 7/7
+- 10.08.26 20:46 [E-439] [parent: E-438] [T-077] DEC: SHIP after FIXES -- review found stale-pin count transition, portal click-away and forced-floating Escape gaps; static test weakness
+- 10.08.26 20:48 [E-440] [parent: E-439] [T-077] RUN: build -> drawer chrome owns forced-floating pin/close/Escape semantics; portal clicks exempt; session-count transitions close; dismissal matrix added; focused 8/8 + parses PASS
+- 10.08.26 20:49 [E-441] [parent: E-440] [T-077] RUN: focused drawer/TDZ/visibility tests -> PASS 8/8; conf: med (live renderer remains unavailable)
+- 10.08.26 20:51 [E-442] [parent: E-441] [T-077] RUN: REVIEW verify rerun -> PASS 8/8
+- 10.08.26 20:51 [E-443] [parent: E-442] [T-077] DEC: SHIP after FIXES -- prior 3 findings fixed; new P0: hidden session-count transition mutates active shell's global visibility/pin
+- 10.08.26 20:52 [E-444] [parent: E-443] [T-077] RUN: build -> active session-mode changes close globally, hidden changes reset locally; behavioral action matrix added; focused 9/9 + parses PASS
+- 10.08.26 20:53 [E-445] [parent: E-444] [T-077] RUN: focused drawer/TDZ/visibility tests -> PASS 9/9; conf: med (live renderer unavailable)
+- 10.08.26 20:55 [E-446] [parent: E-445] [T-077] RUN: REVIEW verify rerun -> PASS 9/9
+- 10.08.26 20:55 [E-447] [parent: E-446] [T-077] DEC: SHIP -- reviewer found no issues; prior findings remain fixed
+- 10.08.26 20:56 [E-448] [parent: E-447] [T-077] DEC: mode full -> no-publish (policy); user requested continue, not commit/push
+- 10.08.26 20:57 [E-449] [parent: E-448] [T-077] RUN: ship v0.0.2 -> skipped publish (no-publish: policy)
+- 10.08.26 20:58 [E-450] [parent: E-449] [T-077] RUN: `saipen ticket done` -> FAIL missing ticket argument; retry with T-077
+- 10.08.26 20:58 [E-451] [parent: E-450] [T-077] [agent: opencode] [op: finish-a8cce056] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 20:59 [E-452] [parent: E-451] [T-078] [agent: opencode] [op: claim-95210e7f] DEC: claimed via SAIOPS -- owner opencode
+- 10.08.26 21:04 [E-453] [parent: E-452] [T-078] RUN: SCOUT -- literal ballot boxes caused reported squares; same forced-Verdana risk in tool/status/message/diagnostic emoji labels
+- 10.08.26 21:06 [E-454] [parent: E-453] [T-078] RUN: build -> localized Queue/Ready plus ASCII tool/status/message/diagnostic labels; source guard added; focused 7/7, esbuild parse and UI typecheck PASS
+- 10.08.26 21:07 [E-455] [parent: E-454] [T-078] RUN: UI test suite -> PASS 589/589; conf: high
+- 10.08.26 21:12 [E-456] [parent: E-455] [T-078] RUN: REVIEW verify rerun -> PASS 589/589
+- 10.08.26 21:12 [E-457] [parent: E-456] [T-078] DEC: SHIP after FIXES -- review found timeline accessible-name regression, unlocalized task status, compact overflow and guard gaps
+- 10.08.26 21:15 [E-458] [parent: E-457] [T-078] RUN: build -> 9-locale compact labels, <=3-char tool codes, timeline aria labels, localized task statuses and broader guard; focused 15/15 + UI typecheck PASS
+- 10.08.26 21:15 [E-459] [parent: E-458] [T-078] RUN: UI test suite -> PASS 589/589; conf: high
+- 10.08.26 21:17 [E-460] [parent: E-459] [T-078] RUN: REVIEW verify rerun -> PASS 589/589
+- 10.08.26 21:17 [E-461] [parent: E-460] [T-078] DEC: SHIP after FIXES -- prior findings fixed; new task-row risk: full localized status can overflow
+- 10.08.26 21:19 [E-462] [parent: E-461] [T-078] RUN: build -> localized compact task status keys in all 9 locales; full status retained for accessibility; focused 10/10 + UI typecheck PASS
+- 10.08.26 21:19 [E-463] [parent: E-462] [T-078] RUN: UI test suite -> PASS 589/589; conf: high
+- 10.08.26 21:20 [E-464] [parent: E-463] [T-078] RUN: REVIEW verify rerun -> PASS 589/589
+- 10.08.26 21:20 [E-465] [parent: E-464] [T-078] DEC: SHIP -- reviewer found no issues; accessibility, i18n, compact layout and source guard clean
+- 10.08.26 21:21 [E-466] [parent: E-465] [T-078] RUN: ship v0.0.2 -> skipped publish (no-publish: policy)
+- 10.08.26 21:22 [E-467] [parent: E-466] [T-078] [agent: opencode] [op: finish-1ee5e8dd] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 21:22 [E-468] [parent: E-467] [T-073] [agent: opencode] [op: ticket-c68f4827] DEC: ticket unblock via SAIOPS -- host virtual memory recovered; UI typecheck and 589-test suite now pass
+- 10.08.26 21:22 [E-469] [parent: E-468] [T-073] [agent: opencode] [op: claim-a38f7ecc] DEC: claimed via SAIOPS -- owner opencode
+- 10.08.26 21:23 [E-470] [parent: E-469] [T-073] RUN: SCOUT -- package code/artifacts/hash/resource smoke already PASS; recovered host can now run remaining root gates
+- 10.08.26 21:24 [E-471] [parent: E-470] [T-073] RUN: build -> no code change required after environmental unblock; existing packaging implementation proceeds to VERIFY
+- 10.08.26 21:25 [E-472] [parent: E-471] [T-073] RUN: root typecheck + npm test -> PASS; UI 589, server 288/4 SKIP, plugin 8, Electron 122; conf: high
+- 10.08.26 21:33 [E-473] [parent: E-472] [T-073] DEC: REVIEW found wrong changelog release + unchecked compression env
+- 10.08.26 21:33 [E-474] [parent: E-473] [T-073] RUN: fixes -> changelog 0.0.2; env trim/default 5/range guard
+- 10.08.26 21:33 [E-475] [parent: E-474] [T-073] RUN: REVIEW verify -> PASS typecheck; tests 589+288/4 skip+8+122
+- 10.08.26 21:33 [E-476] [parent: E-475] [T-073] RUN: script parse, hashes, resource smoke -> PASS; reviewer clean
+- 10.08.26 21:33 [E-477] [parent: E-476] [T-073] DEC: SHIP after FIXES
+- 10.08.26 21:34 [E-478] [parent: E-477] [T-073] DEC: preserve resolved OOM history in ticket blocker field
+- 10.08.26 21:36 [E-479] [parent: E-478] [T-073] RUN: ship v0.0.2 -> skipped publish (no-publish: policy)
+- 10.08.26 21:37 [E-480] [parent: E-479] [T-073] RUN: validator -> FAIL illegal ticket next_action; restored PHASE SHIP
+- 10.08.26 21:37 [E-481] [parent: E-480] [T-073] [agent: opencode] [op: finish-85ea359e] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 21:38 [E-482] [parent: E-481] [T-073] DEC: attach explicit verify field; evidence unchanged
+- 10.08.26 21:39 [E-483] [parent: E-482] RUN: SAIOPS continue -> unsupported CLI; Core follows DONE route
+- 10.08.26 21:39 [E-484] [parent: E-483] DEC: DONE -> HUNT; TODO empty
+- 10.08.26 21:53 [E-485] [parent: E-484] RUN: hunt -> 17 candidates; tests 589+288/4+8+122 PASS; HEAD unchanged
+- 10.08.26 21:53 [E-486] [parent: E-485] DEC: ticket cap 5 -> T-079..083 high-impact reliability findings
+- 10.08.26 21:53 [E-487] [parent: E-486] DEC: lower-priority menu/codec/drawer/queue/Tauri/orphan signals deferred
+- 10.08.26 21:53 [E-488] [parent: E-487] DEC: HUNT -> PLAN
+- 10.08.26 21:54 [E-489] [parent: E-488] [T-079] [agent: opencode] [op: claim-a6e633d4] DEC: claimed via SAIOPS -- owner opencode
+- 10.08.26 21:56 [E-490] [parent: E-489] [T-079] RUN: SCOUT -- child/stream errors crash; finalize rejection leaves exit pending
+- 10.08.26 22:24 [E-491] [parent: E-490] [T-079] DEC: user UI request preempts stale claim; partial server build preserved; ticket demoted to TODO
+- 10.08.26 22:24 [E-492] [parent: E-491] [T-084] DEC: claimed; SCOUT found paste body hidden in attachment, mouseleave drag loss, no wheel bridge, and 800px shell floor
+- 10.08.26 22:24 [E-493] [parent: E-492] [T-084] RUN: build -> Queue expands editable paste; SaipenBar captures MBUTTON, wheels and wraps; shell floor 320px
+- 10.08.26 22:28 [E-494] [parent: E-493] [T-084] RUN: verify -> PASS UI typecheck, 13 focused, 591 full tests, UI build, Electron typecheck; conf: high
+- 10.08.26 22:28 [E-495] [parent: E-494] [T-084] RUN: UI check 360x640 -> PASS 360px document, 129px wrapped bar, 0 clipped buttons, 326px editor
+- 10.08.26 22:31 [E-496] [parent: E-495] [T-084] DEC: SHIP after FIXES -- review found edge wheel trapping and over-broad pasted attachment removal
+- 10.08.26 22:31 [E-497] [parent: E-496] [T-084] RUN: build -> wheel yields at edges; Queue removes only expanded, no-longer-referenced paste attachments
+- 10.08.26 22:32 [E-498] [parent: E-497] [T-084] RUN: verify fixes -> PASS UI typecheck, 13 focused, 591 full tests, UI build, Electron typecheck; conf: high
+- 10.08.26 22:35 [E-499] [parent: E-498] [T-084] RUN: REVIEW verify rerun -> PASS UI typecheck, 591 tests, UI build, Electron typecheck; diff check clean
+- 10.08.26 22:35 [E-500] [parent: E-499] [T-084] DEC: SHIP -- second review found no issues; prior wheel and attachment findings fixed
+- 10.08.26 22:37 [E-501] [parent: E-500] RUN: validator -> FAIL stale resolved blocker field on DONE T-073; history remains in LOG, field removed
+- 10.08.26 22:37 [E-502] [parent: E-501] RUN: validator -> FAIL closed T-073 verify_attempts cap requires forbidden DONE blocker; resolved counter removed
+- 10.08.26 22:37 [E-503] [parent: E-502] RUN: validator -> PASS (translation-stale warning only)
+- 10.08.26 22:37 [E-504] [parent: E-503] RUN: ship v0.0.2 -> skipped publish (no-publish: policy)
+- 10.08.26 22:37 [E-505] [parent: E-504] [T-084] RUN: `saipen ticket done` -> FAIL CLI requires ticket despite help text; retry with T-084
+- 10.08.26 22:37 [E-506] [parent: E-505] [T-084] [agent: opencode] [op: finish-313ebaf9] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 22:41 [E-507] [parent: E-506] [T-085] DEC: claimed; SCOUT traced screenshot gap to forced two-row grid with an empty left group
+- 10.08.26 22:46 [E-508] [parent: E-507] [T-085] RUN: build -> replaced narrow forced grid with natural flex packing; category labels stay with first command
+- 10.08.26 22:47 [E-509] [parent: E-508] [T-085] RUN: verify -> PASS UI typecheck, 591 tests, UI build, 640px smoke; 0 clipped items and 4px leading gap
+- 10.08.26 22:49 [E-510] [parent: E-509] [T-085] RUN: review -> fixed category spacing, unknown sub state, premature preparation action and overflow clipping
+- 10.08.26 22:51 [E-511] [parent: E-510] [T-085] DEC: dense 2px spacing retained; matches existing Win95 desktop controls and explicit compact-packing request
+- 10.08.26 22:52 [E-512] [parent: E-511] [T-085] DEC: SHIP -- final 640px smoke PASS, full suite PASS, no blocking review findings
+- 10.08.26 22:53 [E-513] [parent: E-512] [T-085] [agent: opencode] [op: finish-bf74bedb] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 22:53 [E-514] [parent: E-513] [T-085] RUN: validator -> FAIL review_passes exceeded mechanical cap; normalize recorded passes to 2
+- 10.08.26 22:54 [E-515] [parent: E-514] [T-085] RUN: validator -> PASS (wiki-mirror-behind and translation-stale warnings only)
+- 10.08.26 23:07 [E-516] [parent: E-515] [T-086] DEC: claimed; SCOUT mapped compact controls, portal click-away gap and restore-sensitive empty-project session creation
+- 10.08.26 23:22 [E-517] [parent: E-516] [T-087] DEC: claimed; mapped all STATE parsers -- real fixture is colon/YAML, drift is scope+duplicate asymmetry, not pipe format
+- 10.08.26 23:28 [E-518] [parent: E-517] [T-087] RUN: build -> canonical frontmatter parser server/src/saipen/state.ts; core.ts + UI saipen-view.ts rewired, dup detection, saipen_home/agent/role_revision surfaced in UI
+- 10.08.26 23:28 [E-519] [parent: E-518] [T-087] RUN: verify -> PASS server 299/303 (4 skip), UI 7/7 parser tests, both typechecks
+- 10.08.26 23:29 [E-520] [parent: E-519] [T-086] RUN: verify -> PASS UI typecheck, 595/595 tests, UI build, server 299/303; reviewer aborted, no findings captured
+- 10.08.26 23:29 [E-521] [parent: E-520] [T-086] DEC: SHIP -- full suite green, build green, two review passes from earlier feedback applied
+- 10.08.26 23:30 [E-522] [parent: E-521] [T-087] RUN: validator -> FAIL non-ticket tag in LOG; registered HUNT tickets T-087..T-095, relabelled events
+- 10.08.26 23:30 [E-523] [parent: E-522] [T-087] DEC: finish HUNT-1 via REVIEW/SHIP gates
+- 10.08.26 23:30 [E-524] [parent: E-523] [T-086] [agent: opencode] [op: transition-3c30c85f] RUN: transition to VERIFY
+- 10.08.26 23:30 [E-525] [parent: E-524] [T-086] [agent: opencode] [op: transition-a4d5d283] RUN: transition to REVIEW
+- 10.08.26 23:30 [E-526] [parent: E-525] [T-086] [agent: opencode] [op: transition-e1dfea9b] RUN: transition to SHIP
+- 10.08.26 23:30 [E-527] [parent: E-526] [T-086] [agent: opencode] [op: finish-d8d10caf] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 23:30 [E-528] [parent: E-527] [T-087] [agent: opencode] [op: claim-89c16cf2] DEC: claimed via SAIOPS -- owner opencode
+- 10.08.26 23:30 [E-529] [parent: E-528] [T-087] [agent: opencode] [op: transition-e6085390] RUN: transition to BUILD
+- 10.08.26 23:30 [E-530] [parent: E-529] [T-087] [agent: opencode] [op: transition-70552d8e] RUN: transition to VERIFY
+- 10.08.26 23:30 [E-531] [parent: E-530] [T-087] [agent: opencode] [op: transition-402b526a] RUN: transition to REVIEW
+- 10.08.26 23:30 [E-532] [parent: E-531] [T-087] [agent: opencode] [op: transition-2caeaefb] RUN: transition to SHIP
+- 10.08.26 23:30 [E-533] [parent: E-532] [T-087] [agent: opencode] [op: finish-1fd0e55d] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 23:36 [E-534] [parent: E-533] [T-088] [agent: opencode] [op: claim-7b07d467] DEC: claimed via SAIOPS -- owner opencode
+- 10.08.26 23:36 [E-535] [parent: E-534] [T-088] [agent: opencode] [op: transition-fe726161] RUN: transition to BUILD
+- 10.08.26 23:36 [E-536] [parent: E-535] [T-088] [agent: opencode] [op: transition-cad0f23e] RUN: transition to VERIFY
+- 10.08.26 23:36 [E-537] [parent: E-536] [T-088] [agent: opencode] [op: transition-66e10f3f] RUN: transition to REVIEW
+- 10.08.26 23:36 [E-538] [parent: E-537] [T-088] [agent: opencode] [op: transition-6e6531b2] RUN: transition to SHIP
+- 10.08.26 23:37 [E-539] [parent: E-538] [T-088] [agent: opencode] [op: finish-c406685f] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 23:37 [E-540] [parent: E-539] [T-089] [agent: opencode] [op: claim-926b1187] DEC: claimed via SAIOPS -- owner opencode
+- 10.08.26 23:40 [E-541] [parent: E-540] [T-089] [agent: opencode] [op: transition-59b88ea1] RUN: transition to BUILD
+- 10.08.26 23:40 [E-542] [parent: E-541] [T-089] [agent: opencode] [op: transition-ec30aeda] RUN: transition to VERIFY
+- 10.08.26 23:40 [E-543] [parent: E-542] [T-089] [agent: opencode] [op: transition-73965d08] RUN: transition to REVIEW
+- 10.08.26 23:40 [E-544] [parent: E-543] [T-089] [agent: opencode] [op: transition-f241c6dd] RUN: transition to SHIP
+- 10.08.26 23:40 [E-545] [parent: E-544] [T-089] [agent: opencode] [op: finish-08027f3a] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 10.08.26 23:40 [E-546] [parent: E-545] [T-090] [agent: opencode] [op: claim-ef79748c] DEC: claimed via SAIOPS -- owner opencode
+- 11.08.26 11:27 [E-547] [parent: E-546] [T-090] [agent: opencode] DEC: stale claim takeover -- observed claim_time 2026-08-10T23:40:44Z > 15 min old; refreshed owner opencode
+- 11.08.26 11:27 [E-548] [parent: E-547] [T-090] [agent: opencode] DEC: HUNT-4 shipped -- server SaipenFileWatcher watches registered workspaces' .saipen (STATE/BOARD/LOG/kitchen), debounced 300ms, workspace-scoped saipen.changed event over EventBus/SSE; UI panel refreshes on clean editor, preserves dirty draft with conflict state; self-heal sweep + lifecycle watch/unwatch; server watcher tests 9/9, UI externalChangeAction tests 3/3
+- 11.08.26 11:27 [E-549] [parent: E-548] [T-098] [agent: opencode] DEC: blocked ticket parser regression -- parseBoardSections is section-aware, canonical TODO/DOING/BLOCKED/DONE sections win over checkbox state, matching server BOARD semantics; golden fixture + prose-section tests added
+- 11.08.26 11:27 [E-550] [parent: E-549] [T-none] [agent: opencode] RUN: server suite (312 pass/5 skip) + UI suite (603 pass) + UI typecheck/build -> PASS
+- 11.08.26 11:32 [E-551] [parent: E-550] [T-091] [agent: opencode] DEC: claimed -- owner opencode, claim_time 2026-08-11T11:32:25Z
+- 11.08.26 11:32 [E-552] [parent: E-551] [T-091] [agent: opencode] DEC: canonical STATE parser shared -- UI parseStateFrontmatter now delegates to server/src/saipen/state.ts; the duplicate UI frontmatter parser is deleted; UI saipen-view tests 13/13 pass on the canonical parser
+- 11.08.26 11:32 [E-553] [parent: E-552] [T-091] [agent: opencode] DEC: canonical BOARD parser moved to server/src/saipen/board.ts -- section-aware status, one implementation; /api/saipen/view returns structured boardSections; server project-state counts + embedded panel consume it; UI board parser deleted
+- 11.08.26 11:32 [E-554] [parent: E-553] [T-091] [agent: opencode] RUN: server suite (324 tests: 319 pass/5 skip) + UI suite (598 pass) + both typechecks + UI build -> PASS
+- 11.08.26 11:32 [E-555] [parent: E-554] [T-091] [agent: opencode] DEC: verify -- no UI re-parse of canonical STATE beyond the shared server parser; board renders structured API payload only
+- 11.08.26 11:32 [E-556] [parent: E-555] [T-none] [agent: opencode] RUN: validate.py -> PASS (conformant; 4 pre-existing warnings: board soft-cap, saiwiki mirror x2, locale translations)
+- 11.08.26 12:11 [E-557] [parent: E-556] [T-092] [agent: opencode] DEC: claimed -- owner opencode, claim_time 2026-08-11T12:11:25Z
+- 11.08.26 12:11 [E-558] [parent: E-557] [T-092] [agent: opencode] DEC: single-owner queue -- QueueManager (server/src/queue/manager.ts) holds the queue authoritatively; CAS expectedRevision on every mutation, atomic temp+rename persistence to prompt-queue.json, per-key serialization; SSE queue.changed keeps every window's mirror live
+- 11.08.26 12:11 [E-559] [parent: E-558] [T-092] [agent: opencode] DEC: UI prompt-queue.ts is now a server mirror -- async CAS mutators, queue.changed feed, conflict re-sync; renderer-local localStorage model deleted; dispatch stays at-most-once because an atomic server dequeue lets exactly one window win the head
+- 11.08.26 12:11 [E-560] [parent: E-559] [T-092] [agent: opencode] RUN: two-client harness + suites -> PASS (server 342: 337 pass/5 skip incl. concurrent dequeue/enqueue CAS + at-most-once dispatch; UI 597 pass; typechecks + UI build clean)
+- 11.08.26 12:11 [E-561] [parent: E-560] [T-092] [agent: opencode] DEC: verify -- multi-client stale-mutation tests cannot destroy newer changes (CAS 409 + mirror re-sync)
+- 11.08.26 12:11 [E-562] [parent: E-561] [T-none] [agent: opencode] RUN: validate.py -> PASS (conformant; 4 pre-existing warnings)
+- 11.08.26 12:13 [E-563] [parent: E-562] [T-083] [agent: opencode] DEC: claimed -- owner opencode, claim_time 2026-08-11T12:13:46Z
+- 11.08.26 12:13 [E-564] [parent: E-563] [T-083] [agent: opencode] DEC: main-window recovery on activate -- old check recreated a window only when NO windows remained, so a surviving detached session pane permanently suppressed recovery; extracted shouldRecreateMainWindow (electron/main/window-recovery.ts) and wired the activate handler to recreate whenever the main window is null/destroyed
+- 11.08.26 12:13 [E-565] [parent: E-564] [T-083] [agent: opencode] RUN: electron suite -> PASS (125: 122 + 3 new window-recovery tests); electron typecheck clean
+- 11.08.26 12:13 [E-566] [parent: E-565] [T-none] [agent: opencode] RUN: validate.py -> PASS (conformant; 4 pre-existing warnings)
+- 11.08.26 12:23 [E-567] [parent: E-566] [T-none] [agent: opencode] [op: transition-729ed7bd] DEC: transition to SHIP -- saipen ship invoked; mode no-publish, local steps only
+- 11.08.26 12:23 [E-568] [parent: E-567] [T-none] [agent: opencode] RUN: ship v0.0.3 -> skipped publish (no-publish: policy)
+- 11.08.26 12:23 [E-569] [parent: E-568] [T-none] [agent: opencode] RUN: validate.py --gate ship -> PASS (conformant; 4 pre-existing warnings)
+- 11.08.26 12:23 [E-570] [parent: E-569] [T-none] [agent: opencode] RUN: validate.py -> PASS (conformant; 4 pre-existing warnings)
+- 11.08.26 12:26 [E-571] [parent: E-570] [T-none] [agent: opencode] DEC: publish authorized -- user requested publish; mode no-publish -> full; resuming SHIP git half (commit/push/tag)

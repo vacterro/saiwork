@@ -13,7 +13,7 @@ export interface RendererFlushWindow {
   webContents: RendererFlushWebContents
 }
 
-export type RendererFlushResult = "flushed" | "not-primary" | "window-unavailable" | "untrusted-origin"
+export type RendererFlushResult = "flushed" | "callback-unavailable" | "not-primary" | "window-unavailable" | "untrusted-origin"
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -48,14 +48,14 @@ export async function flushRendererClientStateBeforeShutdown(
 
   const callbackName = JSON.stringify(RENDERER_CLIENT_STATE_FLUSH_CALLBACK)
   const expectedOrigin = JSON.stringify(new URL(currentUrl).origin)
-  await withTimeout(
+  const flushed = await withTimeout(
     window.webContents.executeJavaScript(`(() => {
       if (window.location.origin !== ${expectedOrigin}) throw new Error("Renderer origin changed before client-state flush");
       const flush = window[${callbackName}];
-      if (typeof flush !== "function") throw new Error("Renderer client-state flush callback is unavailable");
-      return flush();
+      if (typeof flush !== "function") return false;
+      return Promise.resolve(flush()).then(() => true);
     })()`),
     timeoutMs,
   )
-  return "flushed"
+  return flushed === false ? "callback-unavailable" : "flushed"
 }

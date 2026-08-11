@@ -33,19 +33,29 @@ Remotes: `origin` -> github.com/vacterro/saiwork, `upstream` -> github.com/Neura
   merge cannot quietly reintroduce an off-scale size.
 - D-11 Yolo default lives at the wiring layer (`AutoAcceptManager.defaultEnabled`),
   not inside the store, so the upstream opt-in tests keep testing real behaviour.
-- D-12 HUNT workers use `general` only until SAIWORK validates configured agent
-  model pins; global cavecrew `model: haiku` resolves to unavailable `haiku/.`.
+- D-12 Cavecrew agents inherit the selected session model. OpenCode requires
+  qualified `provider/model` pins; aliases such as `haiku` can resolve to the
+  invalid `haiku/.`. SAIWORK also strips stale unqualified agent pins at config load.
 - D-13 Product promise: connect agents and work on projects seamlessly. First-run,
   project-open, session, agent, prompt, status, and recovery flows must be obvious
   without documentation; visual polish serves this path rather than decorating it.
 
 ## DOING
 
-(empty)
 
 ## TODO
 
-(empty)
+
+- [ ] T-093 HUNT-7: stop feeding instance-shell2.tsx -- extract touched logic into focused controllers/hooks with tests | verify: extraction preserves behavior, no new orchestration in shell
+- [ ] T-099 Detached-window ownership hardening: prevent duplicate detached owners for one pane; deterministic recovery when a detached renderer crashes or its window is force-closed; session must never become unreachable because its detached owner disappeared | verify: hostile-lifecycle tests cover close-with-X, renderer crash, and duplicate-owner rejection
+- [ ] T-094 HUNT-8: embedded SAIPENVIEW product target -- one app, no manual backend, no second OpenCode runtime | verify: runtime smoke shows single managed runtime
+- [ ] T-095 HUNT-9: defer pruning -- inventory then disable/delete only unused features with build+test+runtime smoke | verify: candidate list audited, kept surface green
+- [ ] T-096 Mirror the agent's live CodeNomad plan (Status -> PLAN, between Usage and Background) on a PLAN button in SaipenBar; button reflects current plan state, not .saipen ROADMAP | verify: PLAN button shows agent plan list/state and opens the same view
+- [ ] T-097 Pressed/sunken visual state for the selected session tab: both sidebar session rows and top project tabs indicate the active session | verify: selected rows/tabs render sunken distinct from idle
+- [ ] T-079 Contain background-process startup, output-stream and asynchronous finalization failures so errors cannot crash the server, hang completion or leave a false running record | verify: server tests inject spawn, output-stream and finalize failures and confirm bounded cleanup plus a settled non-running record
+- [ ] T-080 Preserve the background-process index on read or parse failure instead of treating corruption as an empty list and overwriting process history | verify: server tests inject unreadable and malformed indexes and confirm mutation fails closed without replacing original records
+- [ ] T-081 Make YAML settings persistence fail honestly: write errors propagate, cache/API never report unsaved state, and PATCH returns failure | verify: settings store/route tests inject mkdir/write failure and confirm non-2xx response plus unchanged cached and persisted state
+- [ ] T-082 Bound binary `--version` probes so a hanging executable cannot freeze the server event loop indefinitely | verify: spawn probe test runs a hanging shim and returns a timeout error within the configured bound
 
 Wave 3 -- window management, as the user scoped it: split panes in one window
 plus detached OS windows, Ctrl+Q snaps the active window to a preset size and
@@ -56,6 +66,26 @@ Wave 2 order: the four defects the user hit in a live session come first, then
 the gate that keeps them from coming back, then wave 1's remaining findings.
 
 ## DONE
+- [x] T-083 Recreate the Electron main window on app activation when auxiliary windows remain after the main window closes | verify: Electron lifecycle test closes main with an auxiliary window, activates app, and confirms exactly one recreated main window while auxiliary window survives | owner: opencode | claim_time: 2026-08-11T12:13:46Z
+- [x] T-092 HUNT-6: queue ownership before detached windows -- central server queue store, revisioned CAS mutations, at-most-once dispatch | verify: multi-client stale-mutation test cannot destroy newer changes | owner: opencode | claim_time: 2026-08-11T12:11:25Z
+- [x] T-091 HUNT-5: remove duplicate protocol knowledge -- UI consumes canonical parsed state instead of re-parsing STATE; keep stronger standalone SAIPENVIEW logic | verify: no UI re-parse of canonical STATE beyond shared parser | owner: opencode | claim_time: 2026-08-11T11:32:25Z
+- [x] T-090 HUNT-4: live SAIPEN change stream (STATE/BOARD/LOG/kitchen) -- workspace-scoped event, debounced, mounted SAIPENVIEW refreshes; dirty drafts survive with conflict state | verify: event propagation + dirty-draft conflict tests | owner: opencode | claim_time: 2026-08-10T23:40:44Z
+- [x] T-098 blocked ticket parser regression -- BOARD status is section-aware; canonical TODO/DOING/BLOCKED/DONE sections win over checkbox state, matching server BOARD semantics | verify: golden BLOCKED fixture + external-change dirty-draft tests pass | owner: opencode | claim_time: 2026-08-11T11:27:30Z
+- [x] T-089 HUNT-3: lock /api/saipen/* folder params to registered workspaces; reject unknown/escaping/noncanonical paths and symlink escapes | verify: negative route tests for unknown workspace, traversal, noncanonical, symlink escape | owner: opencode | claim_time: 2026-08-10T23:37:18Z
+- [x] T-088 HUNT-2: safe optimistic-concurrency .saipen writes -- SHA-256 revision, 409 on mismatch, atomic same-dir temp replace, per-root serialization | verify: write route tests cover conflict/mismatch/atomicity/Windows replace; no silent overwrite | owner: opencode | claim_time: 2026-08-10T23:36:42Z
+- [x] T-087 HUNT-1: canonical STATE.md scalar parser -- frontmatter-scoped, first-match, duplicate detection; server+UI agree; saipen_home/agent/role_revision surfaced in UI State view | verify: server state/core tests 14/14, UI saipen-view 7/7, typechecks, realistic current-format fixture PASS | owner: opencode | claim_time: 2026-08-10T23:30:41Z
+- [x] T-086 Compact strict controls, preserve SaipenBar groups without prose, keep model popup inside sidebar click-away semantics, and auto-create one root session for a settled empty project | verify: focused regressions, UI typecheck/full tests/build and 320/640px browser smoke pass | owner: opencode | claim_time: 2026-08-10T23:07:13Z
+- [x] T-085 Pack narrow SaipenBar controls without grid-created empty space | verify: UI typecheck and 640x1080 responsive smoke show natural wrapping with no clipped controls or empty reserved cell | owner: opencode | claim_time: 2026-08-10T22:41:38Z | review_passes: 2
+- [x] T-084 Make Queue pasted text editable, harden SaipenBar middle-drag/wheel/wrapping, and support 320px desktop width | verify: UI typecheck, tests and build plus Electron typecheck pass | owner: opencode | claim_time: 2026-08-10T22:35:13Z | review_passes: 2
+- [x] T-073 Complete Windows package verification: Electron 38.0.0 exact pin, Windows compression default 5, ZIP/portable EXE generated | verify: SHA-256, resource smoke, root typecheck, test suite, SHIP gate and diff check PASS after host virtual memory recovered | owner: opencode | claim_time: 2026-08-10T21:22:58Z | review_passes: 2
+- [x] T-078 Replace literal ballot boxes and emoji-only SAIPEN/tool/status/message/diagnostic labels with font-safe text under forced Verdana | verify: source guard and locale parity tests PASS; UI typecheck PASS; UI suite 589/589 PASS | owner: opencode | claim_time: 2026-08-10T20:59:19Z | review_passes: 2
+- [x] T-077 Fix sessions drawer behavior: actual floating render mode drives click-away, hidden-shell reset, tab/session/new-session dismissal, portal safety and Escape | owner: opencode | claim_time: 2026-08-10T20:35:59.4413480Z | verify: focused drawer, TDZ and visibility tests 9/9 PASS; live CDP unavailable, manual smoke steps logged at E-437 | review_passes: 2
+
+- [x] T-076 Prove T-075 cannot conflict with CodeNomad: fix is confined to SAIWORK source and leaves `@suid`/installed CodeNomad untouched; upstream `67cb394e` retains its own temporary Drawer path; SAIWORK and CodeNomad have distinct app IDs, executables, config roots, Electron userData/sessionData and OpenCode data homes; concurrent live run exercised both SAIWORK drawers plus tab teardown, then stopped SAIWORK without stopping CodeNomad | verify: live Playwright CDP smoke zero page/console errors, root typecheck PASS, server 288 PASS/4 SKIP, Electron 118 PASS, CodeNomad processes survived SAIWORK stop | review_passes: 1
+
+- [x] T-075 Fix `Cannot read properties of undefined (reading 'modals')`: renderer stacks showed `@suid/base` ModalManager losing its container while temporary left/right Drawers were cleaned up; floating drawers now use the non-modal persistent path while existing pointer click-away and Escape dismissal remain; static regression blocks temporary Drawers in instance-shell2 | verify: focused regression PASS, UI typecheck PASS, 581 UI tests PASS, diff check PASS | review_passes: 1
+
+- [x] T-074 Remove invalid cavecrew Haiku pins for CodeNomad + SAIWORK: global investigator/reviewer definitions now inherit the selected session model; cavecrew docs require qualified OpenCode IDs and warn that agent definitions are process-cached; fresh config resolution for normal CodeNomad and isolated SAIWORK data profiles contains no model override; SAIWORK sanitizer remains the second guard | verify: global shorthand-pin sweep clean, fresh `opencode debug agent` PASS in both profiles, opencode-plugin tests 8/8 PASS | review_passes: 1
 
 - [x] T-072 Make sidebar collapse obvious + shortcuts layout-neutral: collapse button is always visible for pinned/floating sessions sidebar; every registry shortcut and direct letter/number shortcut resolves physical `KeyboardEvent.code`; new rebinds store `physical: true`, legacy overrides retain `event.key` semantics; Escape/click-away sync visibility and restore focus | verify: UI typecheck PASS, 580 UI tests PASS, 5 focused layout tests PASS, two review passes clean | review_passes: 2
 
@@ -82,5 +112,3 @@ the gate that keeps them from coming back, then wave 1's remaining findings.
 - [x] T-061 Deduplicate formatRelativeTime: extracted shared lib/relative-time.ts (formatRelativeTime(timestamp, now, t)) and wired all three call sites (folder-selection-view, session-picker, opencode-binary-selector) onto it; added relative-time.test.ts (3 cases) | verify: UI typecheck PASS, `npm test` exit 0 (574 UI pass) | review_passes: 1
 
 ## BLOCKED
-
-(empty)

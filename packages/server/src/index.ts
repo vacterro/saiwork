@@ -38,6 +38,8 @@ import { resolveYoloDefault } from "./permissions/auto-accept-store"
 import { createOpencodePermissionReplier } from "./permissions/opencode-replier"
 import { createOpencodeYoloPersistence } from "./permissions/opencode-yolo-metadata"
 import { startSaipenAutoUpdate } from "./saipen/auto-update"
+import { SaipenFileWatcher } from "./saipen/file-watcher"
+import { QueueManager } from "./queue/manager"
 import type { SaipenSettings } from "./saipen/core"
 
 const require = createRequire(import.meta.url)
@@ -383,6 +385,11 @@ async function main() {
     unrestricted: options.unrestrictedRoot,
   })
   const instanceStore = new InstanceStore(configLocation.instancesDir)
+  const queueManager = new QueueManager({
+    statePath: path.join(configLocation.baseDir, "prompt-queue.json"),
+    eventBus,
+    logger: logger.child({ component: "queue" }),
+  })
   const speechService = new SpeechService(settings, logger.child({ component: "speech" }))
   const sidecarManager = new SideCarManager({
     settings,
@@ -419,6 +426,15 @@ async function main() {
     eventBus,
     logger: logger.child({ component: "instance-events" }),
   })
+
+  // Live SAIPEN change stream: watches registered workspaces' `.saipen/` and
+  // publishes workspace-scoped `saipen.changed` events so mounted SAIPENVIEW
+  // panels refresh instead of poll. Stopped on shutdown.
+  const saipenWatcher = new SaipenFileWatcher({
+    eventBus,
+    logger: logger.child({ component: "saipen-watch" }),
+  })
+  saipenWatcher.start(() => workspaceManager.list().map((workspace) => ({ id: workspace.id, folder: workspace.path })))
 
   const uiDirEnvOverride = Boolean(process.env.CLI_UI_DIR)
   const uiDirCliOverride = programHasArg(process.argv.slice(2), "--ui-dir")
@@ -505,6 +521,7 @@ async function main() {
         settings,
         fileSystemBrowser,
         eventBus,
+        queueManager,
         serverMeta,
         instanceStore,
         speechService,
@@ -534,6 +551,7 @@ async function main() {
         settings,
         fileSystemBrowser,
         eventBus,
+        queueManager,
         serverMeta,
         instanceStore,
         speechService,
@@ -657,6 +675,8 @@ async function main() {
             logger.info("HTTP server(s) stopped")
           },
           stopReleaseMonitor: () => devReleaseMonitor?.stop(),
+          stopSaipenWatcher: () => saipenWatcher.stop(),
+          stopQueueManager: () => queueManager.flush(),
         },
         logger,
       ),

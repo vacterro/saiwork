@@ -31,7 +31,7 @@ export interface PromptInputProps {
    */
   onQueue?: (prompt: string, attachments: Attachment[]) => void | boolean | Promise<void | boolean>
   /** Adds text to active sessions across ready instances. */
-  onQueueAll?: (prompt: string) => number
+  onQueueAll?: (prompt: string) => number | Promise<number>
   /** Opens the model / worktree controls (the sidebar drawer). */
   onOpenModelControls?: () => void
   /** Starts a new conversation (fork) in the same session. */

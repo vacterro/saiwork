@@ -8,7 +8,7 @@ import { isHiddenSyntheticTextPart } from "../types/message"
 import type { MessageRecord } from "../stores/message-v2/types"
 import { buildRecordDisplayData } from "../stores/message-v2/record-display-cache"
 import { getPartCharCount } from "../lib/token-utils"
-import { getToolIcon } from "./tool-call/utils"
+import { getToolShortLabel } from "./tool-call/utils"
 import { User as UserIcon, Bot as BotIcon, FoldVertical, ShieldAlert } from "lucide-solid"
 import { useI18n } from "../lib/i18n"
 import type { DeleteHoverState } from "../types/delete-hover"
@@ -258,7 +258,7 @@ export function buildTimelineSegments(
         type: "tool",
         label: getToolTypeLabel(toolPart, t) || segmentLabel("tool"),
         tooltip: formatToolTooltip([title], t),
-        shortLabel: getToolIcon(typeof toolPart.tool === "string" ? toolPart.tool : "tool"),
+        shortLabel: getToolShortLabel(typeof toolPart.tool === "string" ? toolPart.tool : "tool"),
         toolPartIds: partId ? [partId] : undefined,
         totalChars: getPartCharCount(part),
       })
@@ -877,7 +877,7 @@ const MessageTimeline: Component<MessageTimelineProps> = (props) => {
                     if (hasActivePermission()) {
                       return <ShieldAlert class="message-timeline-icon" aria-hidden="true" />
                     }
-                    return segment.shortLabel ?? getToolIcon("tool")
+                    return segment.shortLabel ?? getToolShortLabel("tool")
                   }
                   if (segment.type === "compaction") {
                     return <FoldVertical class="message-timeline-icon" aria-hidden="true" />
@@ -899,6 +899,7 @@ const MessageTimeline: Component<MessageTimelineProps> = (props) => {
                       data-delete-hover={isDeleteHovered() || isDeleteSelected() || isSelected() ? "true" : undefined}
                       aria-current={isActive() ? "true" : undefined}
                       aria-hidden={isHidden() ? "true" : undefined}
+                      aria-label={segment.label}
                       onClick={(event) => {
                         if (wasLongPress) {
                           wasLongPress = false
@@ -940,7 +941,7 @@ const MessageTimeline: Component<MessageTimelineProps> = (props) => {
                       onMouseLeave={handleMouseLeave}
                     >
                       <span class="message-timeline-label message-timeline-label-full">{segment.label}</span>
-                      <span class="message-timeline-label message-timeline-label-short">{shortLabelContent()}</span>
+                      <span class="message-timeline-label message-timeline-label-short" aria-hidden="true">{shortLabelContent()}</span>
                     </button>
                   </div>
                 )
@@ -974,7 +975,7 @@ const MessageTimeline: Component<MessageTimelineProps> = (props) => {
                   if (hasActivePermission()) {
                    return <ShieldAlert class="message-timeline-icon" aria-hidden="true" />
                  }
-                 return segment.shortLabel ?? getToolIcon("tool")
+                  return segment.shortLabel ?? getToolShortLabel("tool")
                }
                if (segment.type === "compaction") {
                  return <FoldVertical class="message-timeline-icon" aria-hidden="true" />
@@ -995,6 +996,7 @@ const MessageTimeline: Component<MessageTimelineProps> = (props) => {
                    data-delete-hover={isDeleteHovered() || isDeleteSelected() || isSelected() ? "true" : undefined}
                    aria-current={isActive() ? "true" : undefined}
                    aria-hidden={isHidden() ? "true" : undefined}
+                   aria-label={segment.label}
                    onClick={(event) => {
                      if (wasLongPress) {
                        wasLongPress = false
@@ -1036,7 +1038,7 @@ const MessageTimeline: Component<MessageTimelineProps> = (props) => {
                    onMouseLeave={handleMouseLeave}
                  >
                    <span class="message-timeline-label message-timeline-label-full">{segment.label}</span>
-                   <span class="message-timeline-label message-timeline-label-short">{shortLabelContent()}</span>
+                    <span class="message-timeline-label message-timeline-label-short" aria-hidden="true">{shortLabelContent()}</span>
                  </button>
                </div>
              )

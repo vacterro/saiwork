@@ -106,6 +106,7 @@ import { normalizeWorkspacePath } from "./app-session-reconciliation"
 const log = getLogger("api")
 const sessionListRequestIds = new Map<string, number>()
 const pendingParentSessionTitles = new Map<string, Set<string>>()
+const pendingSessionCreations = new Map<string, Promise<Session>>()
 let nextSessionListRequestId = 0
 const pendingMetadataHydrations = new Map<string, Promise<void>>()
 const sessionWorkspaceHints = new Map<string, Map<string, string>>()
@@ -744,7 +745,24 @@ function toClientSessionV2(instanceId: string, apiSession: SDKSession, existingS
   }
 }
 
-async function createSession(instanceId: string, agent?: string): Promise<Session> {
+function createSession(instanceId: string, agent?: string): Promise<Session> {
+  const existing = pendingSessionCreations.get(instanceId)
+  if (existing) return existing
+
+  const request = createSessionRequest(instanceId, agent)
+  pendingSessionCreations.set(instanceId, request)
+  void request.then(
+    () => {
+      if (pendingSessionCreations.get(instanceId) === request) pendingSessionCreations.delete(instanceId)
+    },
+    () => {
+      if (pendingSessionCreations.get(instanceId) === request) pendingSessionCreations.delete(instanceId)
+    },
+  )
+  return request
+}
+
+async function createSessionRequest(instanceId: string, agent?: string): Promise<Session> {
   const instance = instances().get(instanceId)
   if (!instance || !instance.client) {
     throw new Error("Instance not ready")

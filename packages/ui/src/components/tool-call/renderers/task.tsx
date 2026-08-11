@@ -1,7 +1,7 @@
 import { For, Index, Show, createEffect, createMemo, createSignal, untrack } from "solid-js"
 import type { ToolState } from "@opencode-ai/sdk/v2"
 import type { ToolRenderer } from "../types"
-import { ensureMarkdownContent, getDefaultToolAction, getToolIcon, getToolName, readToolStatePayload } from "../utils"
+import { ensureMarkdownContent, getDefaultToolAction, getToolName, getToolShortLabel, readToolStatePayload } from "../utils"
 import { messageStoreBus } from "../../../stores/message-v2/bus"
 import { loadMessages } from "../../../stores/session-api"
 import { loading, messagesLoaded } from "../../../stores/session-state"
@@ -86,21 +86,6 @@ function normalizeStatus(status?: string | null): ToolState["status"] | undefine
     return status
   }
   return undefined
-}
-
-function summarizeStatusIcon(status?: ToolState["status"]) {
-  switch (status) {
-    case "pending":
-      return "⏸"
-    case "running":
-      return "⏳"
-    case "completed":
-      return "✓"
-    case "error":
-      return "✗"
-    default:
-      return ""
-  }
 }
 
 function summarizeStatusLabel(status?: ToolState["status"]) {
@@ -437,26 +422,28 @@ export const taskRenderer: ToolRenderer = {
                     <div class="tool-call-task-summary">
                       <For each={legacyItems()}>
                         {(item) => {
-                          const icon = getToolIcon(item.tool)
+                           const toolShortLabel = getToolShortLabel(item.tool)
                           const description = describeToolTitle(item)
                           const toolLabel = getToolName(item.tool)
                           const status = normalizeStatus(item.status ?? item.state?.status)
-                          const statusIcon = summarizeStatusIcon(status)
-                          const statusKey = summarizeStatusLabel(status)
-                          const statusLabel = statusKey
-                            ? t(`toolCall.status.${statusKey}`)
-                            : t("toolCall.status.unknown")
+                           const statusKey = summarizeStatusLabel(status)
+                           const statusLabel = statusKey
+                             ? t(`toolCall.status.${statusKey}`)
+                             : t("toolCall.status.unknown")
+                           const statusShortLabel = statusKey
+                             ? t(`toolCall.status.short.${statusKey}`)
+                             : t("toolCall.status.unknown")
                           const statusAttr = status ?? "pending"
                           return (
                             <div class="tool-call-task-item" data-task-id={item.id} data-task-status={statusAttr}>
-                              <span class="tool-call-task-icon">{icon}</span>
+                               <span class="tool-call-task-icon" aria-hidden="true">{toolShortLabel}</span>
                               <span class="tool-call-task-label">{toolLabel}</span>
                               <span class="tool-call-task-separator" aria-hidden="true">—</span>
                               <span class="tool-call-task-text">{description}</span>
-                              <Show when={statusIcon}>
-                                <span class="tool-call-task-status" aria-label={statusLabel} title={statusLabel}>
-                                  {statusIcon}
-                                </span>
+                               <Show when={statusKey}>
+                                 <span class="tool-call-task-status" aria-label={statusLabel} title={statusLabel}>
+                                   {statusShortLabel}
+                                 </span>
                               </Show>
                             </div>
                           )

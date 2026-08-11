@@ -1,20 +1,32 @@
 import { createSignal } from "solid-js"
-import type { Attachment } from "../types/attachment"
 import { getLogger } from "../lib/logger"
+import { serverApi } from "../lib/api-client"
+import { serverEvents } from "../lib/server-events"
+import {
+  MAX_QUEUED_ATTACHMENT_BYTES,
+  type QueuedPrompt as ServerQueuedPrompt,
+  type QueueState as ServerQueueState,
+  type WorkspaceEventPayload,
+} from "../../../server/src/api-types"
+import type { QueueMutation as ServerQueueMutation } from "../../../server/src/queue/manager"
+import type { Attachment } from "../types/attachment"
+import { createAttachmentPlaceholderRegex, getAttachmentPlaceholder } from "../lib/attachment-placeholders"
 
 const log = getLogger("actions")
 
 /**
- * Prompt queue.
+ * Prompt queue -- server-authoritative mirror.
  *
- * The user stacks prompts while the agent is working; each one is sent when the
- * session goes idle. Ordering, editing, and removal are all explicit user
- * actions -- the queue never reorders or drops anything on its own, and a
- * paused queue stays paused until the user resumes it.
+ * The queue lives on the SAIWORK server, not in this renderer, because the main
+ * window and every detached session window must share ONE queue. Per-renderer
+ * copies (the old localStorage model) could lose items, resurrect them, or let
+ * two windows dispatch the same prompt. Every mutation carries the queue's
+ * `expectedRevision`; the server rejects stale writes with a 409 and this store
+ * re-syncs from the authoritative state.
  *
- * State lives in one signal keyed by instance+session rather than one signal
- * per session, so a queue survives the session view unmounting (tab switch)
- * without any per-component lifecycle bookkeeping.
+ * This module is a local MIRROR: `queue.changed` SSE events and the initial
+ * fetch fill the signal, reads are synchronous, and mutations go through the
+ * transport. A renderer is a viewer + requester, never an owner.
  */
 
 export interface QueuedPrompt {
@@ -29,161 +41,124 @@ export interface PromptQueueTarget {
   sessionId: string
 }
 
-interface QueueState {
-  items: QueuedPrompt[]
-  paused: boolean
-}
-
-const STORAGE_KEY = "saiwork.prompt-queue.v1"
-const EMPTY: QueuedPrompt[] = []
-
-/**
- * Cap on the serialized attachments of a single queued prompt.
- *
- * Attachments arrive as data URLs, so one screenshot can be several megabytes
- * and localStorage typically holds five in total. Without a bound, one oversized
- * paste fails the write for every session's queue at once, and the user is told
- * nothing.
- */
-export const MAX_QUEUED_ATTACHMENT_BYTES = 512 * 1024
-
-export type EnqueueFailure =
-  /** Nothing to queue. */
-  | "empty"
-  /** Attachments exceed MAX_QUEUED_ATTACHMENT_BYTES. */
-  | "too-large"
-  /** Storage rejected the write, typically a full quota. */
-  | "quota"
+export type EnqueueFailure = "empty" | "too-large" | "conflict"
 
 export type EnqueueResult = { ok: true; item: QueuedPrompt } | { ok: false; reason: EnqueueFailure }
 
 export type FanOutResult = { ok: true; items: QueuedPrompt[] } | { ok: false; reason: EnqueueFailure }
 
-type PersistResult = { ok: true } | { ok: false; reason: "quota" }
+export type QueueMutateOutcome =
+  | { status: "ok"; state: ServerQueueState; dequeued?: ServerQueuedPrompt }
+  | { status: "conflict"; currentRevision: string }
+  | { status: "failed"; code: "empty" | "paused" | "too-large" | "invalid" }
+
+export interface QueueTransport {
+  list(): Promise<Record<string, ServerQueueState>>
+  mutate(key: string, expectedRevision: string, mutation: ServerQueueMutation): Promise<QueueMutateOutcome>
+  onChange(handler: (event: Extract<WorkspaceEventPayload, { type: "queue.changed" }>) => void): () => void
+  onOpen(handler: () => void): () => void
+}
+
+const defaultTransport: QueueTransport = {
+  list: async () => (await serverApi.fetchQueues()).queues,
+  mutate: (key, expectedRevision, mutation) => serverApi.mutateQueue(key, expectedRevision, mutation),
+  onChange: (handler) =>
+    serverEvents.on("queue.changed", (event) => {
+      if (event.type === "queue.changed") handler(event)
+    }),
+  onOpen: (handler) => serverEvents.onOpen(handler),
+}
+
+let transport: QueueTransport = defaultTransport
+
+let stopChange: (() => void) | null = null
+let stopOpen: (() => void) | null = null
+
+function wireTransport(): void {
+  stopChange?.()
+  stopOpen?.()
+  stopChange = transport.onChange((event) => {
+    if (event.type !== "queue.changed") return
+    applyState(event.key, event.state)
+  })
+  stopOpen = transport.onOpen(() => {
+    void refreshAllQueues()
+  })
+}
+
+/** Test seam: swaps the transport without touching the module singleton. */
+export function __setQueueTransport(replacement: QueueTransport): void {
+  transport = replacement
+  wireTransport()
+  void refreshAllQueues()
+}
+
+export function __resetQueueTransport(): void {
+  transport = defaultTransport
+  wireTransport()
+  void refreshAllQueues()
+}
+
+function queueKey(instanceId: string, sessionId: string): string {
+  return `${instanceId}:${sessionId}`
+}
 
 function measureAttachmentBytes(attachments: Attachment[]): number {
   if (attachments.length === 0) return 0
   try {
     return JSON.stringify(attachments).length
   } catch {
-    // Unserializable attachments cannot survive a restart either way, so they
-    // are treated as over the bound rather than silently queued.
     return Number.POSITIVE_INFINITY
   }
 }
 
-const [queues, setQueues] = createSignal<Map<string, QueueState>>(loadPersisted())
-
-function queueKey(instanceId: string, sessionId: string): string {
-  return `${instanceId}:${sessionId}`
+/** The mirror stores server-shaped items; the panel wants typed attachments. */
+function toTyped(items: ServerQueuedPrompt[]): QueuedPrompt[] {
+  return items as unknown as QueuedPrompt[]
 }
 
-function emptyState(): QueueState {
-  return { items: [], paused: false }
-}
+const EMPTY: QueuedPrompt[] = []
 
-function nextId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID()
-  }
-  return `q-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
+const [queues, setQueues] = createSignal<Map<string, ServerQueueState>>(new Map())
 
-function loadPersisted(): Map<string, QueueState> {
-  if (typeof localStorage === "undefined") return new Map()
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return new Map()
-    const parsed = JSON.parse(raw) as Record<string, QueueState>
-    const map = new Map<string, QueueState>()
-    for (const [key, value] of Object.entries(parsed ?? {})) {
-      if (!value || !Array.isArray(value.items)) continue
-      map.set(key, { items: value.items, paused: Boolean(value.paused) })
-    }
-    return map
-  } catch (error) {
-    log.warn("Failed to restore prompt queue:", error)
-    return new Map()
-  }
-}
-
-/**
- * Writes the map and says whether it landed.
- *
- * This used to swallow the error and return, so an enqueue reported success
- * while nothing had been stored -- the editor text was already cleared, and the
- * prompt was gone at the next restart. A write that failed has to be a fact the
- * caller can act on.
- */
-function persist(map: Map<string, QueueState>): PersistResult {
-  if (typeof localStorage === "undefined") return { ok: true }
-  try {
-    const plain: Record<string, QueueState> = {}
-    for (const [key, value] of map.entries()) {
-      if (value.items.length === 0 && !value.paused) continue
-      plain[key] = value
-    }
-    if (Object.keys(plain).length === 0) {
-      localStorage.removeItem(STORAGE_KEY)
-      return { ok: true }
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(plain))
-    return { ok: true }
-  } catch (error) {
-    log.warn("Failed to persist prompt queue:", error)
-    return { ok: false, reason: "quota" }
-  }
-}
-
-interface MutateOptions {
-  /**
-   * Whether a failed write undoes the in-memory change.
-   *
-   * True for anything that GROWS the queue: memory and storage must not
-   * disagree about a prompt the user believes is queued.
-   *
-   * False for anything that shrinks it. A shrink cannot plausibly fail on
-   * quota, and rolling one back would wedge the queue permanently on a storage
-   * that is broken for another reason -- the worst case of letting it through
-   * is one entry reappearing after a restart, which beats a queue that can
-   * never be emptied.
-   */
-  rollbackOnPersistFailure: boolean
-}
-
-function mutate(
-  instanceId: string,
-  sessionId: string,
-  fn: (state: QueueState) => QueueState,
-  options: MutateOptions = { rollbackOnPersistFailure: false },
-): PersistResult {
-  const key = queueKey(instanceId, sessionId)
-  let outcome: PersistResult = { ok: true }
-
+function applyState(key: string, state: ServerQueueState): void {
   setQueues((prev) => {
     const next = new Map(prev)
-    const current = next.get(key) ?? emptyState()
-    const updated = fn({ items: [...current.items], paused: current.paused })
-    if (updated.items.length === 0 && !updated.paused) {
+    if (state.items.length === 0 && !state.paused) {
       next.delete(key)
     } else {
-      next.set(key, updated)
-    }
-
-    outcome = persist(next)
-    if (!outcome.ok && options.rollbackOnPersistFailure) {
-      // Put the stored copy back so the two views agree, then report.
-      persist(prev)
-      return prev
+      next.set(key, state)
     }
     return next
   })
-
-  return outcome
 }
 
+async function refreshAllQueues(): Promise<void> {
+  try {
+    const all = await transport.list()
+    setQueues((prev) => {
+      const next = new Map<string, ServerQueueState>()
+      for (const [key, state] of Object.entries(all)) next.set(key, state)
+      // A paused empty queue must stay visible as paused even if the server
+      // dropped the key.
+      for (const [key, state] of prev) {
+        if (!next.has(key) && state.paused) next.set(key, state)
+      }
+      return next
+    })
+  } catch (error) {
+    log.warn("Failed to load prompt queue:", error)
+  }
+}
+
+wireTransport()
+
+// Initial load for a renderer that connected before the first SSE batch.
+void refreshAllQueues()
+
 export function getQueue(instanceId: string, sessionId: string): QueuedPrompt[] {
-  return queues().get(queueKey(instanceId, sessionId))?.items ?? EMPTY
+  const state = queues().get(queueKey(instanceId, sessionId))
+  return state && state.items.length > 0 ? toTyped(state.items) : EMPTY
 }
 
 export function getQueueLength(instanceId: string, sessionId: string): number {
@@ -204,161 +179,157 @@ export function getInstanceQueueLength(instanceId: string): number {
   return total
 }
 
-export function enqueuePrompt(
+async function mutateQueueState(
+  instanceId: string,
+  sessionId: string,
+  mutation: ServerQueueMutation,
+): Promise<QueueMutateOutcome> {
+  const key = queueKey(instanceId, sessionId)
+  const revision = queues().get(key)?.revision ?? ""
+  const outcome = await transport.mutate(key, revision, mutation)
+  if (outcome.status === "ok") {
+    applyState(key, outcome.state)
+  } else if (outcome.status === "conflict") {
+    // Another window moved the queue first. Mirror the truth instead of
+    // guessing: the next read shows the authoritative state.
+    void refreshAllQueues()
+  }
+  return outcome
+}
+
+export async function enqueuePrompt(
   instanceId: string,
   sessionId: string,
   text: string,
   attachments: Attachment[] = [],
-): EnqueueResult {
+): Promise<EnqueueResult> {
   const trimmed = text.trim()
   if (!trimmed && attachments.length === 0) return { ok: false, reason: "empty" }
-
-  // Checked before touching state: an oversized attachment would otherwise fail
-  // the write for every session's queue, not just this one.
   if (measureAttachmentBytes(attachments) > MAX_QUEUED_ATTACHMENT_BYTES) {
     return { ok: false, reason: "too-large" }
   }
 
-  const item: QueuedPrompt = {
-    id: nextId(),
-    text: trimmed,
-    attachments,
-    createdAt: Date.now(),
+  const outcome = await mutateQueueState(instanceId, sessionId, { op: "enqueue", text: trimmed, attachments })
+  if (outcome.status === "ok") {
+    const item = outcome.state.items[outcome.state.items.length - 1]
+    if (!item) return { ok: false, reason: "conflict" }
+    return { ok: true, item: toTyped([item])[0]! }
   }
-  const persisted = mutate(
-    instanceId,
-    sessionId,
-    (state) => ({ ...state, items: [...state.items, item] }),
-    { rollbackOnPersistFailure: true },
-  )
-  if (!persisted.ok) return { ok: false, reason: persisted.reason }
-  return { ok: true, item }
+  if (outcome.status === "conflict") return { ok: false, reason: "conflict" }
+  return { ok: false, reason: outcome.code === "too-large" ? "too-large" : "empty" }
 }
 
-/** Adds one prompt to several session queues in one reactive update. */
-export function enqueuePromptFanOut(
+/** Adds one prompt to several session queues. All or nothing. */
+export async function enqueuePromptFanOut(
   targets: PromptQueueTarget[],
   text: string,
   attachments: Attachment[] = [],
-): FanOutResult {
+): Promise<FanOutResult> {
   const trimmed = text.trim()
   if ((!trimmed && attachments.length === 0) || targets.length === 0) return { ok: false, reason: "empty" }
   if (measureAttachmentBytes(attachments) > MAX_QUEUED_ATTACHMENT_BYTES) {
     return { ok: false, reason: "too-large" }
   }
 
-  const uniqueTargets = new Map(targets.map((target) => [queueKey(target.instanceId, target.sessionId), target]))
-  let items: QueuedPrompt[] = []
-  // Declared as the union rather than inferred from the initializer, so the
-  // assignment inside the updater is not narrowed away.
-  let failure: EnqueueFailure | null = null
+  const unique = Array.from(
+    new Map(targets.map((target) => [queueKey(target.instanceId, target.sessionId), target])).values(),
+  )
+  const added: Array<{ target: PromptQueueTarget; id: string }> = []
+  const items: QueuedPrompt[] = []
 
-  setQueues((prev) => {
-    const next = new Map(prev)
-    const added: QueuedPrompt[] = []
-    for (const [key] of uniqueTargets) {
-      const item: QueuedPrompt = {
-        id: nextId(),
-        text: trimmed,
-        attachments: [...attachments],
-        createdAt: Date.now(),
+  for (const target of unique) {
+    const outcome = await mutateQueueState(target.instanceId, target.sessionId, { op: "enqueue", text: trimmed, attachments })
+    if (outcome.status !== "ok") {
+      // Roll back what already landed so the user never sees a partial fan-out.
+      for (const prior of added) {
+        void mutateQueueState(prior.target.instanceId, prior.target.sessionId, { op: "remove", id: prior.id })
       }
-      const current = next.get(key) ?? emptyState()
-      next.set(key, { ...current, items: [...current.items, item] })
-      added.push(item)
+      return { ok: false, reason: outcome.status === "conflict" ? "conflict" : "too-large" }
     }
-
-    const written = persist(next)
-    if (!written.ok) {
-      // All or nothing: a fan-out that landed on three of five sessions is a
-      // state the user cannot reason about.
-      failure = written.reason
-      persist(prev)
-      return prev
+    const item = outcome.state.items[outcome.state.items.length - 1]
+    if (item) {
+      items.push(toTyped([item])[0]!)
+      added.push({ target, id: item.id })
     }
-    items = added
-    return next
-  })
-
-  if (failure) return { ok: false, reason: failure }
+  }
   return { ok: true, items }
 }
 
-/** Removes and returns the head. Returns null when paused or empty. */
-export function dequeuePrompt(instanceId: string, sessionId: string): QueuedPrompt | null {
-  const key = queueKey(instanceId, sessionId)
-  const state = queues().get(key)
-  if (!state || state.paused || state.items.length === 0) return null
-
-  const head = state.items[0]
-  mutate(instanceId, sessionId, (current) => ({ ...current, items: current.items.slice(1) }))
-  return head
+/** Removes and returns the head. Returns null when paused, empty or lost the race. */
+export async function dequeuePrompt(instanceId: string, sessionId: string): Promise<QueuedPrompt | null> {
+  const outcome = await mutateQueueState(instanceId, sessionId, { op: "dequeue" })
+  if (outcome.status !== "ok" || !outcome.dequeued) return null
+  return toTyped([outcome.dequeued])[0]!
 }
 
 /** Restores a failed dequeue at the front without changing identity or order. */
-export function restoreDequeuedPrompt(
+export async function restoreDequeuedPrompt(
   instanceId: string,
   sessionId: string,
   item: QueuedPrompt,
   options?: { pause?: boolean },
-) {
-  // Deliberately not rolled back on a failed write: this runs when a send has
-  // already failed, and refusing to restore the prompt in memory would lose the
-  // user's text outright. A stale stored copy is the lesser harm.
-  mutate(instanceId, sessionId, (state) => ({
-    ...state,
-    items: [item, ...state.items.filter((queued) => queued.id !== item.id)],
-    paused: options?.pause ? true : state.paused,
-  }))
-}
-
-export function removeQueuedPrompt(instanceId: string, sessionId: string, id: string) {
-  mutate(instanceId, sessionId, (state) => ({ ...state, items: state.items.filter((item) => item.id !== id) }))
-}
-
-export function updateQueuedPrompt(instanceId: string, sessionId: string, id: string, text: string) {
-  const trimmed = text.trim()
-  if (!trimmed) {
-    removeQueuedPrompt(instanceId, sessionId, id)
-    return
-  }
-  mutate(instanceId, sessionId, (state) => ({
-    ...state,
-    items: state.items.map((item) => (item.id === id ? { ...item, text: trimmed } : item)),
-  }))
-}
-
-/**
- * Moves one entry by `delta` positions. Clamped rather than wrapped: a wrap
- * would send the top item to the bottom on a stray keypress.
- */
-export function moveQueuedPrompt(instanceId: string, sessionId: string, id: string, delta: number) {
-  mutate(instanceId, sessionId, (state) => {
-    const index = state.items.findIndex((item) => item.id === id)
-    if (index < 0) return state
-    const target = Math.max(0, Math.min(state.items.length - 1, index + delta))
-    if (target === index) return state
-    const items = [...state.items]
-    const [moved] = items.splice(index, 1)
-    items.splice(target, 0, moved)
-    return { ...state, items }
+): Promise<void> {
+  await mutateQueueState(instanceId, sessionId, {
+    op: "restore",
+    item: { id: item.id, text: item.text, attachments: item.attachments, createdAt: item.createdAt },
+    ...(options?.pause ? { pause: true } : {}),
   })
 }
 
-export function clearQueue(instanceId: string, sessionId: string) {
-  mutate(instanceId, sessionId, (state) => ({ ...state, items: [] }))
+export function removeQueuedPrompt(instanceId: string, sessionId: string, id: string): Promise<void> {
+  return mutateQueueState(instanceId, sessionId, { op: "remove", id }).then(() => undefined)
 }
 
-export function setQueuePaused(instanceId: string, sessionId: string, paused: boolean) {
-  mutate(instanceId, sessionId, (state) => ({ ...state, paused }))
+export async function updateQueuedPrompt(instanceId: string, sessionId: string, id: string, text: string): Promise<void> {
+  const trimmed = text.trim()
+  if (!trimmed) {
+    await mutateQueueState(instanceId, sessionId, { op: "remove", id })
+    return
+  }
+  // A pasted attachment whose placeholder the edit no longer references is
+  // consumed by the edit. Computed here (UI presentation logic) and handed to
+  // the server verbatim as the replacement attachment list.
+  const item = getQueue(instanceId, sessionId).find((queued) => queued.id === id)
+  const consumedPastedAttachmentIds = new Set(
+    item?.attachments.flatMap((attachment) => {
+      if (attachment.source.type !== "text") return []
+      const placeholder = getAttachmentPlaceholder(attachment.display)
+      if (placeholder?.kind !== "pasted") return []
+      const wasReferenced = createAttachmentPlaceholderRegex("pasted", placeholder.counter, { global: false }).test(item.text)
+      const remainsReferenced = createAttachmentPlaceholderRegex("pasted", placeholder.counter, { global: false }).test(trimmed)
+      return wasReferenced && !remainsReferenced ? [attachment.id] : []
+    }) ?? [],
+  )
+  const attachments = consumedPastedAttachmentIds.size > 0
+    ? item?.attachments.filter((attachment) => !consumedPastedAttachmentIds.has(attachment.id)) ?? undefined
+    : undefined
+  await mutateQueueState(instanceId, sessionId, {
+    op: "update",
+    id,
+    text: trimmed,
+    ...(attachments !== undefined ? { attachments } : {}),
+  })
 }
 
-export function toggleQueuePaused(instanceId: string, sessionId: string) {
-  setQueuePaused(instanceId, sessionId, !isQueuePaused(instanceId, sessionId))
+export function moveQueuedPrompt(instanceId: string, sessionId: string, id: string, delta: number): Promise<void> {
+  return mutateQueueState(instanceId, sessionId, { op: "move", id, delta }).then(() => undefined)
 }
 
-/** Test seam: drops all state without touching localStorage semantics. */
+/** True when the clear won the CAS; false when another window moved the queue. */
+export async function clearQueue(instanceId: string, sessionId: string): Promise<boolean> {
+  const outcome = await mutateQueueState(instanceId, sessionId, { op: "clear" })
+  return outcome.status === "ok"
+}
+
+export async function setQueuePaused(instanceId: string, sessionId: string, paused: boolean): Promise<void> {
+  await mutateQueueState(instanceId, sessionId, { op: "set-paused", paused })
+}
+
+export async function toggleQueuePaused(instanceId: string, sessionId: string): Promise<void> {
+  await setQueuePaused(instanceId, sessionId, !isQueuePaused(instanceId, sessionId))
+}
+
+/** Test seam: drops all mirrored state. */
 export function resetQueues() {
   setQueues(new Map())
-  persist(new Map())
 }

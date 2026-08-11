@@ -156,8 +156,21 @@ async function build(platform) {
       })
 
       console.log(`\n📦 Packaging ${job.nodeTarget}...\n`)
+      const packagingEnv = { SAIWORK_NODE_TARGET: job.nodeTarget }
+      if (job.nodeTarget.startsWith("win32-")) {
+        const configuredLevel = process.env.ELECTRON_BUILDER_COMPRESSION_LEVEL?.trim()
+        if (!configuredLevel) {
+          // electron-builder uses 7z level 9 for portable payloads even in its
+          // normal mode; the bundled server/runtime can exhaust memory there.
+          packagingEnv.ELECTRON_BUILDER_COMPRESSION_LEVEL = "5"
+        } else if (!/^[0-9]$/.test(configuredLevel)) {
+          throw new Error("ELECTRON_BUILDER_COMPRESSION_LEVEL must be an integer from 0 to 9")
+        } else {
+          packagingEnv.ELECTRON_BUILDER_COMPRESSION_LEVEL = configuredLevel
+        }
+      }
       await run(npxCmd, ["electron-builder", "--publish=never", ...job.args], {
-        env: { SAIWORK_NODE_TARGET: job.nodeTarget },
+        env: packagingEnv,
       })
     }
 

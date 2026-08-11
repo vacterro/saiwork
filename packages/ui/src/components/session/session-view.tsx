@@ -477,8 +477,8 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   }
 
   /** Returns false when the prompt was refused, so the editor keeps the text. */
-  function handleQueuePrompt(prompt: string, attachments: Attachment[]): boolean {
-    const result = enqueuePrompt(props.instanceId, props.sessionId, prompt, attachments)
+  async function handleQueuePrompt(prompt: string, attachments: Attachment[]): Promise<boolean> {
+    const result = await enqueuePrompt(props.instanceId, props.sessionId, prompt, attachments)
     if (!result.ok) {
       reportQueueRefusal(result.reason)
       return false
@@ -488,6 +488,10 @@ export const SessionView: Component<SessionViewProps> = (props) => {
 
   function reportQueueRefusal(reason: string) {
     if (reason === "empty") return
+    if (reason === "conflict") {
+      showAlertDialog(t("promptQueue.refused.conflict"), { title: t("promptQueue.refused.title"), variant: "error" })
+      return
+    }
     showAlertDialog(
       reason === "too-large" ? t("promptQueue.refused.tooLarge") : t("promptQueue.refused.quota"),
       { title: t("promptQueue.refused.title"), variant: "error" },
@@ -522,19 +526,19 @@ export const SessionView: Component<SessionViewProps> = (props) => {
       queueEnabled: preferences().queueEnabled,
     })
     if (mode === "queue") {
-      handleQueuePrompt(shortcut, [])
+      void handleQueuePrompt(shortcut, [])
       return
     }
     void handleSendMessage(shortcut, [])
   }
 
-  function handleQueueAll(prompt: string) {
+  async function handleQueueAll(prompt: string): Promise<number> {
     const targets = Array.from(instances().values()).flatMap((instance) => {
       if (instance.status !== "ready") return []
       const sessionId = activeSessionId().get(instance.id)
       return sessionId && sessionId !== "info" ? [{ instanceId: instance.id, sessionId }] : []
     })
-    const result = enqueuePromptFanOut(targets, prompt)
+    const result = await enqueuePromptFanOut(targets, prompt)
     if (!result.ok) {
       reportQueueRefusal(result.reason)
       return 0
@@ -549,7 +553,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
     const check = ++autoContinueCheck
     void serverApi
       .fetchSaipenStatus(props.instanceFolder)
-      .then((status) => {
+      .then(async (status) => {
         if (check !== autoContinueCheck || props.isSessionSelected === false || sessionBusy() || sessionNeedsInput()) return
         // Re-check after the await: the status fetch is the window in which a
         // parallel evaluation could have dispatched one already.
@@ -557,7 +561,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         const queuedPrompts = getQueue(props.instanceId, props.sessionId).map((item) => item.text)
         if (!shouldEnqueueSaipenContinue(status, queuedPrompts)) return
         markContinueDispatched(props.instanceId, props.sessionId)
-        enqueuePrompt(props.instanceId, props.sessionId, SAIPEN_CONTINUE_PROMPT)
+        await enqueuePrompt(props.instanceId, props.sessionId, SAIPEN_CONTINUE_PROMPT)
 
         const limit = getSaipenGoalAutoLimit(props.instanceFolder)
         if (limit !== null && limit > 0) {
@@ -667,13 +671,18 @@ export const SessionView: Component<SessionViewProps> = (props) => {
     if (preferences().queueSendMode === "all") {
       const all = getQueue(props.instanceId, props.sessionId)
       if (all.length === 0) return
-      clearQueue(props.instanceId, props.sessionId)
+      const cleared = await clearQueue(props.instanceId, props.sessionId)
+      if (!cleared) {
+        // Another window moved the queue while we read it; the mirror already
+        // re-synced, so never send a stale snapshot.
+        return
+      }
       draining = true
       try {
         await handleSendMessage(all.map((item) => item.text).join("\n\n"), [])
       } catch (error) {
         log.error("Failed to send queued prompts:", error)
-        for (const item of all) enqueuePrompt(props.instanceId, props.sessionId, item.text, item.attachments)
+        for (const item of all) void enqueuePrompt(props.instanceId, props.sessionId, item.text, item.attachments)
         showAlertDialog(t("promptInput.send.errorFallback"), {
           title: t("promptInput.send.errorTitle"),
           detail: error instanceof Error ? error.message : String(error),
@@ -685,7 +694,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
       return
     }
 
-    const next = dequeuePrompt(props.instanceId, props.sessionId)
+    const next = await dequeuePrompt(props.instanceId, props.sessionId)
     if (!next) return
 
     draining = true
@@ -693,7 +702,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
       await handleSendMessage(next.text, next.attachments)
     } catch (error) {
       log.error("Failed to send queued prompt:", error)
-      restoreDequeuedPrompt(props.instanceId, props.sessionId, next, { pause: true })
+      await restoreDequeuedPrompt(props.instanceId, props.sessionId, next, { pause: true })
       showAlertDialog(t("promptInput.send.errorFallback"), {
         title: t("promptInput.send.errorTitle"),
         detail: error instanceof Error ? error.message : String(error),

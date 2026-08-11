@@ -135,6 +135,10 @@ export const toolCallMessages = {
   "toolCall.status.running": "चलिरहेको छ",
   "toolCall.status.completed": "सम्पन्न",
   "toolCall.status.error": "त्रुटि",
+  "toolCall.status.short.pending": "पर्ख",
+  "toolCall.status.short.running": "चालु",
+  "toolCall.status.short.completed": "ठीक",
+  "toolCall.status.short.error": "त्रुटि",
   "toolCall.status.unknown": "अज्ञात",
 
   "toolCall.applyPatch.action.preparing": "apply_patch तयारी गर्दै...",

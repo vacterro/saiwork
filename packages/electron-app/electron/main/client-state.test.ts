@@ -43,10 +43,86 @@ test("renderer access is exclusive per document and resettable", async (t) => {
   assert.equal(manager.claimClientStateAccess("document-2"), true)
 })
 
-test("restore is off by default unless explicitly enabled", (t) => {
-  assert.equal(harness(t).create().loadClientState().restoreEnabled, false)
-  assert.equal(harness(t, { version: 1 }).create().loadClientState().restoreEnabled, false)
+test("renderer rotation preserves admitted write order and rejects stale new writes", async (t) => {
+  let started!: () => void
+  let release!: () => void
+  const began = new Promise<void>((resolve) => { started = resolve })
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  const h = harness(t)
+  const manager = h.create(async (path, value) => {
+    started()
+    await gate
+    await writeFile(path, value, "utf8")
+  })
+  manager.claimClientStateAccess("outgoing")
+  const save = manager.saveClientState({ revision: 1 }, "outgoing")
+  await began
+  manager.resetRendererAccessToken()
+  assert.throws(() => manager.saveClientState({ stale: true }, "outgoing"), /has not been claimed/)
+  assert.equal(manager.claimClientStateAccess("incoming"), true)
+  const incoming = manager.saveClientState({ revision: 2 }, "incoming")
+  release()
+  assert.equal(await save, true)
+  assert.equal(await incoming, true)
+  assert.deepEqual(manager.loadClientState().snapshot, { revision: 2 })
+})
+
+test("failed admitted write cannot block a replacement renderer", async (t) => {
+  let attempts = 0
+  const manager = harness(t).create(async (path, value) => {
+    if (++attempts === 1) throw new Error("injected outgoing failure")
+    await writeFile(path, value, "utf8")
+  })
+  manager.claimClientStateAccess("outgoing")
+  const failed = manager.saveClientState({ stale: true }, "outgoing")
+  manager.resetRendererAccessToken()
+  manager.claimClientStateAccess("incoming")
+  const replacement = manager.saveClientState({ current: true }, "incoming")
+
+  await assert.rejects(failed, /injected outgoing failure/)
+  assert.equal(await replacement, true)
+  assert.deepEqual(manager.loadClientState().snapshot, { current: true })
+})
+
+test("restore defaults on unless explicitly disabled", (t) => {
+  assert.equal(harness(t).create().loadClientState().restoreEnabled, true)
+  assert.equal(harness(t, { version: 1 }).create().loadClientState().restoreEnabled, true)
   assert.equal(harness(t, { version: 1, restoreEnabled: true }).create().loadClientState().restoreEnabled, true)
+  assert.equal(harness(t, { version: 1, restoreEnabled: false }).create().loadClientState().restoreEnabled, false)
+})
+
+test("CodeNomad cohort and SAIWORK restore through isolated state namespaces", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "saiwork-product-isolation-"))
+  const codeElection = join(root, ".codenomad", "client-state", "election")
+  const saiElection = join(root, ".saiwork", "client-state", "election")
+  const identities = new Map([[8201, "code-primary"], [8202, "code-secondary"], [8203, "saiwork-primary"]])
+  const dependencies = {
+    pidAlive: (pid: number) => identities.has(pid),
+    processStartIdentity: (pid: number) => identities.get(pid),
+  }
+  const create = (userData: string, election: string, pid: number, runToken: string) => new ClientStateManager(userData, undefined, {
+    crossHostElectionDirectory: election,
+    crossHostDependencies: dependencies,
+    processOwner: { pid, runToken, processStartIdentity: identities.get(pid)! },
+  })
+  const codePrimary = create(join(root, "code-one"), codeElection, 8201, "code-one")
+  const codeSecondary = create(join(root, "code-two"), codeElection, 8202, "code-two")
+  const saiwork = create(join(root, "saiwork"), saiElection, 8203, "saiwork")
+  t.after(async () => {
+    await Promise.all([codePrimary, codeSecondary, saiwork].map((manager) => manager.drainAndReleasePrimary().catch(() => {})))
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  assert.equal(codePrimary.isPrimary, true)
+  assert.deepEqual(codeSecondary.loadClientState(), { isPrimary: false, restoreEnabled: false, snapshot: null })
+  assert.equal(saiwork.isPrimary, true)
+  assert.equal(codePrimary.loadClientState().restoreEnabled, true)
+  assert.equal(saiwork.loadClientState().restoreEnabled, true)
+
+  await codePrimary.saveClientState({ product: "codenomad" })
+  await saiwork.saveClientState({ product: "saiwork" })
+  assert.deepEqual(JSON.parse(readFileSync(join(root, ".codenomad", "client-state", "client-state.json"), "utf8")).snapshot, { product: "codenomad" })
+  assert.deepEqual(JSON.parse(readFileSync(join(root, ".saiwork", "client-state", "client-state.json"), "utf8")).snapshot, { product: "saiwork" })
 })
 
 test("cross-host ownership is required in addition to each host-local election", async (t) => {

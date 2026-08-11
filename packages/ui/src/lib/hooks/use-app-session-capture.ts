@@ -36,6 +36,7 @@ import { hydrateWorkspacePromptState } from "../../stores/app-session-prompt-hyd
 import {
   hydrateRestoredWorkspaceState, NO_SESSION_DRAFT_SESSION_ID,
 } from "../../stores/app-session-workspace-hydration"
+import { trackSessionRestoreBarrier } from "../../stores/initial-session"
 const log = getLogger("actions")
 const MESSAGE_SCROLL_SCOPE = "message-stream"
 const MAX_CAPTURED_SCROLL_SNAPSHOTS = 96
@@ -235,18 +236,21 @@ export function useAppSessionCapture() {
           && instances().has(event.instanceId)
           && hasRestoredTabBinding(preservation, sourceIndex, workspace.runtimeTabId),
         )
-        if (snapshot && instances().has(event.instanceId)) void waitForInstanceInitialSessionHydration(event.instanceId).then(() => {
-          if (!isCurrentBinding()) return null
-          return hydrateRestoredWorkspaceState(event.instanceId, snapshot, hydrationController.signal, isCurrentBinding)
-        }).then((unavailable) => {
-          if (!unavailable || !preservation || !isCurrentBinding()) return
-          settlePreservedTab(preservation, sourceIndex, workspace.runtimeTabId, workspace.runtimeTabId, unavailable)
-          schedule()
-        }).catch((error) => {
-          if (!hydrationController.signal.aborted && isCurrentBinding()) {
-            log.warn("Failed to restore preserved state for reopened workspace", { instanceId: event.instanceId, error })
-          }
-        })
+        if (snapshot && instances().has(event.instanceId)) {
+          const restore = waitForInstanceInitialSessionHydration(event.instanceId).then(() => {
+            if (!isCurrentBinding()) return null
+            return hydrateRestoredWorkspaceState(event.instanceId, snapshot, hydrationController.signal, isCurrentBinding)
+          }).then((unavailable) => {
+            if (!unavailable || !preservation || !isCurrentBinding()) return
+            settlePreservedTab(preservation, sourceIndex, workspace.runtimeTabId, workspace.runtimeTabId, unavailable)
+            schedule()
+          }).catch((error) => {
+            if (!hydrationController.signal.aborted && isCurrentBinding()) {
+              log.warn("Failed to restore preserved state for reopened workspace", { instanceId: event.instanceId, error })
+            }
+          })
+          trackSessionRestoreBarrier(event.instanceId, restore)
+        }
       }
       schedule()
     }),

@@ -133,7 +133,13 @@
 /* Make the command palette trigger stand out in the header. */
 .connection-status-button.command-palette-button {
   border-radius: 0;
-  @apply text-sm px-2 py-1 border border-base transition-colors;
+  @apply text-sm border border-base transition-colors;
+  flex: 0 0 24px;
+  width: 24px;
+  min-width: 24px;
+  min-height: 20px;
+  padding: 0;
+  justify-content: center;
   background-color: var(--surface-base);
   color: var(--text-primary);
 }

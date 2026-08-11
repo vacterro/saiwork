@@ -497,7 +497,7 @@ dependencies = [
 
 [[package]]
 name = "saiwork-tauri"
-version = "0.18.0"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

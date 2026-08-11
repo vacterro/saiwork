@@ -1,9 +1,53 @@
 # Changelog
 
-## [Unreleased] - 0.0.2
+## [0.0.3] - 2026-08-11
 
-Work-in-progress SAIWORK UI. References such as `T-061` and `E-386` below are
-internal `.saipen` work-log identifiers, not Git commits or release history.
+References such as `T-083` and `E-557` below are internal `.saipen` work-log
+identifiers, not Git commits or release history.
+
+### SAIPEN write integrity (T-087..T-089)
+
+- **Optimistic-concurrency `.saipen` saves**: every write carries the SHA-256
+  revision the client last read; a mismatch returns a structured `409
+  CONFLICT` and the newer on-disk state is never overwritten. Writes are
+  serialized per project and land via an atomic same-directory temp-file
+  replace. `LOG.md` stays read-only (it is the agent's append-only journal).
+- **Workspace-bound SAIPEN API**: `/api/saipen/*` resolves the requested
+  folder to a registered SAIWORK workspace, rejecting unknown folders,
+  traversal, non-canonical paths and symlink escapes. The relative-file
+  allowlist still gates every target.
+
+### Live SAIPEN state (T-090)
+
+- A server-side file watcher watches every registered workspace's
+  `.saipen/` (STATE/BOARD/LOG and `kitchen/*.md`), debounces bursts and
+  publishes a workspace-scoped `saipen.changed` event over the existing SSE
+  stream. The embedded SAIPENVIEW refreshes automatically on a clean editor;
+  a dirty draft is preserved and marked as conflicting until the user reloads
+  or keeps it. No polling.
+
+### One canonical SAIPEN interpretation boundary (T-091, T-098)
+
+- BOARD ticket status is decided by the canonical section a ticket sits under
+  (`- [ ]` under `## BLOCKED` is blocked), not its checkbox, in one shared
+  parser on the server. The UI renders the structured `boardSections` payload
+  and delegates STATE parsing to the canonical server parser; the duplicate
+  UI parser was removed.
+
+### Single-owner prompt queue (T-092)
+
+- The prompt queue moved from per-renderer `localStorage` to a
+  server-authoritative store with revisioned CAS mutations. The main window
+  and every detached session window share ONE queue; a stale writer gets a
+  `409` and re-syncs, and an atomic dequeue guarantees at most one dispatch
+  per queued prompt. Queue state is persisted atomically and mirrored to all
+  windows over `queue.changed` SSE events.
+
+### Detached-window recovery (T-083)
+
+- Closing the main window while detached session windows survive no longer
+  suppresses main-window recovery: activating the app recreates it whenever
+  the main window is gone, while the detached panes stay open.
 
 ### Hardening & isolation (T-061..T-068, E-386..E-401)
 
@@ -15,6 +59,15 @@ internal `.saipen` work-log identifiers, not Git commits or release history.
 - **Single-session shell** (`T-066`): with one session the sidebar is never
   pinned (it got stuck that way) — only a floating drawer via the always-visible
   hamburger.
+- **Drawer cleanup crash** (`T-075`): floating sidebars no longer use SUID's
+  temporary Drawer modal manager, which could lose its container during shell
+  teardown and throw `Cannot read properties of undefined (reading 'modals')`.
+- **Drawer interaction** (`T-077`): floating session drawers close on outside
+  click and session/tab changes, preserve portaled controls and Escape behavior,
+  and keep hidden shell state from reopening or mutating the active drawer.
+- **Font-safe compact labels** (`T-078`): SAIPEN package controls, timeline tool
+  labels, task statuses and message diagnostics use localized or ASCII text
+  instead of ballot-box and emoji glyphs that could render as squares.
 - **Launcher resilience** (`T-064`): `START_HIDDEN.vbs` probes `dev.log` for a
   write lock and falls back to a timestamped log instead of dying silently.
 - **TDZ blank-shell guard** (`T-063`): `instance-shell2.tdz.test.ts` fails if a
@@ -125,6 +178,11 @@ internal `.saipen` work-log identifiers, not Git commits or release history.
 - Prompt bar compaction: action rails flattened into compact horizontal strips
   pinned to field corners, 56px field minimum kept.
 - Tab strip overflow arrows, tab-scroll; timeline segments; hidden HMR sockets.
+
+### Packaging
+
+- Electron is pinned to `38.0.0`, and Windows packaging defaults to 7z level 5
+  so the bundled server/runtime fits in memory during portable archive creation.
 
 ### Reliability & bug fixes (highlights)
 

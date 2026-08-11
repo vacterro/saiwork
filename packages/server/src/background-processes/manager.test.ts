@@ -1,8 +1,11 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { promises as fs } from "node:fs"
+import { EventEmitter } from "node:events"
+import { promises as fs, type WriteStream } from "node:fs"
 import path from "node:path"
 import os from "node:os"
+import { PassThrough } from "node:stream"
+import type { ChildProcess } from "node:child_process"
 
 import { BackgroundProcessManager } from "./manager"
 import type { WorkspaceManager } from "../workspaces/manager"
@@ -20,6 +23,83 @@ interface CapturedRequest {
   url: string
   headers: Headers
   body: string
+}
+
+interface FailureHarnessOptions {
+  onSpawn: (child: ChildProcess, outputStream: WriteStream) => void
+  writeIndex?: (indexPath: string, records: any[]) => Promise<void>
+}
+
+function createFakeChild(): ChildProcess {
+  const child: any = new EventEmitter()
+  child.stdout = new PassThrough()
+  child.stderr = new PassThrough()
+  child.stdin = null
+  child.pid = undefined
+  child.killed = false
+  child.kill = () => {
+    child.killed = true
+    return true
+  }
+  return child as ChildProcess
+}
+
+async function createFailureHarness(options: FailureHarnessOptions) {
+  const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "bp-failure-test-"))
+  const child = createFakeChild()
+  const outputStream = new PassThrough() as unknown as WriteStream
+  const updates: any[] = []
+  const warnings: string[] = []
+  let resolveTerminal = () => {}
+  const terminal = new Promise<void>((resolve) => { resolveTerminal = resolve })
+
+  const eventBus = {
+    on: () => {},
+    publish: (event: any) => {
+      const processRecord = event?.event?.properties?.process
+      if (processRecord) {
+        updates.push(processRecord)
+        if (processRecord.status !== "running") resolveTerminal()
+      }
+      if (event?.event?.type === "background.process.removed") resolveTerminal()
+      return true
+    },
+  } as unknown as EventBus
+
+  const logger = {
+    warn: (_context: unknown, message?: string) => {
+      if (message) warnings.push(message)
+    },
+    debug: () => {},
+    trace: () => {},
+    info: () => {},
+    error: () => {},
+    fatal: () => {},
+    isLevelEnabled: () => false,
+    level: "info",
+    child: () => logger,
+  } as unknown as Logger
+
+  const workspaceManager = {
+    get: () => ({ path: workspacePath }),
+  } as unknown as WorkspaceManager
+
+  const manager = new BackgroundProcessManager({
+    workspaceManager,
+    eventBus,
+    logger,
+    spawnProcess: (() => {
+      options.onSpawn(child, outputStream)
+      return child
+    }) as any,
+    createOutputStream: (() => outputStream) as any,
+    writeIndex: options.writeIndex,
+    killProcess: (target) => {
+      ;(target as any).killed = true
+    },
+  })
+
+  return { manager, child, outputStream, terminal, updates, warnings, workspacePath }
 }
 
 /**
@@ -149,5 +229,81 @@ describe("BackgroundProcessManager.sendCompletionPrompt", () => {
       new Response("boom", { status: 500 }),
     )
     assert.equal(warned, true)
+  })
+})
+
+describe("BackgroundProcessManager failure containment", () => {
+  it("contains a child error followed by close", { timeout: TERMINAL_TIMEOUT_MS }, async (t) => {
+    const harness = await createFailureHarness({
+      onSpawn: (child) => {
+        queueMicrotask(() => child.emit("error", new Error("injected child failure")))
+      },
+    })
+    t.after(() => fs.rm(harness.workspacePath, { recursive: true, force: true }))
+
+    const started = await harness.manager.start(WORKSPACE_ID, "child-failure", "ignored")
+    assert.equal(started.status, "running")
+    assert.equal(harness.child.killed, true)
+    assert.equal(harness.updates.some((record) => record.status === "error"), false)
+
+    harness.child.emit("close", 1, null)
+    await harness.terminal
+    const records = await harness.manager.list(WORKSPACE_ID)
+
+    assert.equal(records.length, 1)
+    assert.equal(records[0].status, "error")
+    assert.equal(records[0].terminalReason, "failed")
+    assert.ok(harness.updates.some((record) => record.status === "error"))
+  })
+
+  it("stops and finalizes after an output stream error", { timeout: TERMINAL_TIMEOUT_MS }, async (t) => {
+    const harness = await createFailureHarness({
+      onSpawn: (_child, outputStream) => {
+        queueMicrotask(() => outputStream.emit("error", new Error("injected output failure")))
+      },
+    })
+    t.after(() => fs.rm(harness.workspacePath, { recursive: true, force: true }))
+
+    const started = await harness.manager.start(WORKSPACE_ID, "output-failure", "ignored")
+    assert.equal(started.status, "running")
+    assert.equal(harness.child.killed, true)
+    assert.equal(harness.outputStream.destroyed, true)
+    assert.equal(harness.updates.some((record) => record.status === "error"), false)
+
+    harness.child.emit("close", 1, null)
+    await harness.terminal
+    const records = await harness.manager.list(WORKSPACE_ID)
+
+    assert.equal(records.length, 1)
+    assert.equal(records[0].status, "error")
+    assert.equal(records[0].terminalReason, "failed")
+    assert.ok(harness.updates.some((record) => record.status === "error"))
+  })
+
+  it("recovers from a one-time finalization failure", { timeout: TERMINAL_TIMEOUT_MS }, async (t) => {
+    let writes = 0
+    const harness = await createFailureHarness({
+      onSpawn: (child) => {
+        queueMicrotask(() => child.emit("close", 0, null))
+      },
+      writeIndex: async (indexPath, records) => {
+        writes += 1
+        if (writes === 2) throw new Error("injected finalization failure")
+        await fs.writeFile(indexPath, JSON.stringify(records, null, 2))
+      },
+    })
+    t.after(() => fs.rm(harness.workspacePath, { recursive: true, force: true }))
+
+    const started = await harness.manager.start(WORKSPACE_ID, "finalize-failure", "ignored")
+    const records = await harness.manager.list(WORKSPACE_ID)
+
+    assert.equal(writes, 3)
+    assert.equal(started.status, "error")
+    assert.equal(records.length, 1)
+    assert.equal(records[0].status, "error")
+    assert.notEqual(records[0].status, "running")
+    assert.equal(records[0].terminalReason, "failed")
+    assert.ok(harness.warnings.includes("Failed to finalize background process record"))
+    assert.ok(harness.updates.some((record) => record.status === "error"))
   })
 })

@@ -610,13 +610,14 @@ export default function PromptInput(props: PromptInputProps) {
     textareaRef?.focus()
   }
 
-  function handleQueueAll() {
+  async function handleQueueAll() {
     if (!props.onQueueAll || isQueueing() || attachments().length > 0) return
     const text = prompt().trim()
     if (props.disabled || !text || mode() === "shell" || text.startsWith("/")) return
 
     const submission = preparePromptSubmission({ mode: "message", text, attachments: [] })
-    if (props.onQueueAll(submission.submitPrompt) === 0) return
+    const queued = await props.onQueueAll(submission.submitPrompt)
+    if (!queued) return
     setExpandState("normal")
     setInputHeight(null)
     clearPrompt()
