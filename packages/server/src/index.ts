@@ -33,6 +33,8 @@ import { PluginChannelManager } from "./plugins/channel"
 import { VoiceModeManager } from "./plugins/voice-mode"
 import { runCliUpgrade } from "./cli-upgrade"
 import { createServerShutdownHandler, orchestrateServerShutdown, type ServerShutdownTrigger } from "./shutdown"
+import { FreebuffController } from "./freebuff/controller"
+import { FreebuffEngineManager } from "./freebuff/engine"
 import { AutoAcceptManager } from "./permissions/auto-accept-manager"
 import { resolveYoloDefault } from "./permissions/auto-accept-store"
 import { createOpencodePermissionReplier } from "./permissions/opencode-replier"
@@ -410,6 +412,13 @@ async function main() {
   yoloLogger.info({ defaultEnabled: yoloDefault }, "Yolo mode default")
   yoloManager.start()
 
+  const freebuff = new FreebuffController({
+    engineManager: new FreebuffEngineManager({
+      logger: logger.child({ component: "freebuff" }),
+    }),
+    logger: logger.child({ component: "freebuff" }),
+  })
+
   // SAIPEN protocol auto-update: off by default; when enabled and the configured
   // home is a git repo, pull it on a bounded interval. Stopped on shutdown.
   const saipenSettings = (settings.getOwner("config", "server") as { saipen?: SaipenSettings } | undefined)?.saipen ?? {}
@@ -534,6 +543,7 @@ async function main() {
         remoteProxySessionManager,
         yoloManager,
         sessionMetadataPersistence,
+        freebuff,
         uiStaticDir: uiResolution.uiStaticDir ?? DEFAULT_UI_STATIC_DIR,
         uiDevServerUrl: uiResolution.uiDevServerUrl,
         logger,
@@ -564,6 +574,7 @@ async function main() {
         remoteProxySessionManager,
         yoloManager,
         sessionMetadataPersistence,
+        freebuff,
         uiStaticDir: uiResolution.uiStaticDir ?? DEFAULT_UI_STATIC_DIR,
         uiDevServerUrl: undefined,
         logger,
@@ -677,6 +688,7 @@ async function main() {
           stopReleaseMonitor: () => devReleaseMonitor?.stop(),
           stopSaipenWatcher: () => saipenWatcher.stop(),
           stopQueueManager: () => queueManager.flush(),
+          stopFreebuffEngine: () => freebuff.stop(),
         },
         logger,
       ),

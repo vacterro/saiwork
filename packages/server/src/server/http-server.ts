@@ -34,6 +34,8 @@ import { registerRemoteProxyRoutes } from "./routes/remote-proxy"
 import { registerSideCarRoutes } from "./routes/sidecars"
 import { registerPreviewRoutes } from "./routes/previews"
 import { registerUsageRoutes } from "./routes/usage"
+import { registerFreebuffRoutes } from "./routes/freebuff"
+import type { FreebuffController } from "../freebuff/controller"
 import { ServerMeta } from "../api-types"
 import { InstanceStore } from "../storage/instance-store"
 import { BackgroundProcessManager } from "../background-processes/manager"
@@ -81,6 +83,7 @@ interface HttpServerDeps {
   remoteProxySessionManager: RemoteProxySessionManager
   yoloManager: AutoAcceptManager
   sessionMetadataPersistence: OpencodeYoloPersistence
+  freebuff: FreebuffController
   uiStaticDir: string
   uiDevServerUrl?: string
   logger: Logger
@@ -327,6 +330,10 @@ export function createHttpServer(deps: HttpServerDeps) {
   registerSideCarRoutes(app, { sidecarManager: deps.sidecarManager })
   registerPreviewRoutes(app, { previewManager: deps.previewManager })
   registerUsageRoutes(app)
+  registerFreebuffRoutes(app, {
+    freebuff: deps.freebuff,
+    logger: apiLogger,
+  })
   registerSideCarProxyRoutes(app, { sidecarManager: deps.sidecarManager, logger: proxyLogger })
   registerPreviewProxyRoutes(app, { previewManager: deps.previewManager, logger: proxyLogger })
   setupSideCarWebSocketProxy(app, {
