@@ -3,13 +3,20 @@
 ## Tooling hygiene (hang prevention)
 
 - `playwright cli` commands are LONG-LIVED: `open`, `attach`, `goto` keep a
-  daemon/browser process alive and do not exit on their own. NEVER pipe them
-  through `Select-Object -First` / `Select-String` expecting completion — the
-  pipe blocks until the tool exits, which it will not, and the session hangs.
-- Run playwright commands ONLY with a hard timeout (the shell tool's own
-  `timeout` argument), or run `playwright cli open <url>` detached and use
-  non-blocking probes (`Invoke-WebRequest http://127.0.0.1:9225/json` with a
-  short TimeoutSec) to inspect state instead of interactive attach.
+  daemon/browser process alive and do not exit on their own. NEVER run them
+  from the agent shell tool — neither piping, nor a hard timeout, nor a
+  detached launch (`Start-Process -RedirectStandardOutput`) reliably prevents
+  the session from freezing. This was reproduced THREE times in one day.
+  (The tool "returns" the snapshot text, then the session hangs ~1 hour
+  because the browser daemon keeps the pipe handle / the tool loop blocks.)
+- Verify UI work WITHOUT a live browser: API probes (`Invoke-WebRequest`),
+  the package's typecheck + unit tests + production build, and non-interactive
+  HTTP state inspection. If a real browser check is needed, it must run
+  OUTSIDE the agent session (separate terminal / CI); the agent only reads the
+  artifacts (screenshots, snapshot files).
+- If a browser call ever printed output but the session is stuck, the daemon
+  is alive: `playwright-cli kill-all` in a separate bounded call, then resume
+  with non-browser verification.
 - To inspect the real Electron renderer, enable `SAIWORK_DEBUG_PORT` (user
   env) BEFORE launching, then poll `http://127.0.0.1:<port>/json`. If the port
   is unresponsive, the renderer main thread is blocked — stop poking CDP and
