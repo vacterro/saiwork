@@ -104,8 +104,39 @@ jobs:
         run: |
           set -euo pipefail
           node -e "const fs=require('fs'); const path=require('path'); const p=path.join('packages','server','package.json'); const j=JSON.parse(fs.readFileSync(p,'utf8')); j.name=process.env.PACKAGE_NAME || j.name; fs.writeFileSync(p, JSON.stringify(j, null, 2)+'\n'); console.log('Publishing as', j.name);"
+          echo "EFFECTIVE_PACKAGE_NAME=$(node -p "require('./packages/server/package.json').name")" >> "$GITHUB_ENV"
+
+      - name: Check existing npm version
+        id: npm-version
+        shell: bash
+        run: |
+          if node "$PINNED_NPM_CLI" view "${EFFECTIVE_PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${EFFECTIVE_PACKAGE_NAME}@${VERSION} already published; skipping"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply dist-tag to existing npm version
+        if: ${{ steps.npm-version.outputs.exists == 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+        shell: bash
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            CURRENT_VERSION=$(node "$PINNED_NPM_CLI" view "$EFFECTIVE_PACKAGE_NAME" "dist-tags.$DIST_TAG" 2>/dev/null | tr -d '"')
+            if [ "$CURRENT_VERSION" = "$VERSION" ]; then
+              echo "$DIST_TAG already points to $EFFECTIVE_PACKAGE_NAME@$VERSION"
+              exit 0
+            fi
+            echo "NPM_TOKEN is required to move $DIST_TAG to an existing version" >&2
+            exit 1
+          fi
+          node "$PINNED_NPM_CLI" dist-tag add "${EFFECTIVE_PACKAGE_NAME}@${VERSION}" "$DIST_TAG"
 
       - name: Publish server package with provenance
+        if: ${{ steps.npm-version.outputs.exists != 'true' }}
         env:
           # Optional: when present, npm will use token auth.
           # When empty/unset, npm trusted publishing (OIDC) may be used if configured.

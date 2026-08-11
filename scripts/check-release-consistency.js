@@ -373,7 +373,20 @@ function checkMetadata(rootDir, errors = []) {
     }
     return true
   }
-  expect(errors, /branches:\s*\r?\n\s*- saiwork\b/.test(releaseWorkflow), "release workflow must trigger from default branch saiwork")
+  expect(errors, /^ {4}tags:\s*\r?\n {6}- ["']?v\*["']?\s*$/m.test(releaseWorkflow), "release workflow must trigger from version tags")
+  expect(errors, /^ {2}workflow_dispatch:\s*$/m.test(releaseWorkflow), "release workflow must support manual recovery runs")
+  expect(errors, /^ {6}build_tauri:\s*false\s*$/m.test(releaseWorkflow), "stable release workflow must skip experimental Tauri builds")
+  expect(errors, /^ {6}release_ui:\s*false\s*$/m.test(releaseWorkflow), "stable release workflow must skip unconfigured UI publishing")
+  expect(errors, /^ {6}build_tauri:\s*\$\{\{ inputs\.build_tauri \}\}\s*$/m.test(reusableWorkflow), "reusable release workflow must forward build_tauri")
+  expect(
+    errors,
+    reusableWorkflow.includes('if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$TAG" ]; then'),
+    "release workflow must reject a tag that differs from package version",
+  )
+  for (const jobName of ["build-tauri-macos", "build-tauri-macos-arm64", "build-tauri-windows", "build-tauri-linux"]) {
+    const guardedJob = new RegExp(`^  ${jobName}:\\r?\\n {4}if: \\$\\{\\{ inputs\\.build_tauri \\}\\}\\s*$`, "m")
+    expect(errors, guardedJob.test(buildWorkflow), `${jobName} must honor build_tauri`)
+  }
   expect(errors, reusableWorkflow.includes("npm run release:check"), "reusable release workflow must run release:check")
   expect(errors, installsBeforeEveryBump(reusableWorkflow), "reusable release workflow must install dependencies before bumpVersion")
   expect(errors, installsBeforeEveryBump(buildWorkflow), "build workflow must install dependencies before every bumpVersion")
@@ -381,6 +394,15 @@ function checkMetadata(rootDir, errors = []) {
   expect(errors, installsBeforeEveryBump(npmPublishWorkflow), "npm publish workflow must install dependencies before bumpVersion")
   expect(errors, releaseUiWorkflow.includes("npm run release:check"), "UI release workflow must run release:check")
   expect(errors, npmPublishWorkflow.includes("npm run release:check"), "npm publish workflow must run release:check")
+  expect(errors, npmPublishWorkflow.includes("id: npm-version"), "npm publish workflow must check for an existing version")
+  expect(errors, /if:\s*\$\{\{ steps\.npm-version\.outputs\.exists != 'true' \}\}/.test(npmPublishWorkflow), "npm publish workflow must skip an existing version")
+  expect(errors, npmPublishWorkflow.includes("dist-tag add"), "npm publish recovery must apply the requested dist-tag")
+  expect(
+    errors,
+    npmPublishWorkflow.includes('if [ -z "${NODE_AUTH_TOKEN:-}" ]; then')
+      && npmPublishWorkflow.includes("NPM_TOKEN is required to move"),
+    "npm dist-tag recovery must guard missing write credentials",
+  )
   expect(errors, prWorkflow.includes("npm run release:check"), "PR workflow must run release:check")
   expect(errors, buildWorkflow.includes("packages/electron-app/release/*.exe"), "Windows workflow must retain portable EXE artifact coverage")
 

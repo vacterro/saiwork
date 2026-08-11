@@ -2,8 +2,9 @@ name: Release Binaries
 
 on:
   push:
-    branches:
-      - saiwork
+    tags:
+      - "v*"
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -15,4 +16,6 @@ jobs:
     with:
       dist_tag: latest
       npm_package_name: "@saiwork/saiwork"
+      build_tauri: false
+      release_ui: false
     secrets: inherit

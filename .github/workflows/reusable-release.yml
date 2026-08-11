@@ -33,6 +33,11 @@ on:
         required: false
         default: true
         type: boolean
+      build_tauri:
+        description: "Build experimental Tauri packages"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   id-token: write
@@ -67,6 +72,10 @@ jobs:
           BASE_VERSION=$(node -p "require('./package.json').version")
           VERSION="${BASE_VERSION}${VERSION_SUFFIX}"
           TAG="v${VERSION}"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$TAG" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package version $TAG" >&2
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "release_name=$TAG" >> "$GITHUB_OUTPUT"
@@ -104,6 +113,7 @@ jobs:
       version: ${{ needs.prepare-release.outputs.version }}
       tag: ${{ needs.prepare-release.outputs.tag }}
       release_name: ${{ needs.prepare-release.outputs.release_name }}
+      build_tauri: ${{ inputs.build_tauri }}
     secrets: inherit
 
   update-winget:

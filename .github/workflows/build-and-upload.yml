@@ -48,6 +48,11 @@ on:
         required: false
         default: true
         type: boolean
+      build_tauri:
+        description: "Build experimental Tauri packages"
+        required: false
+        default: true
+        type: boolean
 
 # Permissions are intentionally omitted here so callers can choose
 # least-privilege (e.g. dev CI uses read-only; releases grant write).
@@ -434,6 +439,7 @@ jobs:
           if-no-files-found: error
 
   build-tauri-macos:
+    if: ${{ inputs.build_tauri }}
     runs-on: macos-15-intel
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -524,6 +530,7 @@ jobs:
           done
 
   build-tauri-macos-arm64:
+    if: ${{ inputs.build_tauri }}
     runs-on: macos-26
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -614,6 +621,7 @@ jobs:
           done
 
   build-tauri-windows:
+    if: ${{ inputs.build_tauri }}
     runs-on: windows-2025
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -709,6 +717,7 @@ jobs:
           }
 
   build-tauri-linux:
+    if: ${{ inputs.build_tauri }}
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -92,15 +92,24 @@ function makeFixture() {
   writeJson(path.join(rootDir, "packages/tauri-app/src-tauri/tauri.conf.json"), { version: VERSION })
   write(path.join(rootDir, "README.md"), `**Version ${VERSION}**\n\`SAIWORK-x64-${VERSION}.zip\`\n\`SAIWORK-portable-x64-${VERSION}.exe\`\n`)
   write(path.join(rootDir, "CHANGELOG.md"), `# Changelog\n\n## [${VERSION}] - 2026-08-11\n`)
-  write(path.join(rootDir, ".github/workflows/release.yml"), "on:\n  push:\n    branches:\n      - saiwork\n")
+  write(
+    path.join(rootDir, ".github/workflows/release.yml"),
+    "on:\n  push:\n    tags:\n      - \"v*\"\n  workflow_dispatch:\njobs:\n  release:\n    with:\n      build_tauri: false\n      release_ui: false\n",
+  )
   write(
     path.join(rootDir, ".github/workflows/reusable-release.yml"),
-    "run: npm ci --workspaces --include-workspace-root --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+    "      build_tauri: ${{ inputs.build_tauri }}\nif [ \"$GITHUB_REF_TYPE\" = \"tag\" ] && [ \"$GITHUB_REF_NAME\" != \"$TAG\" ]; then\nrun: npm ci --workspaces --include-workspace-root --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
   )
   write(path.join(rootDir, ".github/workflows/release-ui.yml"), "run: npm run release:check\n")
-  write(path.join(rootDir, ".github/workflows/manual-npm-publish.yml"), "run: npm run release:check\n")
+  write(
+    path.join(rootDir, ".github/workflows/manual-npm-publish.yml"),
+    "run: npm run release:check\n      - id: npm-version\n      - run: |\n          if [ -z \"${NODE_AUTH_TOKEN:-}\" ]; then\n            echo NPM_TOKEN is required to move\n          npm dist-tag add package@version latest\n      - if: ${{ steps.npm-version.outputs.exists != 'true' }}\n",
+  )
   write(path.join(rootDir, ".github/workflows/pr-build.yml"), "run: npm run release:check\n")
-  write(path.join(rootDir, ".github/workflows/build-and-upload.yml"), "path: packages/electron-app/release/*.exe\n")
+  write(
+    path.join(rootDir, ".github/workflows/build-and-upload.yml"),
+    "  build-tauri-macos:\n    if: ${{ inputs.build_tauri }}\n  build-tauri-macos-arm64:\n    if: ${{ inputs.build_tauri }}\n  build-tauri-windows:\n    if: ${{ inputs.build_tauri }}\n  build-tauri-linux:\n    if: ${{ inputs.build_tauri }}\npath: packages/electron-app/release/*.exe\n",
+  )
   return rootDir
 }
 
@@ -196,6 +205,21 @@ test("requires workspace root installation to be enabled", () => {
     "run: npm ci --workspaces --include-workspace-root --no-include-workspace-root\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
   )
   assert.ok(checkMetadata(rootDir).some((error) => error.includes("reusable release workflow must install dependencies")))
+  fs.rmSync(rootDir, { recursive: true, force: true })
+})
+
+test("requires exact stable release and Tauri wiring", () => {
+  const rootDir = makeFixture()
+  const releasePath = path.join(rootDir, ".github/workflows/release.yml")
+  const releaseWorkflow = fs.readFileSync(releasePath, "utf8")
+  write(releasePath, releaseWorkflow.replace("      build_tauri: false", "      not_build_tauri: false"))
+  assert.ok(checkMetadata(rootDir).some((error) => error.includes("skip experimental Tauri")))
+
+  write(releasePath, releaseWorkflow)
+  const buildPath = path.join(rootDir, ".github/workflows/build-and-upload.yml")
+  const buildWorkflow = fs.readFileSync(buildPath, "utf8")
+  write(buildPath, buildWorkflow.replace("  build-tauri-macos:\n    if: ${{ inputs.build_tauri }}", "  build-tauri-macos:\n"))
+  assert.ok(checkMetadata(rootDir).some((error) => error.includes("build-tauri-macos must honor build_tauri")))
   fs.rmSync(rootDir, { recursive: true, force: true })
 })
 
