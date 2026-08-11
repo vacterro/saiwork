@@ -235,3 +235,5 @@
 - 11.08.26 16:17 [E-610] [parent: E-609] [T-103] [agent: opencode] [op: checkpoint-40800de2] RUN: REVIEW rerun: bump-version tests 15/15 and real Windows 0.0.4 resync pass; independent review clean
 - 11.08.26 16:18 [E-611] [parent: E-610] [T-103] [agent: opencode] [op: transition-44b7d1da] RUN: review clean after release bump hardening
 - 11.08.26 16:22 [E-612] [parent: E-611] [T-103] [agent: opencode] [op: checkpoint-262aac2c] RUN: SHIP binding PASS: conformance, cached diff, artifacts, release 21/21, typecheck, UI 615, server 366+4 skip, plugin 8, Electron 134
+- 11.08.26 16:25 [E-613] [parent: E-612] [T-103] [agent: opencode] [op: finish-6de10ac9] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 11.08.26 16:26 [E-614] [parent: E-613] [agent: opencode] [op: checkpoint-d82ef492] RUN: ship v0.0.4 -> pushed b16641bf

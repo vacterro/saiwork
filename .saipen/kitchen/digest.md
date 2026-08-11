@@ -1,3 +1,3 @@
-done: 0.0.4 integration reconciled locally: canonical SAIPEN semantics, durable single-owner queue, detached-pane recovery, release gates, Windows ZIP/portable verification
-remaining: publication; T-093/T-094/T-095/T-096/T-097 and reliability backlog remain
-awaiting: commit, branch push, and v0.0.4 tag publication
+done: SAIWORK 0.0.4 published at b16641bf with annotated v0.0.4: canonical SAIPEN semantics, durable queue, detached-pane recovery, release gates
+remaining: T-093/T-094/T-095/T-096/T-097 and reliability backlog
+awaiting: nothing

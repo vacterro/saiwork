@@ -41,7 +41,6 @@ Remotes: `origin` -> github.com/vacterro/saiwork, `upstream` -> github.com/Neura
   without documentation; visual polish serves this path rather than decorating it.
 
 ## DOING
-- [/] T-103 [P0] Fix Windows release bump invocation without shell execution | verify: bump-version tests pass and npm run bumpVersion succeeds on Windows | owner: opencode | claim_time: 2026-08-11T14:47:12Z
 
 
 ## TODO
@@ -66,6 +65,7 @@ Wave 2 order: the four defects the user hit in a live session come first, then
 the gate that keeps them from coming back, then wave 1's remaining findings.
 
 ## DONE
+- [x] T-103 [P0] Fix Windows release bump invocation without shell execution | verify: bump-version tests pass and npm run bumpVersion succeeds on Windows | owner: opencode | claim_time: 2026-08-11T14:47:12Z
 - [x] T-099 Detached-window ownership hardening: prevent duplicate detached owners for one pane; deterministic recovery when a detached renderer crashes or its window is force-closed; session must never become unreachable because its detached owner disappeared | verify: hostile-lifecycle tests cover close-with-X, renderer crash, and duplicate-owner rejection | owner: opencode | claim_time: 2026-08-11T14:16:59Z
 - [x] T-100 [P0] Queue durability and server-authority hardening: globally serialize CAS/persist/commit, fail closed on storage errors, migrate renderer localStorage, preserve at-most-once dequeue and dispatch | verify: write, rename, fsync, failed-dequeue restart, concurrent-key, two-client race, mirror-ordering and legacy-migration tests pass | owner: opencode | claim_time: 2026-08-11T14:15:51Z
 - [x] T-101 [P0] SAIPEN integration hardening: canonical parser and board API, registered-workspace containment, revisioned atomic writes, watcher lifecycle, protocol-file confinement and byte-safe UTF-8 caps | verify: STATE/BOARD semantics, conflict drafts, create/change/delete, symlink/junction escapes, core file paths and multilingual byte-boundary tests pass | owner: opencode | claim_time: 2026-08-11T14:15:05Z
