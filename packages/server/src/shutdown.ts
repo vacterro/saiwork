@@ -7,7 +7,7 @@ export const SERVER_SHUTDOWN_INCOMPLETE = "SAIWORK_SHUTDOWN_STATUS:incomplete"
 
 export type ServerShutdownOperations = Record<
   "stopInstanceEventBridge" | "stopSidecars" | "stopClientConnections" | "stopRemoteProxySessions" | "stopWorkspaces" |
-  "stopHttpServers" | "stopReleaseMonitor" | "stopSaipenWatcher" | "stopQueueManager",
+  "stopHttpServers" | "stopReleaseMonitor" | "stopSaipenWatcher" | "stopQueueManager" | "stopFreebuffEngine",
   ShutdownOperation
 >
 
@@ -100,5 +100,6 @@ export async function orchestrateServerShutdown(
   // Close request admission before draining the shared queue transaction.
   await settle([["stopHttpServers", operations.stopHttpServers]])
   await settle([["stopQueueManager", operations.stopQueueManager], ["stopReleaseMonitor", operations.stopReleaseMonitor]])
+  await settle([["stopFreebuffEngine", operations.stopFreebuffEngine]])
   if (errors.length) throw new AggregateError(errors, "Server shutdown failed")
 }

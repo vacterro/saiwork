@@ -796,3 +796,85 @@ export type {
   RecentFolder,
   OpenCodeBinary,
 }
+
+/** FreeBuff engine account + install status, as served by /api/freebuff/status. */
+export interface FreebuffUser {
+  id: string
+  email?: string
+  name?: string
+}
+
+export interface FreebuffRateLimit {
+  model: string
+  limit: number
+  period: string
+  recentCount: number
+  resetAt?: string
+  resetTimeZone?: string
+  windowHours?: number
+}
+
+export interface FreebuffSessionCounts {
+  premium: number
+  unlimited: number
+  nextExpiryAt?: string
+}
+
+export interface FreebuffQuotaSnapshot {
+  status: string
+  accessTier: string
+  rateLimitsByModel?: Record<string, FreebuffRateLimit>
+  desktopSessionCounts?: FreebuffSessionCounts
+}
+
+export interface FreebuffQuotaResponse {
+  configured: boolean
+  snapshot: FreebuffQuotaSnapshot | null
+  error: string | null
+}
+
+export interface FreebuffModelInfo {
+  id: string
+  displayName: string
+  tagline?: string
+  free: boolean
+}
+
+export interface FreebuffThreadView {
+  id: string
+  title?: string | null
+  status: string
+  model?: string | null
+  harnessId?: string | null
+  turnState?: string
+  executionMode?: string
+  queuePaused?: boolean
+  lastTurnOutcome?: string | null
+  lastTurnFinishedAt?: number | null
+  createdAt?: number
+  updatedAt?: number
+}
+
+export interface FreebuffThreadMessagePart {
+  kind: string
+  text?: string
+  toolName?: string
+  [key: string]: unknown
+}
+
+export interface FreebuffThreadMessage {
+  role: "user" | "assistant"
+  parts: FreebuffThreadMessagePart[]
+  ts?: number
+}
+
+export interface FreebuffStatusResponse {
+  installFound: boolean
+  engineRunning: boolean
+  ready: boolean
+  port: number | null
+  root: string | null
+  auth: FreebuffUser | null
+  error: string | null
+  quota: FreebuffQuotaResponse
+}

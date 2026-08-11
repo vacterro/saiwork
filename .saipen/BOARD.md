@@ -1,4 +1,4 @@
-# BOARD -- SAIWORK 0.0.4
+﻿# BOARD -- SAIWORK 0.0.4
 
 Downstream source based on CodeNomad 0.18.0 development commit `67cb394e`.
 Default `saiwork` was squash-imported; inherited history remains on `backup/pre-squash-history`.
@@ -41,10 +41,13 @@ Remotes: `origin` -> github.com/vacterro/saiwork, `upstream` -> github.com/Neura
   without documentation; visual polish serves this path rather than decorating it.
 
 ## DOING
-- [/] T-104 [P0] Fix release workflow dependency order: install before dependency-backed bumpVersion | verify: release workflow order test passes and GitHub Release Binaries run succeeds | owner: opencode | claim_time: 2026-08-11T16:28:41Z
+- [/] T-105 [P0] Replace top project-tab horizontal scrolling with an ellipsis dropdown listing tabs that do not fit | verify: UI tests and 320/640px Electron smoke show no horizontal scrollbar; active tab and fixed actions stay visible and hidden tabs remain keyboard-accessible through the overflow menu | owner: opencode | claim_time: 2026-08-11T17:52:06Z
 
 
 ## TODO
+- [ ] T-106 [P0] Expose all 16 canonical Wintage palettes in Appearance settings with correct ordering, persistence, polarity, and schema validation | verify: Appearance picker lists all 16 themes; Vintage Classic uses light color-scheme; rapid selection persists latest value; generator rejects invalid schema and duplicate identities
+- [x] T-108 [P1] FreeBuff tab model picker: select among quota-eligible FreeBuff models (deepseek-v4-flash, mimo-v2.5) and title new threads instead of always defaulting to deepseek-v4-flash | verify: LIVE -- thread created on mimo/mimo-v2.5 with custom title "SAIWORK smoke", history endpoint returns {thread,messages,items}; quota block highlights the selected model | owner: opencode | claim_time: 2026-08-11T20:40:00Z
+- [x] T-107 [P1] FreeBuff engine + UI surface | verify: LIVE -- SAIWORK spawned the headless FreeBuff orchestrator (port 61833), created a codebuff-harness thread on deepseek/deepseek-v4-flash, ran real turns ("OK.", "DONE.", "PING."), SSE /api/freebuff/events streamed 15 agent events live; quota shows tier limited, 6/day pacific_day, resetAt 07:00Z (=10:00 local); root typecheck + all suites green (server 398 / ui 624 / plugin 8 / electron 134, exit 0) | owner: opencode | claim_time: 2026-08-11T20:20:00Z
 
 
 - [ ] T-093 HUNT-7: stop feeding instance-shell2.tsx -- extract touched logic into focused controllers/hooks with tests | verify: extraction preserves behavior, no new orchestration in shell
@@ -117,3 +120,4 @@ the gate that keeps them from coming back, then wave 1's remaining findings.
 - [x] T-061 Deduplicate formatRelativeTime: extracted shared lib/relative-time.ts (formatRelativeTime(timestamp, now, t)) and wired all three call sites (folder-selection-view, session-picker, opencode-binary-selector) onto it; added relative-time.test.ts (3 cases) | verify: UI typecheck PASS, `npm test` exit 0 (574 UI pass) | review_passes: 1
 
 ## BLOCKED
+- [ ] T-104 [P0] Fix release workflow dependency order: install before dependency-backed bumpVersion | verify: release workflow order test passes and GitHub Release Binaries run succeeds | owner: opencode | claim_time: 2026-08-11T16:28:41Z | blocker: GitHub run 31516153390 passed prepare and all Electron builds; WINGET_GITHUB_TOKEN is empty and npm token lacks @saiwork/saiwork publish access

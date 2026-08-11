@@ -8,6 +8,7 @@ interface CoreRightPanelRenderers {
   renderGitChangesTab: () => JSX.Element
   renderFilesTab: () => JSX.Element
   renderStatusTab: () => JSX.Element
+  renderFreebuffTab: () => JSX.Element
 }
 
 interface CoreStatusSectionRenderers {
@@ -50,6 +51,12 @@ export function createCoreRightPanelManifest(renderers: CoreRightPanelRenderers)
           order: 30,
           alwaysVisible: true,
           render: renderers.renderStatusTab,
+        },
+        {
+          id: "freebuff",
+          labelKey: "instanceShell.rightPanel.tabs.freebuff",
+          order: 40,
+          render: renderers.renderFreebuffTab,
         },
       ],
     }),

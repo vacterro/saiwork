@@ -12,7 +12,7 @@ const logger = { info() {}, warn() {}, error() {} }
 const operations = (overrides: Partial<ServerShutdownOperations> = {}): ServerShutdownOperations => ({
   stopInstanceEventBridge() {}, stopSidecars() {}, stopClientConnections() {},
   stopRemoteProxySessions() {}, stopWorkspaces() {}, stopHttpServers() {}, stopReleaseMonitor() {},
-  stopSaipenWatcher() {}, stopQueueManager() {},
+  stopSaipenWatcher() {}, stopQueueManager() {}, stopFreebuffEngine() {},
   ...overrides,
 })
 

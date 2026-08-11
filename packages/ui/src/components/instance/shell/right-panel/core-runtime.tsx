@@ -36,6 +36,7 @@ import { createSplitResize } from "./tabs/split-resize"
 
 const LazyGitChangesTab = lazy(() => import("./tabs/GitChangesTab"))
 const LazyStatusTab = lazy(() => import("./tabs/StatusTab"))
+const LazyFreebuffTab = lazy(() => import("./tabs/FreebuffTab"))
 
 interface CoreRightPanelRuntimeOptions {
   t: (key: string, vars?: Record<string, any>) => string
@@ -241,5 +242,6 @@ export function createCoreRightPanelRuntime(options: CoreRightPanelRuntimeOption
         extraSections={options.extraStatusSections()}
       />
     ),
+    renderFreebuffTab: () => <LazyFreebuffTab t={options.t} instance={options.instance} />,
   })
 }

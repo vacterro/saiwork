@@ -34,6 +34,9 @@ import type {
   QueueStorageFailure,
   QueuedPrompt as ServerQueuedPrompt,
   QueueState as ServerQueueState,
+  FreebuffStatusResponse,
+  FreebuffThreadView,
+  FreebuffThreadMessage,
   WorkspaceCloneRequest,
   WorkspaceCloneResponse,
   WorktreeGitCommitRequest,
@@ -278,6 +281,47 @@ export const serverApi = {
   fetchQueues(key?: string): Promise<QueueListResponse> {
     const query = key ? `?key=${encodeURIComponent(key)}` : ""
     return request<QueueListResponse>(`/api/queue${query}`)
+  },
+
+  fetchFreebuffStatus(): Promise<FreebuffStatusResponse> {
+    return request<FreebuffStatusResponse>("/api/freebuff/status")
+  },
+
+  startFreebuff(): Promise<FreebuffStatusResponse> {
+    return request<FreebuffStatusResponse>("/api/freebuff/start", { method: "POST", body: "{}" })
+  },
+
+  stopFreebuff(): Promise<{ ok: boolean }> {
+    return request("/api/freebuff/stop", { method: "POST", body: "{}" })
+  },
+
+  fetchFreebuffThreads(): Promise<{ threads: FreebuffThreadView[] }> {
+    return request("/api/freebuff/threads")
+  },
+
+  fetchFreebuffThread(threadId: string): Promise<{ thread: FreebuffThreadView; messages: FreebuffThreadMessage[]; items: unknown[] }> {
+    return request(`/api/freebuff/threads/${encodeURIComponent(threadId)}`)
+  },
+
+  createFreebuffThread(params: {
+    projectPath: string
+    model: string
+  }): Promise<FreebuffThreadView> {
+    return request("/api/freebuff/threads", { method: "POST", body: JSON.stringify(params) })
+  },
+
+  freebuffPostMessage(threadId: string, text: string): Promise<{ ok: boolean }> {
+    return request(`/api/freebuff/threads/${encodeURIComponent(threadId)}/message`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    })
+  },
+
+  freebuffStopThread(threadId: string): Promise<{ ok: boolean }> {
+    return request(`/api/freebuff/threads/${encodeURIComponent(threadId)}/stop`, {
+      method: "POST",
+      body: "{}",
+    })
   },
 
   async mutateQueue(
