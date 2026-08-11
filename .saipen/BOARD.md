@@ -41,6 +41,7 @@ Remotes: `origin` -> github.com/vacterro/saiwork, `upstream` -> github.com/Neura
   without documentation; visual polish serves this path rather than decorating it.
 
 ## DOING
+- [/] T-104 [P0] Fix release workflow dependency order: install before dependency-backed bumpVersion | verify: release workflow order test passes and GitHub Release Binaries run succeeds | owner: opencode | claim_time: 2026-08-11T16:28:41Z
 
 
 ## TODO

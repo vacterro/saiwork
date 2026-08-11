@@ -74,6 +74,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
         shell: bash
@@ -91,9 +94,6 @@ jobs:
             sleep $((attempt * 10))
           done
           exit 1
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-darwin-x64 --no-save
@@ -248,13 +248,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
         run: npm run bumpVersion -- "${VERSION}" --allow-same-version
         shell: bash
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-win32-x64-msvc --no-save
@@ -314,12 +314,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
         run: npm run bumpVersion -- "${VERSION}" --allow-same-version
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-linux-x64-gnu --no-save
@@ -454,15 +454,15 @@ jobs:
       - name: Setup Rust (Tauri)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
         run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-darwin-x64 --no-save
@@ -544,15 +544,15 @@ jobs:
       - name: Setup Rust (Tauri)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
         run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-darwin-arm64 --no-save
@@ -634,6 +634,9 @@ jobs:
       - name: Setup Rust (Tauri)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
         run: npm run bumpVersion -- "${VERSION}" --allow-same-version
@@ -641,9 +644,6 @@ jobs:
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-win32-x64-msvc --no-save
@@ -742,15 +742,15 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
         run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-linux-x64-gnu --no-save
@@ -957,14 +957,14 @@ jobs:
             libayatana-appindicator3-dev:arm64 \
             librsvg2-dev:arm64
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set workspace versions
         run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-linux-arm64-gnu --no-save

@@ -38,12 +38,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci --workspaces --include=optional
+
       - name: Set release metadata
         if: ${{ inputs.version != '' }}
         run: npm run bumpVersion -- "${{ inputs.version }}" --allow-same-version
-
-      - name: Install dependencies
-        run: npm ci --workspaces --include=optional
 
       - name: Run release gate
         run: npm run release:check

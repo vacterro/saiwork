@@ -71,11 +71,11 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "release_name=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Set release metadata
-        run: npm run bumpVersion -- "${{ steps.versions.outputs.version }}" --allow-same-version
-
       - name: Install dependencies
         run: npm ci --workspaces --include=optional
+
+      - name: Set release metadata
+        run: npm run bumpVersion -- "${{ steps.versions.outputs.version }}" --allow-same-version
 
       - name: Run release gate
         run: npm run release:check

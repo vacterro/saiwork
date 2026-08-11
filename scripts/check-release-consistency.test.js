@@ -93,7 +93,10 @@ function makeFixture() {
   write(path.join(rootDir, "README.md"), `**Version ${VERSION}**\n\`SAIWORK-x64-${VERSION}.zip\`\n\`SAIWORK-portable-x64-${VERSION}.exe\`\n`)
   write(path.join(rootDir, "CHANGELOG.md"), `# Changelog\n\n## [${VERSION}] - 2026-08-11\n`)
   write(path.join(rootDir, ".github/workflows/release.yml"), "on:\n  push:\n    branches:\n      - saiwork\n")
-  write(path.join(rootDir, ".github/workflows/reusable-release.yml"), "run: npm run release:check\n")
+  write(
+    path.join(rootDir, ".github/workflows/reusable-release.yml"),
+    "run: npm ci --workspaces --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+  )
   write(path.join(rootDir, ".github/workflows/release-ui.yml"), "run: npm run release:check\n")
   write(path.join(rootDir, ".github/workflows/manual-npm-publish.yml"), "run: npm run release:check\n")
   write(path.join(rootDir, ".github/workflows/pr-build.yml"), "run: npm run release:check\n")
@@ -143,6 +146,27 @@ test("rejects a workspace typecheck script omitted from the root gate", () => {
   writeJson(pluginPath, plugin)
 
   assert.ok(checkMetadata(rootDir).some((error) => error.includes("workspace typecheck set/order changed")))
+  fs.rmSync(rootDir, { recursive: true, force: true })
+})
+
+test("requires release dependencies before version metadata", () => {
+  const rootDir = makeFixture()
+  write(
+    path.join(rootDir, ".github/workflows/reusable-release.yml"),
+    "run: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm ci --workspaces --include=optional\nrun: npm run release:check\n",
+  )
+
+  assert.ok(checkMetadata(rootDir).some((error) => error.includes("install dependencies before bumpVersion")))
+
+  write(
+    path.join(rootDir, ".github/workflows/reusable-release.yml"),
+    "run: npm ci --workspaces --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+  )
+  write(
+    path.join(rootDir, ".github/workflows/build-and-upload.yml"),
+    "  windows:\n    steps:\n      - run: npm run bumpVersion -- 0.0.3 --allow-same-version\n      - run: npm ci --workspaces --include=optional\npath: packages/electron-app/release/*.exe\n",
+  )
+  assert.ok(checkMetadata(rootDir).some((error) => error.includes("build workflow must install dependencies before every bumpVersion")))
   fs.rmSync(rootDir, { recursive: true, force: true })
 })
 

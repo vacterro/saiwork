@@ -237,3 +237,9 @@
 - 11.08.26 16:22 [E-612] [parent: E-611] [T-103] [agent: opencode] [op: checkpoint-262aac2c] RUN: SHIP binding PASS: conformance, cached diff, artifacts, release 21/21, typecheck, UI 615, server 366+4 skip, plugin 8, Electron 134
 - 11.08.26 16:25 [E-613] [parent: E-612] [T-103] [agent: opencode] [op: finish-6de10ac9] DEC: ticket finished via SAIOPS -- completion (from SHIP)
 - 11.08.26 16:26 [E-614] [parent: E-613] [agent: opencode] [op: checkpoint-d82ef492] RUN: ship v0.0.4 -> pushed b16641bf
+- 11.08.26 16:28 [E-615] [parent: E-614] [T-104] [agent: opencode] [op: ticket-96ab546a] DEC: ticket added via SAIOPS
+- 11.08.26 16:28 [E-616] [parent: E-615] [T-104] [agent: opencode] [op: claim-9ed0b43d] DEC: claimed via SAIOPS -- owner opencode
+- 11.08.26 16:29 [E-617] [parent: E-616] [T-104] [agent: opencode] [op: transition-df3a5b79] RUN: release run failed because bumpVersion dependencies were not installed
+- 11.08.26 16:29 [E-618] [parent: E-617] [T-104] [agent: opencode] [op: transition-12a2c7b4] RUN: release order regression 22/22 and consistency gate pass
+- 11.08.26 16:34 [E-619] [parent: E-618] [T-104] [agent: opencode] [op: transition-21d059ca] RUN: all release jobs install dependencies before bump; release tests 22/22
+- 11.08.26 16:34 [E-620] [parent: E-619] [T-104] [agent: opencode] [op: transition-fe6a193c] RUN: review clean; release dependency order enforced in every bump job

@@ -354,8 +354,21 @@ function checkMetadata(rootDir, errors = []) {
   const npmPublishWorkflow = fs.readFileSync(path.join(rootDir, ".github/workflows/manual-npm-publish.yml"), "utf8")
   const prWorkflow = fs.readFileSync(path.join(rootDir, ".github/workflows/pr-build.yml"), "utf8")
   const buildWorkflow = fs.readFileSync(path.join(rootDir, ".github/workflows/build-and-upload.yml"), "utf8")
+  const installsBeforeEveryBump = (workflow) => {
+    let dependenciesInstalled = false
+    for (const line of workflow.split(/\r?\n/)) {
+      if (/^  [A-Za-z0-9_-]+:\s*$/.test(line)) dependenciesInstalled = false
+      if (/\brun:\s*(?:npm ci\b|node .*\bci --workspaces\b)/.test(line)) dependenciesInstalled = true
+      if (line.includes("npm run bumpVersion") && !dependenciesInstalled) return false
+    }
+    return true
+  }
   expect(errors, /branches:\s*\r?\n\s*- saiwork\b/.test(releaseWorkflow), "release workflow must trigger from default branch saiwork")
   expect(errors, reusableWorkflow.includes("npm run release:check"), "reusable release workflow must run release:check")
+  expect(errors, installsBeforeEveryBump(reusableWorkflow), "reusable release workflow must install dependencies before bumpVersion")
+  expect(errors, installsBeforeEveryBump(buildWorkflow), "build workflow must install dependencies before every bumpVersion")
+  expect(errors, installsBeforeEveryBump(releaseUiWorkflow), "UI release workflow must install dependencies before bumpVersion")
+  expect(errors, installsBeforeEveryBump(npmPublishWorkflow), "npm publish workflow must install dependencies before bumpVersion")
   expect(errors, releaseUiWorkflow.includes("npm run release:check"), "UI release workflow must run release:check")
   expect(errors, npmPublishWorkflow.includes("npm run release:check"), "npm publish workflow must run release:check")
   expect(errors, prWorkflow.includes("npm run release:check"), "PR workflow must run release:check")
