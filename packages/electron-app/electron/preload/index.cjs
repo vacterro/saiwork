@@ -43,10 +43,12 @@ const localElectronAPI = {
   snapWindowToBounds: (bounds) => ipcRenderer.invoke("window:snap-to-bounds", bounds),
   openSessionPane: (payload) => ipcRenderer.invoke("window:open-session-pane", payload),
   reattachSessionPane: (payload) => ipcRenderer.invoke("window:reattach-session-pane", payload),
-  onReattachPane: (callback) => {
+  sessionPaneOwnerReady: () => ipcRenderer.invoke("window:session-pane-owner-ready"),
+  sessionPaneOwnerAck: (payload) => ipcRenderer.invoke("window:session-pane-owner-ack", payload),
+  onSessionPaneState: (callback) => {
     const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on("saipen:reattach-pane", listener)
-    return () => ipcRenderer.removeAllListeners("saipen:reattach-pane")
+    ipcRenderer.on("saipen:session-pane-state", listener)
+    return () => ipcRenderer.removeListener("saipen:session-pane-state", listener)
   },
   setMenuVisible: (visible) => ipcRenderer.invoke("app:set-menu-visible", Boolean(visible)),
   claimClientStateAccess: (token) => ipcRenderer.invoke("client-state:claimAccess", token),

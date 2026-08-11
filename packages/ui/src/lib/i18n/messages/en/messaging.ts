@@ -353,6 +353,7 @@ export const messagingMessages = {
   "thinkingStats.hint": "Counted from reasoning blocks in completed and aborted replies. Stored on this machine only.",
   "promptQueue.refused.title": "Prompt not queued",
   "promptQueue.refused.quota": "The prompt could not be queued. Your text is still in the editor — try again.",
+  "promptQueue.recoveryFailed": "The prompt was not sent and could not be restored to the queue. Copy it from this dialog before closing.",
   "promptQueue.refused.conflict": "The queue changed in another window. Your text is still in the editor — try again.",
   "promptQueue.refused.tooLarge": "The attachments are too large to queue. Your text is still in the editor. Send the prompt directly, or attach a smaller file.",
   "session.close.errorTitle": "Session not closed",

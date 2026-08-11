@@ -355,6 +355,7 @@ export const messagingMessages = {
   "thinkingStats.hint": "Contado a partir de los bloques de razonamiento de respuestas completadas y abortadas. Guardado solo en esta máquina.",
   "promptQueue.refused.title": "Prompt no encolado",
   "promptQueue.refused.quota": "No se pudo encolar el prompt. Tu texto sigue en el editor; inténtalo de nuevo.",
+  "promptQueue.recoveryFailed": "El prompt no se envió y no pudo restaurarse en la cola. Cópialo de este diálogo antes de cerrarlo.",
   "promptQueue.refused.conflict": "La cola cambió en otra ventana. Tu texto sigue en el editor; inténtalo de nuevo.",
   "promptQueue.refused.tooLarge": "Los adjuntos son demasiado grandes para la cola. Tu texto sigue en el editor. Envía el prompt directamente o adjunta un archivo más pequeño.",
   "session.close.errorTitle": "Sesión no cerrada",

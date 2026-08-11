@@ -30,6 +30,8 @@ import type {
   VoiceModeStateResponse,
   YoloStateResponse,
   QueueListResponse,
+  QueueMutation,
+  QueueStorageFailure,
   QueuedPrompt as ServerQueuedPrompt,
   QueueState as ServerQueueState,
   WorkspaceCloneRequest,
@@ -54,7 +56,7 @@ import type {
   WorktreeGitDiffResponse,
   WorktreeGitStatusResponse,
 } from "../../../server/src/api-types"
-import type { QueueMutation as ServerQueueMutation } from "../../../server/src/queue/manager"
+import { isQueueState, isQueuedPrompt } from "../../../server/src/queue/validation"
 import { getClientIdentity } from "./client-identity"
 import { getLogger } from "./logger"
 import { attachEventSourceHandlers } from "./event-source-handlers"
@@ -233,6 +235,18 @@ async function requestRaw(path: string, init?: RequestInit): Promise<Response> {
   return response
 }
 
+function isApiRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function isQueueStorageFailure(value: unknown): value is QueueStorageFailure {
+  if (!isApiRecord(value) || typeof value.message !== "string") return false
+  return value.operation === "load"
+    || value.operation === "mkdir"
+    || value.operation === "write"
+    || value.operation === "rename"
+    || value.operation === "fsync"
+}
 
 export const serverApi = {
   fetchWorkspaces(): Promise<WorkspaceDescriptor[]> {
@@ -269,11 +283,12 @@ export const serverApi = {
   async mutateQueue(
     key: string,
     expectedRevision: string,
-    mutation: ServerQueueMutation,
+    mutation: QueueMutation,
   ): Promise<
     | { status: "ok"; state: ServerQueueState; dequeued?: ServerQueuedPrompt }
     | { status: "conflict"; currentRevision: string }
     | { status: "failed"; code: "empty" | "paused" | "too-large" | "invalid" }
+    | { status: "failed"; code: "storage"; error: QueueStorageFailure }
   > {
     const url = API_BASE ? new URL("/api/queue/mutate", API_BASE).toString() : "/api/queue/mutate"
     const headers = normalizeHeaders(undefined)
@@ -286,30 +301,37 @@ export const serverApi = {
       credentials: "include",
       body: JSON.stringify({ key, expectedRevision, ...mutation }),
     })
-    let parsed: Record<string, unknown> | null = null
+    let parsed: unknown = null
     try {
-      parsed = (await response.json()) as Record<string, unknown>
+      parsed = await response.json()
     } catch {
       parsed = null
     }
-    if (response.status === 200 && parsed?.ok === true) {
+    if (response.status === 200 && isApiRecord(parsed) && parsed.ok === true && isQueueState(parsed.state)) {
+      const dequeued = isQueuedPrompt(parsed.dequeued) ? parsed.dequeued : undefined
+      if ((mutation.op === "dequeue" && !dequeued) || (parsed.dequeued !== undefined && !dequeued)) {
+        return { status: "failed", code: "invalid" }
+      }
       logHttp("POST /api/queue/mutate -> 200", { durationMs: Date.now() - startedAt })
       return {
         status: "ok",
-        state: parsed.state as ServerQueueState,
-        dequeued: parsed.dequeued as ServerQueuedPrompt | undefined,
+        state: parsed.state,
+        ...(dequeued ? { dequeued } : {}),
       }
     }
-    if (response.status === 409) {
+    if (response.status === 409 && isApiRecord(parsed)) {
       logHttp("POST /api/queue/mutate -> 409", { durationMs: Date.now() - startedAt })
       return {
         status: "conflict",
-        currentRevision: typeof parsed?.currentRevision === "string" ? parsed.currentRevision : "",
+        currentRevision: typeof parsed.currentRevision === "string" ? parsed.currentRevision : "",
       }
     }
     logHttp(`POST /api/queue/mutate -> ${response.status}`, { durationMs: Date.now() - startedAt })
+    if (response.status === 503 && isApiRecord(parsed) && parsed.code === "storage" && isQueueStorageFailure(parsed.error)) {
+      return { status: "failed", code: "storage", error: parsed.error }
+    }
     const failedCodes = ["empty", "paused", "too-large", "invalid"] as const
-    const rawCode = typeof parsed?.code === "string" ? parsed.code : "invalid"
+    const rawCode = isApiRecord(parsed) && typeof parsed.code === "string" ? parsed.code : "invalid"
     const code = (failedCodes as readonly string[]).includes(rawCode)
       ? (rawCode as (typeof failedCodes)[number])
       : "invalid"

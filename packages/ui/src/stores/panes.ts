@@ -85,6 +85,34 @@ export function reattachPaneAt(instanceId: string, id: string): void {
   mutate(instanceId, (state) => reattachPane(state, id))
 }
 
+/** Rebuilds exact native-window ownership after the main renderer is recreated. */
+export function restorePaneAt(instanceId: string, pane: Pane, detached: boolean): void {
+  setPaneStates((prev) => {
+    const current = prev.get(instanceId)
+    const panes = current
+      ? current.panes.some((candidate) => candidate.id === pane.id)
+        ? current.panes.map((candidate) => candidate.id === pane.id ? pane : candidate)
+        : [...current.panes, pane]
+      : [pane]
+    const detachedIds = new Set(current?.detachedIds ?? [])
+    if (detached) detachedIds.add(pane.id)
+    else detachedIds.delete(pane.id)
+    const nextState: PaneState = {
+      panes,
+      direction: current?.direction ?? "horizontal",
+      activePaneId: current?.activePaneId ?? pane.id,
+      detachedIds: Array.from(detachedIds),
+      forcePaneLayout: true,
+    }
+    const next = new Map(prev)
+    next.set(instanceId, nextState)
+    return next
+  })
+
+  const numericId = /^pane-(\d+)$/.exec(pane.id)?.[1]
+  if (numericId) nextPaneNumber = Math.max(nextPaneNumber, Number(numericId) + 1)
+}
+
 export function activatePane(instanceId: string, id: string): void {
   mutate(instanceId, (state) => setActivePane(state, id))
 }

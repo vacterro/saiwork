@@ -56,9 +56,11 @@ declare global {
 
     getWorkArea?: () => Promise<{ x: number; y: number; width: number; height: number }>
     snapWindowToBounds?: (bounds: { x: number; y: number; width: number; height: number }) => Promise<{ ok: boolean }>
-    openSessionPane?: (payload: { instanceId: string; sessionId: string }) => Promise<{ ok: boolean }>
-    reattachSessionPane?: (payload: { instanceId: string; sessionId: string }) => Promise<{ ok: boolean }>
-    onReattachPane?: (callback: (payload: { instanceId: string; sessionId: string }) => void) => () => void
+    openSessionPane?: (payload: { ownerInstanceId: string; paneId: string; instanceId: string; sessionId: string }) => Promise<{ ok: boolean }>
+    reattachSessionPane?: (payload: { ownerInstanceId: string; paneId: string; instanceId: string; sessionId: string }) => Promise<{ ok: boolean }>
+    onSessionPaneState?: (callback: (payload: { ownerInstanceId: string; paneId: string; instanceId: string; sessionId: string; state: "detached" | "recover" }) => void) => () => void
+    sessionPaneOwnerReady?: () => Promise<{ ok: boolean }>
+    sessionPaneOwnerAck?: (payload: { ownerInstanceId: string; paneId: string; instanceId: string; sessionId: string }) => Promise<{ ok: boolean }>
     setMenuVisible?: (visible: boolean) => Promise<{ ok: boolean }>
   }
 

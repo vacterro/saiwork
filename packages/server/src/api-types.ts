@@ -662,6 +662,8 @@ export interface SaipenStatusResponse {
 export interface SaipenPlanFile {
   name: string
   content: string
+  /** True when content is display-only because the source exceeded the cap. */
+  truncated: boolean
 }
 
 export type SaipenBoardTicketStatus = "todo" | "doing" | "done" | "blocked"
@@ -677,17 +679,52 @@ export interface SaipenBoardSection {
   tickets: SaipenBoardTicket[]
 }
 
+/** Cap on the serialized attachments of a single queued prompt. */
+export const MAX_QUEUED_ATTACHMENT_BYTES = 512 * 1024
+
+interface QueuedAttachmentBase {
+  id: string
+  display: string
+  url: string
+  filename: string
+  mediaType: string
+}
+
+/** JSON-safe attachment shape accepted by persistent prompt queues. */
+export type QueuedAttachment =
+  | (QueuedAttachmentBase & {
+      type: "file"
+      source: { type: "file"; path: string; mime: string }
+    })
+  | (QueuedAttachmentBase & {
+      type: "text"
+      source: { type: "text"; value: string }
+    })
+  | (QueuedAttachmentBase & {
+      type: "symbol"
+      source: {
+        type: "symbol"
+        path: string
+        name: string
+        kind: number
+        range: {
+          start: { line: number; char: number }
+          end: { line: number; char: number }
+        }
+      }
+    })
+  | (QueuedAttachmentBase & {
+      type: "agent"
+      source: { type: "agent"; name: string }
+    })
+
 /** One entry in the shared prompt queue. */
 export interface QueuedPrompt {
   id: string
   text: string
-  /** Opaque attachment payloads; the server stores and returns them verbatim. */
-  attachments: unknown[]
+  attachments: QueuedAttachment[]
   createdAt: number
 }
-
-/** Cap on the serialized attachments of a single queued prompt. */
-export const MAX_QUEUED_ATTACHMENT_BYTES = 512 * 1024
 
 /** Authoritative state of one `<instanceId>:<sessionId>` queue. */
 export interface QueueState {
@@ -700,6 +737,36 @@ export interface QueueState {
 export interface QueueListResponse {
   queues: Record<string, QueueState>
 }
+
+export type QueueMutation =
+  | { op: "enqueue"; text: string; attachments?: unknown[] }
+  | { op: "import-legacy"; item: unknown }
+  | { op: "restore"; item: unknown; pause?: boolean }
+  | { op: "dequeue" }
+  | { op: "move"; id: string; delta: number }
+  | { op: "remove"; id: string }
+  | { op: "update"; id: string; text: string; attachments?: unknown[] }
+  | { op: "clear" }
+  | { op: "set-paused"; paused: boolean }
+
+export type QueueStorageOperation = "load" | "mkdir" | "write" | "rename" | "fsync"
+
+export interface QueueStorageFailure {
+  operation: QueueStorageOperation
+  message: string
+}
+
+export type QueueStorageErrorResponse = {
+  ok: false
+  code: "storage"
+  error: QueueStorageFailure
+}
+
+export type QueueMutationResult =
+  | { ok: true; state: QueueState; dequeued?: QueuedPrompt }
+  | { ok: false; code: "conflict"; currentRevision: string; error: string }
+  | { ok: false; code: "empty" | "paused" | "too-large" | "invalid" }
+  | QueueStorageErrorResponse
 
 
 /** Raw `.saipen` files for the SAIPENVIEW panel. */

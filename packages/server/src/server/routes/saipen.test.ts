@@ -1,11 +1,12 @@
 import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, it } from "node:test"
 import Fastify from "fastify"
 
-import { registerSaipenRoutes } from "./saipen"
+import { getSaipenWriteQueueSize, registerSaipenRoutes } from "./saipen"
 
 const tempDirs = new Set<string>()
 
@@ -20,6 +21,15 @@ function createTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-test-"))
   tempDirs.add(dir)
   return dir
+}
+
+function createDirectoryLink(target: string, link: string): boolean {
+  try {
+    fs.symlinkSync(target, link, process.platform === "win32" ? "junction" : "dir")
+    return true
+  } catch {
+    return false
+  }
 }
 
 function createApp(workspaces: string[] = []) {
@@ -71,7 +81,7 @@ describe("saipen view route", () => {
     assert.deepEqual(body.plans.map((plan: { name: string }) => plan.name), ["plan-a.md"])
     assert.match(body.plans[0].content, /# Plan A/)
     assert.equal(typeof body.revisions["STATE.md"], "string")
-    assert.ok(body.revisions["STATE.md"].length > 0)
+    assert.equal(body.revisions["STATE.md"], createHash("sha256").update(body.state).digest("hex"))
     assert.ok(body.revisions["BOARD.md"].length > 0)
     assert.ok(body.revisions["LOG.md"].length > 0)
     await app.close()
@@ -132,9 +142,69 @@ describe("saipen view route", () => {
     assert.equal(body.log.split("\n").length, 200)
     await app.close()
   })
+
+  it("returns LOG and empty-file revisions when STATE and BOARD are absent", async () => {
+    const dir = createTempDir()
+    const saipen = path.join(dir, ".saipen")
+    fs.mkdirSync(saipen)
+    fs.writeFileSync(path.join(saipen, "LOG.md"), "- event\n")
+    const app = createApp([dir])
+    const response = await app.inject({ method: "GET", url: `/api/saipen/view?folder=${encodeURIComponent(dir)}` })
+    const body = response.json()
+    assert.equal(body.missing, false)
+    assert.match(body.log, /event/)
+    assert.equal(body.revisions["STATE.md"].length, 64)
+    assert.equal(body.revisions["BOARD.md"].length, 64)
+    await app.close()
+  })
+
+  it("caps multilingual LOG tails and plan heads without broken UTF-8", async () => {
+    const dir = createTempDir()
+    const saipen = path.join(dir, ".saipen")
+    const kitchen = path.join(saipen, "kitchen")
+    fs.mkdirSync(kitchen, { recursive: true })
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: BUILD\n---\n")
+    const multilingual = "ASCII Кириллица õäöü 日本語 😀🧭\n".repeat(5000)
+    fs.writeFileSync(path.join(saipen, "LOG.md"), multilingual)
+    fs.writeFileSync(path.join(kitchen, "unicode.md"), multilingual)
+
+    const app = createApp([dir])
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/saipen/view?folder=${encodeURIComponent(dir)}`,
+    })
+    const body = response.json()
+    assert.equal(response.statusCode, 200)
+    assert.ok(Buffer.byteLength(body.log, "utf8") <= 64 * 1024)
+    assert.ok(Buffer.byteLength(body.plans[0].content, "utf8") <= 32 * 1024)
+    assert.equal(body.log.includes("\uFFFD"), false)
+    assert.equal(body.plans[0].content.includes("\uFFFD"), false)
+    assert.equal(body.plans[0].truncated, true)
+    await app.close()
+  })
 })
 
 describe("saipen file write route", () => {
+  it("creates a missing allowlisted file against the empty-byte revision", async () => {
+    const dir = createTempDir()
+    const saipen = path.join(dir, ".saipen")
+    fs.mkdirSync(saipen)
+    fs.writeFileSync(path.join(saipen, "BOARD.md"), "## TODO\n")
+    const app = createApp([dir])
+    const view = await app.inject({ method: "GET", url: `/api/saipen/view?folder=${encodeURIComponent(dir)}` })
+    const expectedRevision = view.json().revisions["STATE.md"]
+    assert.equal(expectedRevision.length, 64)
+
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/saipen/file",
+      payload: { folder: dir, relativePath: "STATE.md", content: "---\nphase: BUILD\n---\n", expectedRevision },
+    })
+    assert.equal(response.statusCode, 200)
+    assert.match(fs.readFileSync(path.join(saipen, "STATE.md"), "utf8"), /phase: BUILD/)
+    await app.close()
+  })
+
   it("writes an allowlisted file against its revision and round-trips", async () => {
     const dir = createTempDir()
     const saipen = path.join(dir, ".saipen")
@@ -162,6 +232,30 @@ describe("saipen file write route", () => {
     assert.equal(result.ok, true)
     assert.notEqual(result.revision, revision)
     assert.equal(fs.readFileSync(saipen + path.sep + "STATE.md", "utf8"), "---\nphase: BUILD\ntask: T-051\n---\n")
+    assert.equal(fs.readdirSync(saipen).some((name) => name.endsWith(".saiwork-tmp")), false)
+    await app.close()
+  })
+
+  it("writes a kitchen plan through the same CAS and atomic path", async () => {
+    const dir = createTempDir()
+    const saipen = path.join(dir, ".saipen")
+    const kitchen = path.join(saipen, "kitchen")
+    fs.mkdirSync(kitchen, { recursive: true })
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: BUILD\n---\n")
+    fs.writeFileSync(path.join(kitchen, "plan.md"), "old\n")
+
+    const app = createApp([dir])
+    const view = await app.inject({ method: "GET", url: `/api/saipen/view?folder=${encodeURIComponent(dir)}` })
+    const revision = view.json().revisions["kitchen/plan.md"]
+    assert.ok(revision)
+    const write = await app.inject({
+      method: "PUT",
+      url: "/api/saipen/file",
+      payload: { folder: dir, relativePath: "kitchen/plan.md", content: "new\n", expectedRevision: revision },
+    })
+    assert.equal(write.statusCode, 200)
+    assert.equal(fs.readFileSync(path.join(kitchen, "plan.md"), "utf8"), "new\n")
+    assert.equal(fs.readdirSync(kitchen).some((name) => name.endsWith(".saiwork-tmp")), false)
     await app.close()
   })
 
@@ -210,6 +304,8 @@ describe("saipen file write route", () => {
     assert.equal(b.statusCode, 409)
     const onDisk = fs.readFileSync(saipen + path.sep + "STATE.md", "utf8")
     assert.ok(onDisk === "---\nphase: A\n---\n" || onDisk === "---\nphase: B\n---\n")
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    assert.equal(getSaipenWriteQueueSize(), 0)
     await app.close()
   })
 
@@ -285,13 +381,29 @@ describe("saipen workspace boundary", () => {
     await app.close()
   })
 
-  it("rejects a symlink/junction that points outside the registry", { skip: process.platform === "win32" }, async () => {
+  it("rejects a traversal spelling of a registered workspace", async () => {
     const registered = createTempDir()
-    const outside = createTempDir()
-    const link = path.join(path.dirname(registered), "saiwork-link-outside")
+    fs.mkdirSync(path.join(registered, "child"))
+    const traversal = `${registered}${path.sep}child${path.sep}..`
+    const app = createApp([registered])
+    const view = await app.inject({
+      method: "GET",
+      url: `/api/saipen/view?folder=${encodeURIComponent(traversal)}`,
+    })
+    assert.equal(view.statusCode, 403)
+    await app.close()
+  })
+
+  it("rejects a noncanonical symlink/junction alias of a registered workspace", async (context) => {
+    const registered = createTempDir()
+    const aliasRoot = createTempDir()
+    const link = path.join(aliasRoot, "alias")
     fs.mkdirSync(path.join(registered, ".saipen"))
     fs.writeFileSync(path.join(registered, ".saipen", "STATE.md"), "---\nphase: BUILD\n---\n")
-    fs.symlinkSync(outside, link, "junction")
+    if (!createDirectoryLink(registered, link)) {
+      context.skip("directory links unavailable on this host")
+      return
+    }
 
     const app = createApp([registered])
     const view = await app.inject({
@@ -299,6 +411,76 @@ describe("saipen workspace boundary", () => {
       url: `/api/saipen/view?folder=${encodeURIComponent(link)}`,
     })
     assert.equal(view.statusCode, 403)
+    await app.close()
+  })
+
+  it("rejects an escaping .saipen symlink/junction", async (context) => {
+    const registered = createTempDir()
+    const outside = createTempDir()
+    fs.writeFileSync(path.join(outside, "STATE.md"), "---\nphase: BUILD\n---\n")
+    if (!createDirectoryLink(outside, path.join(registered, ".saipen"))) {
+      context.skip("directory links unavailable on this host")
+      return
+    }
+
+    const app = createApp([registered])
+    const view = await app.inject({ method: "GET", url: `/api/saipen/view?folder=${encodeURIComponent(registered)}` })
+    const status = await app.inject({ method: "GET", url: `/api/saipen/status?folder=${encodeURIComponent(registered)}` })
+    const write = await app.inject({
+      method: "PUT",
+      url: "/api/saipen/file",
+      payload: { folder: registered, relativePath: "STATE.md", content: "x", expectedRevision: "r" },
+    })
+    assert.equal(view.statusCode, 403)
+    assert.equal(status.statusCode, 403)
+    assert.equal(write.statusCode, 403)
+    await app.close()
+  })
+
+  it("rejects an escaping kitchen parent symlink/junction", async (context) => {
+    const registered = createTempDir()
+    const outside = createTempDir()
+    const saipen = path.join(registered, ".saipen")
+    fs.mkdirSync(saipen)
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: BUILD\n---\n")
+    fs.writeFileSync(path.join(outside, "plan.md"), "outside\n")
+    if (!createDirectoryLink(outside, path.join(saipen, "kitchen"))) {
+      context.skip("directory links unavailable on this host")
+      return
+    }
+
+    const app = createApp([registered])
+    const view = await app.inject({ method: "GET", url: `/api/saipen/view?folder=${encodeURIComponent(registered)}` })
+    const write = await app.inject({
+      method: "PUT",
+      url: "/api/saipen/file",
+      payload: { folder: registered, relativePath: "kitchen/plan.md", content: "x", expectedRevision: "r" },
+    })
+    assert.equal(view.statusCode, 403)
+    assert.equal(write.statusCode, 403)
+    assert.equal(fs.readFileSync(path.join(outside, "plan.md"), "utf8"), "outside\n")
+    await app.close()
+  })
+
+  it("rejects an escaping file target symlink", async (context) => {
+    const registered = createTempDir()
+    const outside = createTempDir()
+    const saipen = path.join(registered, ".saipen")
+    const outsideState = path.join(outside, "STATE.md")
+    fs.mkdirSync(saipen)
+    fs.writeFileSync(outsideState, "---\nphase: OUTSIDE\n---\n")
+    try {
+      fs.symlinkSync(outsideState, path.join(saipen, "STATE.md"), "file")
+    } catch {
+      context.skip("file links unavailable on this host")
+      return
+    }
+
+    const app = createApp([registered])
+    const view = await app.inject({ method: "GET", url: `/api/saipen/view?folder=${encodeURIComponent(registered)}` })
+    const status = await app.inject({ method: "GET", url: `/api/saipen/status?folder=${encodeURIComponent(registered)}` })
+    assert.equal(view.statusCode, 403)
+    assert.equal(status.statusCode, 403)
     await app.close()
   })
 })

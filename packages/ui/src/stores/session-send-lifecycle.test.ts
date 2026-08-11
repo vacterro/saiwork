@@ -5,7 +5,7 @@ import { sdkManager } from "../lib/sdk-manager.ts"
 import type { Session } from "../types/session.ts"
 import { addInstance, removeInstance } from "./instances.ts"
 import { messageStoreBus } from "./message-v2/bus.ts"
-import { sendMessage } from "./session-actions.ts"
+import { didSessionPromptReachServer, sendMessage, SessionPromptDispatchError } from "./session-actions.ts"
 import { handleMessageUpdate, handleSessionError } from "./session-events.ts"
 import { clearInstanceDeletedSessionAuthority, setSessions } from "./session-state.ts"
 
@@ -49,6 +49,26 @@ function setup(instanceId: string, sessionId: string, promptAsync: (input: any) 
 }
 
 describe("optimistic send lifecycle", () => {
+  it("distinguishes definitive pre-dispatch failures from ambiguous request failures", () => {
+    assert.equal(didSessionPromptReachServer(new SessionPromptDispatchError(new Error("not ready"), false)), false)
+    assert.equal(didSessionPromptReachServer(new SessionPromptDispatchError(new Error("response lost"), true)), true)
+    assert.equal(didSessionPromptReachServer(new Error("unknown")), true)
+  })
+
+  it("classifies a synchronous promptAsync throw as definitely unsent", async () => {
+    const instanceId = "send-sync-throw"
+    const sessionId = "session"
+    const cleanup = setup(instanceId, sessionId, (() => { throw new Error("sync refusal") }) as never)
+    try {
+      await assert.rejects(() => sendMessage(instanceId, sessionId, "hello"), (error: unknown) => {
+        assert.equal(didSessionPromptReachServer(error), false)
+        return true
+      })
+    } finally {
+      cleanup()
+    }
+  })
+
   it("marks the optimistic message sent when promptAsync accepts it", async () => {
     const instanceId = "send-accepted"
     const sessionId = "session"

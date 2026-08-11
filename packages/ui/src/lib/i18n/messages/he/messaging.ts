@@ -353,6 +353,7 @@ export const messagingMessages = {
   "thinkingStats.hint": "נספר מבלוקי החשיבה בתשובות שהושלמו ובתשובות שבוטלו. נשמר במחשב הזה בלבד.",
   "promptQueue.refused.title": "הפרומפט לא נכנס לתור",
   "promptQueue.refused.quota": "לא ניתן היה להכניס את הפרומפט לתור. הטקסט שלך עדיין בעורך – נסה שוב.",
+  "promptQueue.recoveryFailed": "הפרומפט לא נשלח ולא ניתן היה לשחזר אותו לתור. יש להעתיק אותו מתיבת דו-שיח זו לפני הסגירה.",
   "promptQueue.refused.conflict": "התור השתנה בחלון אחר. הטקסט שלך עדיין בעורך – נסה שוב.",
   "promptQueue.refused.tooLarge": "הקבצים המצורפים גדולים מדי לתור. הטקסט שלך עדיין בעורך. שלח את הפרומפט ישירות, או צרף קובץ קטן יותר.",
   "session.close.errorTitle": "הסשן לא נסגר",

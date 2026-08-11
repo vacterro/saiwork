@@ -132,15 +132,21 @@ export const canRestartCli = () => isDesktopHost() && isLocalWindow()
 export const canUseDesktopFolderDrop = () => isDesktopHost() && isLocalWindow()
 
 export interface SessionPaneRoute {
+  ownerInstanceId: string | null
+  paneId: string | null
   instanceId: string | null
   sessionId: string | null
 }
 
-/** Reads the `?instance=&session=` route a detached pane window was opened with. */
+/** Reads the complete owner, pane, instance, and session route for a detached pane window. */
 export function readSessionPaneRoute(): SessionPaneRoute {
-  if (typeof window === "undefined") return { instanceId: null, sessionId: null }
+  if (typeof window === "undefined") {
+    return { ownerInstanceId: null, paneId: null, instanceId: null, sessionId: null }
+  }
   const params = new URLSearchParams(window.location.search)
   return {
+    ownerInstanceId: params.get("ownerInstance"),
+    paneId: params.get("pane"),
     instanceId: params.get("instance"),
     sessionId: params.get("session"),
   }

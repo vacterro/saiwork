@@ -355,6 +355,7 @@ export const messagingMessages = {
   "thinkingStats.hint": "完了および中断された返信の推論ブロックから集計。このマシンにのみ保存されます。",
   "promptQueue.refused.title": "キューに追加できませんでした",
   "promptQueue.refused.quota": "キューに追加できませんでした。テキストはエディタに残っています — もう一度お試しください。",
+  "promptQueue.recoveryFailed": "プロンプトは送信されず、キューにも復元できませんでした。このダイアログを閉じる前にコピーしてください。",
   "promptQueue.refused.conflict": "別のウィンドウでキューが変更されました。テキストはエディタに残っています — もう一度お試しください。",
   "promptQueue.refused.tooLarge": "添付ファイルが大きすぎてキューに追加できません。テキストはエディタに残っています。直接送信するか、小さいファイルを添付してください。",
   "session.close.errorTitle": "セッションを閉じられませんでした",

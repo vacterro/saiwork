@@ -3,7 +3,16 @@ import { useI18n } from "../lib/i18n"
 import { serverApi, SaipenConflictError } from "../lib/api-client"
 import { getLogger } from "../lib/logger"
 import type { SaipenViewResponse } from "../../../server/src/api-types"
-import { externalChangeAction, parseLogLines, parseStateFrontmatter } from "../lib/saipen-view"
+import {
+  externalChangeAction,
+  isSaipenDraftDirty,
+  keepSaipenDraft,
+  parseLogLines,
+  parseStateFrontmatter,
+  reconcileSaipenSave,
+  reloadSaipenEditor,
+  type SaipenEditingFile,
+} from "../lib/saipen-view"
 import { serverEvents } from "../lib/server-events"
 import "../styles/components/saipen-view.css"
 
@@ -33,17 +42,18 @@ interface SaipenViewPanelProps {
  * SAIPENVIEW: the project's live STATE/BOARD/LOG in one panel.
  *
  * The status endpoint answers "is this healthy and does anything need me";
- * this panel answers "show me the actual files". Everything is read-only and
- * fetched on demand -- never polled, so content cannot move under the reader.
+ * this panel answers "show me the actual files". LOG is read-only; editable
+ * files use revisioned writes. Data is event-driven rather than polled.
  */
 const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
   const { t } = useI18n()
   const [view, setView] = createSignal<SaipenViewResponse | null>(null)
   const [loadError, setLoadError] = createSignal<string | null>(null)
   const [openPlans, setOpenPlans] = createSignal<Set<string>>(new Set())
-  const [editing, setEditing] = createSignal<{ path: string; content: string; revision: string } | null>(null)
+  const [editing, setEditing] = createSignal<SaipenEditingFile | null>(null)
   const [draft, setDraft] = createSignal("")
   const [conflict, setConflict] = createSignal<string | null>(null)
+  let refreshGeneration = 0
 
   function togglePlan(name: string) {
     setOpenPlans((prev) => {
@@ -69,14 +79,28 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
   async function saveEdit() {
     const current = editing()
     if (!current) return
+    const submittedDraft = draft()
     try {
-      await serverApi.writeSaipenFile(props.folder, current.path, draft(), current.revision)
-      setEditing(null)
-      setDraft("")
-      setConflict(null)
+      const saved = await serverApi.writeSaipenFile(props.folder, current.path, submittedDraft, current.revision)
+      if (editing()?.path === current.path) {
+        const reconciled = reconcileSaipenSave(
+          { editing: current, draft: draft(), conflict: conflict() },
+          submittedDraft,
+          saved.revision,
+        )
+        if (reconciled) {
+          setEditing(reconciled.editing)
+          setDraft(reconciled.draft)
+        } else {
+          setEditing(null)
+          setDraft("")
+        }
+        setConflict(null)
+      }
       await refresh()
     } catch (error) {
       if (error instanceof SaipenConflictError) {
+        if (editing() !== current) return
         setConflict(error.message)
         // Fetch the real current disk state so "Reload current" cannot hand the
         // user the stale bytes the failed save was based on.
@@ -88,24 +112,44 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
     }
   }
 
-  function reloadCurrent() {
+  async function reloadCurrent() {
     const current = editing()
     if (!current) return
-    const value = view()
-    let fresh = ""
-    if (current.path === "BOARD.md") fresh = value?.board ?? ""
-    else if (current.path === "STATE.md") fresh = value?.state ?? ""
-    else if (current.path.startsWith("kitchen/")) {
-      const name = current.path.slice("kitchen/".length)
-      fresh = value?.plans?.find((plan) => plan.name === name)?.content ?? ""
+    const generation = ++refreshGeneration
+    try {
+      const freshView = await serverApi.fetchSaipenView(props.folder)
+      if (generation !== refreshGeneration || editing()?.path !== current.path) return
+      setView(freshView)
+      const fresh = loadedFile(freshView, current.path)
+      if (fresh.truncated) {
+        setConflict(t("saipenView.externalChanged"))
+        return
+      }
+      const next = reloadSaipenEditor(
+        { editing: current, draft: draft(), conflict: conflict() },
+        fresh.content,
+        fresh.revision,
+      )
+      setEditing(next.editing)
+      setDraft(next.draft)
+      setConflict(next.conflict)
+      setLoadError(null)
+      props.onRefreshStatus?.()
+    } catch (error) {
+      if (generation !== refreshGeneration) return
+      log.error("Failed to reload saipen file:", error)
+      setLoadError(error instanceof Error ? error.message : String(error))
     }
-    setDraft(fresh)
-    setConflict(null)
   }
 
   /** Keeps the local draft editable; the user can copy it before deciding. */
   function keepDraft() {
-    setConflict(null)
+    const current = editing()
+    if (!current) return
+    const next = keepSaipenDraft({ editing: current, draft: draft(), conflict: conflict() })
+    setEditing(next.editing)
+    setDraft(next.draft)
+    setConflict(next.conflict)
   }
 
   /**
@@ -117,7 +161,11 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
    */
   function handleExternalChange(changedFiles: string[]) {
     const current = editing()
-    const action = externalChangeAction(current?.path ?? null, changedFiles)
+    const action = externalChangeAction(
+      current?.path ?? null,
+      isSaipenDraftDirty(current, draft()),
+      changedFiles,
+    )
     if (action === "conflict") {
       setConflict(t("saipenView.externalChanged"))
       // Keep the draft untouched, but refresh the rendered view so "Reload
@@ -125,22 +173,41 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
       void refresh()
       return
     }
-    void refresh()
+    void refresh(action === "refresh-editor" ? current?.path : undefined)
   }
 
   const currentTabPath = (): string | null => {
     if (props.tab === "board") return "BOARD.md"
     if (props.tab === "state") return "STATE.md"
-    if (props.tab === "log") return "LOG.md"
     return null
   }
 
-  async function refresh() {
+  async function refresh(syncEditingPath?: string) {
+    const generation = ++refreshGeneration
     try {
       const next = await serverApi.fetchSaipenView(props.folder)
+      if (generation !== refreshGeneration) return
       setView(next)
+      const current = editing()
+      // Do not overwrite keystrokes entered while the refresh request was in flight.
+      if (syncEditingPath && current?.path === syncEditingPath && !isSaipenDraftDirty(current, draft())) {
+        const fresh = loadedFile(next, syncEditingPath)
+        if (fresh.truncated) {
+          setConflict(t("saipenView.externalChanged"))
+          return
+        }
+        const editor = reloadSaipenEditor(
+          { editing: current, draft: draft(), conflict: conflict() },
+          fresh.content,
+          fresh.revision,
+        )
+        setEditing(editor.editing)
+        setDraft(editor.draft)
+        setConflict(editor.conflict)
+      }
       setLoadError(null)
     } catch (error) {
+      if (generation !== refreshGeneration) return
       log.error("Failed to load SAIPEN view:", error)
       setLoadError(error instanceof Error ? error.message : String(error))
     }
@@ -162,7 +229,6 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
     const value = view()
     if (props.tab === "board") return value?.board ?? ""
     if (props.tab === "state") return value?.state ?? ""
-    if (props.tab === "log") return value?.log ?? ""
     return ""
   }
 
@@ -208,13 +274,15 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
                   >
                     {openPlans().has(plan.name) ? "-" : "+"} {plan.name}
                   </button>
-                  <button
-                    type="button"
-                    class="saipen-view-plan-edit"
-                    onClick={() => beginEdit(`kitchen/${plan.name}`, plan.content)}
-                  >
-                    {t("saipenView.edit")}
-                  </button>
+                  <Show when={!plan.truncated}>
+                    <button
+                      type="button"
+                      class="saipen-view-plan-edit"
+                      onClick={() => beginEdit(`kitchen/${plan.name}`, plan.content)}
+                    >
+                      {t("saipenView.edit")}
+                    </button>
+                  </Show>
                   <Show when={openPlans().has(plan.name)}>
                     <pre class="saipen-view-plan-content">{plan.content}</pre>
                   </Show>
@@ -238,7 +306,7 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
               {t("saipenView.conflict")} {conflict()}
             </p>
             <div class="saipen-view-edit-actions">
-              <button type="button" onClick={reloadCurrent}>
+              <button type="button" onClick={() => void reloadCurrent()}>
                 {t("saipenView.conflictReload")}
               </button>
               <button type="button" onClick={keepDraft}>
@@ -265,6 +333,20 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
       </Show>
     </div>
   )
+}
+
+function loadedFile(view: SaipenViewResponse | null, relativePath: string): { content: string; revision: string; truncated: boolean } {
+  let content = ""
+  let truncated = false
+  if (relativePath === "BOARD.md") content = view?.board ?? ""
+  else if (relativePath === "STATE.md") content = view?.state ?? ""
+  else if (relativePath.startsWith("kitchen/")) {
+    const name = relativePath.slice("kitchen/".length)
+    const plan = view?.plans?.find((candidate) => candidate.name === name)
+    content = plan?.content ?? ""
+    truncated = plan?.truncated ?? false
+  }
+  return { content, revision: view?.revisions?.[relativePath] ?? "", truncated }
 }
 
 /**

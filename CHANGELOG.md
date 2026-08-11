@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.3] - 2026-08-11
+## [0.0.4] - 2026-08-11
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log
 identifiers, not Git commits or release history.
@@ -41,13 +41,35 @@ identifiers, not Git commits or release history.
   and every detached session window share ONE queue; a stale writer gets a
   `409` and re-syncs, and an atomic dequeue guarantees at most one dispatch
   per queued prompt. Queue state is persisted atomically and mirrored to all
-  windows over `queue.changed` SSE events.
+  windows over `queue.changed` SSE events. The complete mutation and shared-file
+  persist run under one global transaction; write, rename, or durability failure
+  leaves authoritative memory unchanged and publishes no success event. Existing
+  `saiwork.prompt-queue.v1` data migrates once under a browser-wide lock before
+  renderer storage is removed.
 
 ### Detached-window recovery (T-083)
 
 - Closing the main window while detached session windows survive no longer
   suppresses main-window recovery: activating the app recreates it whenever
-  the main window is gone, while the detached panes stay open.
+  the main window is gone, while the detached panes stay open. A dedicated
+  registry now owns each `host + paneId` child: duplicate detach focuses the
+  existing child, failed loads roll back, and close/crash recovery restores the
+  exact pane identity without losing surviving-child ownership (`T-099`).
+
+### Integration and release hardening (T-100..T-103)
+
+- SAIPEN Core instruction files must remain inside `protocolDir`; absolute,
+  parent-traversal, symlink, and junction escapes are rejected. LOG and kitchen
+  caps use byte-safe UTF-8 truncation for ASCII, Cyrillic, Estonian, Japanese,
+  and emoji boundaries.
+- Root typecheck now runs server, UI, then Electron. Release checks reject a
+  missing workspace typecheck, version drift across SAIWORK manifests/locks,
+  README/CHANGELOG drift, a non-exact Electron `38.0.0` pin, and mismatched
+  Windows ZIP/portable artifact metadata. Version bumps resolve semver and update
+  only known package, lock, Tauri, README, and CHANGELOG fields under an exclusive
+  lock plus a durable recovery journal. Required markers and linked paths fail
+  closed, and any failed update restores the metadata snapshot without spawning
+  `npm.cmd` or lifecycle child processes.
 
 ### Hardening & isolation (T-061..T-068, E-386..E-401)
 

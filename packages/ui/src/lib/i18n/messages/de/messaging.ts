@@ -353,6 +353,7 @@ export const messagingMessages = {
   "thinkingStats.hint": "Gezählt aus Denkblöcken abgeschlossener und abgebrochener Antworten. Nur lokal gespeichert.",
   "promptQueue.refused.title": "Prompt nicht eingereiht",
   "promptQueue.refused.quota": "Der Prompt konnte nicht eingereiht werden. Dein Text steht noch im Editor – versuche es erneut.",
+  "promptQueue.recoveryFailed": "Der Prompt wurde nicht gesendet und konnte nicht in die Warteschlange zurückgelegt werden. Kopiere ihn vor dem Schließen aus diesem Dialog.",
   "promptQueue.refused.conflict": "Die Warteschlange wurde in einem anderen Fenster geändert. Dein Text steht noch im Editor – versuche es erneut.",
   "promptQueue.refused.tooLarge": "Die Anhänge sind zu groß für die Warteschlange. Dein Text steht noch im Editor. Sende den Prompt direkt oder hänge eine kleinere Datei an.",
   "session.close.errorTitle": "Sitzung nicht geschlossen",

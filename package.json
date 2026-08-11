@@ -1,6 +1,6 @@
 {
   "name": "saiwork-workspace",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "description": "SaiWork monorepo workspace",
   "license": "MIT",
@@ -22,8 +22,10 @@
     "build:ui": "npm run build --workspace @saiwork/ui",
     "build:mac-x64": "npm run build:mac-x64 --workspace @saiwork/electron-app",
     "build:binaries": "npm run build:binaries --workspace @saiwork/electron-app",
-    "typecheck": "npm run typecheck --workspace @saiwork/ui && npm run typecheck --workspace @saiwork/electron-app",
+    "typecheck": "npm run typecheck --workspace @saiwork/saiwork && npm run typecheck --workspace @saiwork/ui && npm run typecheck --workspace @saiwork/electron-app",
     "test": "npm run test --workspace @saiwork/ui && npm run test --workspace @saiwork/saiwork && npm run test --workspace @saiwork/opencode-plugin && npm run test:native --workspace @saiwork/electron-app",
+    "test:release": "node --test ./scripts/bump-version.test.js ./scripts/check-release-consistency.test.js",
+    "release:check": "npm run test:release && node ./scripts/check-release-consistency.js && npm run typecheck",
     "bumpVersion": "node ./scripts/bump-version.js"
   },
   "dependencies": {
@@ -31,8 +33,12 @@
     "google-auth-library": "^10.5.0"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "baseline-browser-mapping": "^2.9.11",
-    "electron": "38.0.0"
+    "electron": "38.0.0",
+    "proper-lockfile": "4.1.2",
+    "semver": "7.7.2",
+    "yauzl": "2.10.0"
   },
   "optionalDependencies": {
     "@rollup/rollup-darwin-arm64": "4.52.5",

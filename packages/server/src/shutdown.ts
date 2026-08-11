@@ -93,9 +93,12 @@ export async function orchestrateServerShutdown(
     settle([
       ["stopInstanceEventBridge", operations.stopInstanceEventBridge], ["stopSidecars", operations.stopSidecars],
       ["stopClientConnections", operations.stopClientConnections], ["stopRemoteProxySessions", operations.stopRemoteProxySessions],
+      ["stopSaipenWatcher", operations.stopSaipenWatcher],
     ]),
     workspaceShutdown,
   ])
-  await settle([["stopHttpServers", operations.stopHttpServers], ["stopReleaseMonitor", operations.stopReleaseMonitor]])
+  // Close request admission before draining the shared queue transaction.
+  await settle([["stopHttpServers", operations.stopHttpServers]])
+  await settle([["stopQueueManager", operations.stopQueueManager], ["stopReleaseMonitor", operations.stopReleaseMonitor]])
   if (errors.length) throw new AggregateError(errors, "Server shutdown failed")
 }

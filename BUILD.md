@@ -112,7 +112,7 @@ SaiWork-Electron-linux-{arch}-{version}.tar.gz
 SaiWork-Tauri-{os}-{arch}-{version}.{ext}
 ```
 
-- **version**: From package.json (e.g., `0.0.2`)
+- **version**: From package.json (e.g., `0.0.3`)
 - **os**: `macos`, `windows`, `linux`
 - **arch**: `x64`, `arm64`, `universal`
 - **ext**: Tauri release extension, such as `zip` or `deb`
@@ -269,7 +269,7 @@ A: Size depends on platform, architecture, and bundled runtime; inspect the gene
 A: Not required, but recommended for public distribution to avoid security warnings.
 
 **Q: How do I update the version?**  
-A: Run `npm run bumpVersion -- <version>`, then rebuild.
+A: Run `npm run bumpVersion -- <version>`, then `npm run release:check` before rebuilding.
 
 ## Support
 

@@ -31,6 +31,8 @@ export interface PaneState {
   activePaneId: string | null
   /** Pane ids currently detached into their own OS window. */
   detachedIds: string[]
+  /** Native recovery must render even a single exact pane through pane layout. */
+  forcePaneLayout?: boolean
 }
 
 export function createPaneState(instanceId: string, sessionId: string, id = "pane-1"): PaneState {

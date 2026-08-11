@@ -11,3 +11,7 @@
 export function shouldRecreateMainWindow(mainWindow: { isDestroyed(): boolean } | null): boolean {
   return !mainWindow || mainWindow.isDestroyed()
 }
+
+export function readyCliUrl(status: { state: string; url?: string }): string | null {
+  return status.state === "ready" && status.url ? status.url : null
+}

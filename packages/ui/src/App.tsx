@@ -37,7 +37,7 @@ import {
 } from "./stores/ui"
 import { recentFolders, useConfig } from "./stores/preferences"
 import { focusSessionPaneRoute } from "./lib/session-pane-focus"
-import { reattachPaneAt, panesForInstance } from "./stores/panes"
+import { recoverPaneFromWindow, type SessionPaneWindowNotice } from "./stores/session-pane-windows"
 import {
   createInstance,
   instances,
@@ -215,18 +215,18 @@ const App: Component = () => {
   })
 
   onMount(() => {
-    // The main window hears detached pane windows asking to re-attach. The
-    // pane store is per-instance, so the request carries the owning instance.
+    // Register before announcing readiness so queued close/crash recovery
+    // cannot race this renderer's listener.
+    if (runtimeEnv.windowContext !== "local") return
     const api = (globalThis as unknown as {
-      electronAPI?: { onReattachPane?: (callback: (payload: { instanceId: string; sessionId: string }) => void) => () => void }
+      electronAPI?: {
+        onSessionPaneState?: (callback: (payload: SessionPaneWindowNotice) => void) => () => void
+        sessionPaneOwnerReady?: () => Promise<{ ok: boolean }>
+      }
     }).electronAPI
-    if (!api?.onReattachPane) return
-    const dispose = api.onReattachPane((payload) => {
-      const paneState = panesForInstance(payload.instanceId)
-      if (!paneState) return
-      const pane = paneState.panes.find((candidate) => candidate.sessionId === payload.sessionId)
-      if (pane) reattachPaneAt(payload.instanceId, pane.id)
-    })
+    if (!api?.onSessionPaneState) return
+    const dispose = api.onSessionPaneState(recoverPaneFromWindow)
+    void api.sessionPaneOwnerReady?.()
     onCleanup(dispose)
   })
 

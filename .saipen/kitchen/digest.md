@@ -1,3 +1,3 @@
-done: T-090 live SAIPEN change stream; T-091 canonical SAIPEN interpretation boundary; T-092 single-owner prompt queue; T-098 blocked-ticket parser; T-083 detached-window main-window recovery; shipped v0.0.3 (no-publish)
-remaining: T-093 HUNT-7 shell extraction; T-094 embedded SAIPENVIEW product; T-099 detached-owner hardening
-awaiting: nothing
+done: 0.0.4 integration reconciled locally: canonical SAIPEN semantics, durable single-owner queue, detached-pane recovery, release gates, Windows ZIP/portable verification
+remaining: publication; T-093/T-094/T-095/T-096/T-097 and reliability backlog remain
+awaiting: commit, branch push, and v0.0.4 tag publication

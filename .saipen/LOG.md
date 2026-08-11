@@ -194,3 +194,44 @@
 - 11.08.26 12:23 [E-569] [parent: E-568] [T-none] [agent: opencode] RUN: validate.py --gate ship -> PASS (conformant; 4 pre-existing warnings)
 - 11.08.26 12:23 [E-570] [parent: E-569] [T-none] [agent: opencode] RUN: validate.py -> PASS (conformant; 4 pre-existing warnings)
 - 11.08.26 12:26 [E-571] [parent: E-570] [T-none] [agent: opencode] DEC: publish authorized -- user requested publish; mode no-publish -> full; resuming SHIP git half (commit/push/tag)
+- 11.08.26 12:29 [E-572] [parent: E-571] [T-none] [agent: opencode] RUN: ship v0.0.3 -> pushed 1a3d0b49
+- 11.08.26 14:13 [E-573] [parent: E-572] [T-100] [agent: opencode] [op: ticket-b1be3fc9] DEC: ticket added via SAIOPS
+- 11.08.26 14:13 [E-574] [parent: E-573] [T-101] [agent: opencode] [op: ticket-1c6eef1d] DEC: ticket added via SAIOPS
+- 11.08.26 14:14 [E-575] [parent: E-574] [T-102] [agent: opencode] [op: ticket-d6408904] DEC: ticket added via SAIOPS
+- 11.08.26 14:14 [E-576] [parent: E-575] [T-102] [agent: opencode] [op: claim-27463e30] DEC: claimed via SAIOPS -- owner opencode
+- 11.08.26 14:14 [E-577] [parent: E-576] [T-102] [agent: opencode] [op: transition-8d1bae8d] RUN: version and workflow drift mapped; transactional gate implementation complete
+- 11.08.26 14:14 [E-578] [parent: E-577] [T-102] [agent: opencode] [op: transition-2c38d789] RUN: release tests and root typecheck pass; 0.0.3 metadata aligned
+- 11.08.26 14:14 [E-579] [parent: E-578] [T-102] [agent: opencode] [op: transition-37e57f70] RUN: three review passes resolved release-order and artifact-upload findings
+- 11.08.26 14:14 [E-580] [parent: E-579] [T-102] [agent: opencode] [op: transition-21034c48] RUN: release consistency gate green; final packaging gate remains session-wide
+- 11.08.26 14:14 [E-581] [parent: E-580] [T-102] [agent: opencode] [op: finish-1a2d7f04] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 11.08.26 14:15 [E-582] [parent: E-581] [T-101] [agent: opencode] [op: claim-e9bc1b7b] DEC: claimed via SAIOPS -- owner opencode
+- 11.08.26 14:15 [E-583] [parent: E-582] [T-101] [agent: opencode] [op: transition-985b2615] RUN: canonical SAIPEN paths, snapshots, watcher and UTF-8 boundaries implemented
+- 11.08.26 14:15 [E-584] [parent: E-583] [T-101] [agent: opencode] [op: transition-0f6b8483] RUN: SAIPEN focused containment, parser, watcher, draft and Unicode tests pass
+- 11.08.26 14:15 [E-585] [parent: E-584] [T-101] [agent: opencode] [op: transition-71930ff6] RUN: review findings fixed: LOG-only view, snapshot hash and truncated-plan safety
+- 11.08.26 14:15 [E-586] [parent: E-585] [T-101] [agent: opencode] [op: transition-623b6c9f] RUN: source, shared semantics, API, UI and tests agree
+- 11.08.26 14:15 [E-587] [parent: E-586] [T-101] [agent: opencode] [op: finish-874de845] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 11.08.26 14:15 [E-588] [parent: E-587] [T-100] [agent: opencode] [op: claim-5957c450] DEC: claimed via SAIOPS -- owner opencode
+- 11.08.26 14:16 [E-589] [parent: E-588] [T-100] [agent: opencode] [op: transition-b72dd796] RUN: single QueueManager transaction, durable rollback, SSE mirror and legacy migration implemented
+- 11.08.26 14:16 [E-590] [parent: E-589] [T-100] [agent: opencode] [op: transition-9cf71d9c] RUN: fault injection, restart, race, migration and at-most-once tests pass
+- 11.08.26 14:16 [E-591] [parent: E-590] [T-100] [agent: opencode] [op: transition-a64a65c7] RUN: three review passes resolved fsync, restore, ordering and migration races
+- 11.08.26 14:16 [E-592] [parent: E-591] [T-100] [agent: opencode] [op: transition-f5369c0c] RUN: server-authoritative queue consumed by UI; localStorage retained only for locked migration
+- 11.08.26 14:16 [E-593] [parent: E-592] [T-100] [agent: opencode] [op: finish-6f535306] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 11.08.26 14:16 [E-594] [parent: E-593] [T-099] [agent: opencode] [op: claim-90d364b3] DEC: claimed via SAIOPS -- owner opencode
+- 11.08.26 14:17 [E-595] [parent: E-594] [T-099] [agent: opencode] [op: transition-e359face] RUN: dedicated native pane-window registry and exact ownership payload implemented
+- 11.08.26 14:17 [E-596] [parent: E-595] [T-099] [agent: opencode] [op: transition-fe2fa191] RUN: duplicate, load failure, close, crash, reattach and recreated-main tests pass
+- 11.08.26 14:17 [E-597] [parent: E-596] [T-099] [agent: opencode] [op: transition-b147c0db] RUN: review findings fixed: ownership replay, recovery lifetime and exact pane layout
+- 11.08.26 14:17 [E-598] [parent: E-597] [T-099] [agent: opencode] [op: transition-a8a21dbf] RUN: detached pane remains recoverable across close, crash and main renderer recreation
+- 11.08.26 14:17 [E-599] [parent: E-598] [T-099] [agent: opencode] [op: finish-e9558714] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 11.08.26 14:19 [E-600] [parent: E-599] [agent: opencode] [op: checkpoint-db3e5bab] DEC: reconciliation truth: verified 0.0.3 integration complete locally; publish intentionally pending final gates
+- 11.08.26 14:28 [E-601] [parent: E-600] [agent: opencode] [op: checkpoint-098a99c4] RUN: final 0.0.3 gates PASS: builds, Electron typecheck, Windows artifacts, ship validation, diff check
+- 11.08.26 14:46 [E-602] [parent: E-601] [T-103] [agent: opencode] [op: ticket-9735f06a] DEC: ticket added via SAIOPS
+- 11.08.26 14:47 [E-603] [parent: E-602] [T-103] [agent: opencode] [op: claim-c03cd0b1] DEC: claimed via SAIOPS -- owner opencode
+- 11.08.26 14:47 [E-604] [parent: E-603] [T-103] [agent: opencode] [op: transition-57e728d4] RUN: Windows npm.cmd EINVAL reproduced; use node with npm-cli.js
+- 11.08.26 14:47 [E-605] [parent: E-604] [T-103] [agent: opencode] [op: checkpoint-d439c054] RUN: Windows bump now launches npm-cli.js through Node; focused and release tests pass
+- 11.08.26 14:47 [E-606] [parent: E-605] [T-103] [agent: opencode] [op: transition-60622747] RUN: run full release verification after 0.0.4 bump
+- 11.08.26 14:51 [E-607] [parent: E-606] [T-103] [agent: opencode] [op: checkpoint-306fa362] RUN: release gate FAIL: stale 0.0.3 ZIP and portable artifacts remain beside 0.0.4 outputs
+- 11.08.26 14:52 [E-608] [parent: E-607] [T-103] [agent: opencode] [op: checkpoint-fec141fc] RUN: 0.0.4 full tests, typecheck, Windows build, metadata and artifact gates pass after stale artifact cleanup
+- 11.08.26 14:52 [E-609] [parent: E-608] [T-103] [agent: opencode] [op: transition-7d29d9c6] RUN: review Windows npm invocation and 0.0.4 release delta
+- 11.08.26 16:17 [E-610] [parent: E-609] [T-103] [agent: opencode] [op: checkpoint-40800de2] RUN: REVIEW rerun: bump-version tests 15/15 and real Windows 0.0.4 resync pass; independent review clean
+- 11.08.26 16:18 [E-611] [parent: E-610] [T-103] [agent: opencode] [op: transition-44b7d1da] RUN: review clean after release bump hardening
+- 11.08.26 16:22 [E-612] [parent: E-611] [T-103] [agent: opencode] [op: checkpoint-262aac2c] RUN: SHIP binding PASS: conformance, cached diff, artifacts, release 21/21, typecheck, UI 615, server 366+4 skip, plugin 8, Electron 134

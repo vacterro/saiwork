@@ -1,9 +1,10 @@
 import { createHash } from "crypto"
-import { existsSync, readdirSync, readFileSync, realpathSync, type FSWatcher, watch } from "fs"
+import { readdirSync, readFileSync, realpathSync, type FSWatcher, watch } from "fs"
 import path from "path"
 import type { WorkspaceEventPayload } from "../api-types"
 import type { EventBus } from "../events/bus"
 import type { Logger } from "../logger"
+import { pathEntryExists, resolvePathWithin } from "./path-security"
 
 /**
  * Live SAIPEN change stream.
@@ -45,7 +46,7 @@ export interface SaipenWorkspaceHandle {
 }
 
 interface FolderWatch {
-  id: string
+  ids: Set<string>
   folder: string
   saipenDir: string
   /** relativePath -> SHA-256 of last observed bytes; "" means absent. */
@@ -69,9 +70,9 @@ function canonicalFolder(folder: string): string | null {
   }
 }
 
-function fileRevision(filePath: string): string {
+function fileRevision(filePath: string | null): string {
   try {
-    if (!existsSync(filePath)) return ""
+    if (!filePath) return ""
     return createHash("sha256").update(readFileSync(filePath)).digest("hex")
   } catch {
     return ""
@@ -89,6 +90,7 @@ export class SaipenFileWatcher {
   }
 
   start(listWorkspaces: () => SaipenWorkspaceHandle[]): void {
+    if (this.stopEvents) return
     for (const handle of listWorkspaces()) this.observe(handle)
     this.stopEvents = this.deps.eventBus.onEvent((event) => this.handleEvent(event))
   }
@@ -107,21 +109,23 @@ export class SaipenFileWatcher {
       return
     }
     if (event.type === "workspace.stopped") {
-      const folder = this.folderById.get(event.workspaceId)
-      if (folder) this.forget(folder)
+      this.forget(event.workspaceId)
     }
   }
 
   private observe(handle: SaipenWorkspaceHandle): void {
     const folder = canonicalFolder(handle.folder)
     if (!folder) return
+    const previousFolder = this.folderById.get(handle.id)
+    if (previousFolder && previousFolder !== folder) this.forget(handle.id)
     const existing = this.byFolder.get(folder)
     if (existing) {
-      if (!this.folderById.has(handle.id)) this.folderById.set(handle.id, folder)
+      existing.ids.add(handle.id)
+      this.folderById.set(handle.id, folder)
       return
     }
     const entry: FolderWatch = {
-      id: handle.id,
+      ids: new Set([handle.id]),
       folder,
       saipenDir: path.join(folder, ".saipen"),
       revisions: new Map(),
@@ -140,12 +144,16 @@ export class SaipenFileWatcher {
     this.healTimer(entry)
   }
 
-  private forget(folder: string): void {
+  private forget(id: string): void {
+    const folder = this.folderById.get(id)
+    if (!folder) return
+    this.folderById.delete(id)
     const entry = this.byFolder.get(folder)
     if (!entry) return
+    entry.ids.delete(id)
+    if (entry.ids.size > 0) return
     this.teardown(entry)
     this.byFolder.delete(folder)
-    if (this.folderById.get(entry.id) === folder) this.folderById.delete(entry.id)
   }
 
   private teardown(entry: FolderWatch): void {
@@ -175,10 +183,15 @@ export class SaipenFileWatcher {
    * Non-recursive everywhere, so project churn never floods the watcher.
    */
   private reconcileWatchers(entry: FolderWatch): void {
-    const saipenExists = existsSync(entry.saipenDir)
-    const kitchenDir = path.join(entry.saipenDir, "kitchen")
-    const desired = saipenExists
-      ? [entry.saipenDir, ...(existsSync(kitchenDir) ? [kitchenDir] : [])]
+    const saipenDir = pathEntryExists(entry.saipenDir)
+      ? resolvePathWithin(entry.folder, entry.saipenDir)
+      : null
+    const kitchenPath = saipenDir ? path.join(saipenDir, "kitchen") : null
+    const kitchenDir = kitchenPath && pathEntryExists(kitchenPath)
+      ? resolvePathWithin(saipenDir!, kitchenPath)
+      : null
+    const desired = saipenDir
+      ? [saipenDir, ...(kitchenDir ? [kitchenDir] : [])]
       : [entry.folder]
     for (const target of Array.from(entry.watchersByTarget.keys())) {
       if (!desired.includes(target)) this.closeWatcher(entry, target)
@@ -199,9 +212,11 @@ export class SaipenFileWatcher {
   }
 
   private scheduleSweep(entry: FolderWatch): void {
+    if (this.byFolder.get(entry.folder) !== entry) return
     if (entry.timer) return
     entry.timer = setTimeout(() => {
       entry.timer = null
+      if (this.byFolder.get(entry.folder) !== entry) return
       this.sweep(entry)
     }, DEBOUNCE_MS)
   }
@@ -216,12 +231,13 @@ export class SaipenFileWatcher {
   }
 
   private sweep(entry: FolderWatch): void {
+    if (this.byFolder.get(entry.folder) !== entry) return
     this.reconcileWatchers(entry)
     const initial = !entry.seeded
     entry.seeded = true
     const changed: string[] = []
 
-    const update = (relativePath: string, file: string): void => {
+    const update = (relativePath: string, file: string | null): void => {
       const current = fileRevision(file)
       const previous = entry.revisions.get(relativePath)
       if (previous === current) return
@@ -229,26 +245,40 @@ export class SaipenFileWatcher {
       changed.push(relativePath)
     }
 
+    const saipenDir = pathEntryExists(entry.saipenDir)
+      ? resolvePathWithin(entry.folder, entry.saipenDir)
+      : null
     for (const name of STATE_FILES) {
-      update(name, path.join(entry.saipenDir, name))
+      const candidate = saipenDir ? path.join(saipenDir, name) : null
+      const safeFile = candidate && pathEntryExists(candidate)
+        ? resolvePathWithin(saipenDir!, candidate)
+        : null
+      update(name, safeFile)
     }
 
-    const kitchenDir = path.join(entry.saipenDir, "kitchen")
+    const kitchenPath = saipenDir ? path.join(saipenDir, "kitchen") : null
+    const kitchenDir = kitchenPath && pathEntryExists(kitchenPath)
+      ? resolvePathWithin(saipenDir!, kitchenPath)
+      : null
     let kitchenNames: string[] = []
     try {
-      if (existsSync(kitchenDir)) {
+      if (kitchenDir) {
         kitchenNames = readdirSync(kitchenDir).filter((name) => name.endsWith(".md")).sort()
       }
     } catch (error) {
       this.logger.warn({ folder: entry.folder, error }, "Failed to list SAIPEN kitchen plans")
     }
     for (const name of kitchenNames) {
-      update(`kitchen/${name}`, path.join(kitchenDir, name))
+      const candidate = path.join(kitchenDir!, name)
+      update(`kitchen/${name}`, resolvePathWithin(kitchenDir!, candidate))
     }
     for (const relativePath of Array.from(entry.revisions.keys())) {
       if (!relativePath.startsWith("kitchen/")) continue
       if (kitchenNames.includes(relativePath.slice("kitchen/".length))) continue
-      update(relativePath, path.join(kitchenDir, relativePath.slice("kitchen/".length)))
+      const candidate = kitchenDir
+        ? path.join(kitchenDir, relativePath.slice("kitchen/".length))
+        : null
+      update(relativePath, candidate && pathEntryExists(candidate) ? resolvePathWithin(kitchenDir!, candidate) : null)
     }
 
     if (changed.length > 0 && !initial) {

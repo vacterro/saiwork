@@ -84,7 +84,24 @@ function createId(prefix: string): string {
   return `${prefix}_${hex}${random}`
 }
 
-async function sendMessage(
+export class SessionPromptDispatchError extends Error {
+  readonly cause: unknown
+  readonly mayHaveReachedServer: boolean
+
+  constructor(cause: unknown, mayHaveReachedServer: boolean) {
+    super(cause instanceof Error ? cause.message : String(cause))
+    this.name = "SessionPromptDispatchError"
+    this.cause = cause
+    this.mayHaveReachedServer = mayHaveReachedServer
+  }
+}
+
+/** Unknown errors are treated as ambiguous to preserve at-most-once dispatch. */
+export function didSessionPromptReachServer(error: unknown): boolean {
+  return !(error instanceof SessionPromptDispatchError) || error.mayHaveReachedServer
+}
+
+async function sendMessageInternal(
   instanceId: string,
   sessionId: string,
   prompt: string,
@@ -92,7 +109,7 @@ async function sendMessage(
 ): Promise<void> {
   const instance = instances().get(instanceId)
   if (!instance || !instance.client) {
-    throw new Error("Instance not ready")
+    throw new SessionPromptDispatchError(new Error("Instance not ready"), false)
   }
 
   const client = getRootClient(instanceId)
@@ -100,7 +117,7 @@ async function sendMessage(
   const instanceSessions = sessions().get(instanceId)
   const session = instanceSessions?.get(sessionId)
   if (!session) {
-    throw new Error("Session not found")
+    throw new SessionPromptDispatchError(new Error("Session not found"), false)
   }
 
   const messageId = createId("msg")
@@ -226,17 +243,20 @@ async function sendMessage(
     requestBody,
   })
 
+  let promptRequested = false
   try {
     log.info("session.promptAsync", { instanceId, sessionId, requestBody })
     const workspacePayload = await getSessionWorkspacePayload(instanceId, sessionId)
     const admission = beginSessionGenerationAdmission(instanceId, sessionId)
     try {
+      const promptRequest = client.session.promptAsync({
+        sessionID: sessionId,
+        ...workspacePayload,
+        ...(requestBody as any),
+      })
+      promptRequested = true
       await requestData(
-        client.session.promptAsync({
-          sessionID: sessionId,
-          ...workspacePayload,
-          ...(requestBody as any),
-        }),
+        promptRequest,
         "session.promptAsync",
       )
       admission.complete()
@@ -248,7 +268,21 @@ async function sendMessage(
   } catch (error) {
     store.failSend(messageId)
     log.error("Failed to send prompt", error)
-    throw error
+    throw new SessionPromptDispatchError(error, promptRequested)
+  }
+}
+
+async function sendMessage(
+  instanceId: string,
+  sessionId: string,
+  prompt: string,
+  attachments: any[] = [],
+): Promise<void> {
+  try {
+    await sendMessageInternal(instanceId, sessionId, prompt, attachments)
+  } catch (error) {
+    if (error instanceof SessionPromptDispatchError) throw error
+    throw new SessionPromptDispatchError(error, false)
   }
 }
 

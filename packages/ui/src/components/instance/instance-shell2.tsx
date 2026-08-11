@@ -34,7 +34,6 @@ import { sessionSidebarVisible, setSessionSidebarVisible, showSaipenBar } from "
 import {
   activatePane,
   closePaneAt,
-  detachPaneAt,
   ensurePaneState,
   panesForInstance,
   splitPane,
@@ -44,6 +43,7 @@ import { buildSplitCandidates } from "../../lib/split-picker"
 import { instances } from "../../stores/instances"
 import { activeSessionId, sessions } from "../../stores/session-state"
 import { isSessionPaneWindow } from "../../lib/runtime-env"
+import { detachPaneToWindow, reattachCurrentSessionPane, resolveRecoveredPane } from "../../stores/session-pane-windows"
 import MessageSection from "../message-section"
 import PromptAttachmentsBar from "../prompt-input/PromptAttachmentsBar"
 import ActionOverflowMenu, { type ActionOverflowMenuItem } from "../action-overflow-menu"
@@ -726,7 +726,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   const paneStateForInstance = createMemo(() => panesForInstance(props.instance.id))
   /** Panes actually rendered in this shell (detached panes live in their own OS window). */
   const shellPanes = createMemo(() => (paneStateForInstance() ? visiblePanes(paneStateForInstance()!) : []))
-  const splitActive = createMemo(() => shellPanes().length > 1)
+  const splitActive = createMemo(() => shellPanes().length > 1 || paneStateForInstance()?.forcePaneLayout === true)
 
   // Seed the single-pane state the first time a real session becomes active,
   // so the default layout equals today's behaviour (one active session).
@@ -1232,23 +1232,19 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   }
 
   const handleDetachPane = (pane: { instanceId: string; sessionId: string; id: string }) => {
-    detachPaneAt(props.instance.id, pane.id)
-    const api = (globalThis as unknown as { electronAPI?: { openSessionPane?: (payload: { instanceId: string; sessionId: string }) => Promise<{ ok: boolean }> } }).electronAPI
-    void api?.openSessionPane?.({ instanceId: pane.instanceId, sessionId: pane.sessionId })
+    void detachPaneToWindow(props.instance.id, pane)
   }
 
   const handleClosePane = (paneId: string) => {
     closePaneAt(props.instance.id, paneId)
+    void resolveRecoveredPane(props.instance.id, paneId).then((resolved) => {
+      if (!resolved) log.error("Failed to resolve recovered pane ownership", { instanceId: props.instance.id, paneId })
+    })
   }
 
   /** A detached session-pane window asks the main window to re-insert it. */
   const handleReattachPane = () => {
-    const api = (globalThis as unknown as {
-      electronAPI?: { reattachSessionPane?: (payload: { instanceId: string; sessionId: string }) => Promise<{ ok: boolean }> }
-    }).electronAPI
-    const sessionId = activeSessionIdForInstance()
-    if (!api?.reattachSessionPane || !sessionId || sessionId === "info") return
-    void api.reattachSessionPane({ instanceId: props.instance.id, sessionId })
+    void reattachCurrentSessionPane()
   }
   const sessionLayout = (
     <div

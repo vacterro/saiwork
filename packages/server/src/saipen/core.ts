@@ -4,6 +4,12 @@ import path from "path"
 import { createLogger } from "../logger"
 import { parseStateScalars, readStateScalar } from "./state"
 import { parseBoardSections } from "./board"
+import {
+  canonicalExistingPath,
+  hasParentPathSegment,
+  pathEntryExists,
+  resolvePathWithin,
+} from "./path-security"
 
 const log = createLogger({ component: "saipen-core" })
 
@@ -85,6 +91,28 @@ export function resolveProtocolDir(home: string): string | null {
   return null
 }
 
+function resolveExistingContainedPath(root: string, candidate: string): string | null {
+  return pathEntryExists(candidate) ? resolvePathWithin(root, candidate) : null
+}
+
+function resolveProjectSaipenDir(workspaceFolder: string): string | null {
+  return resolveExistingContainedPath(workspaceFolder, path.join(workspaceFolder, ".saipen"))
+}
+
+function resolveConfiguredProtocolFile(protocolDir: string, configuredFile: string): string | null {
+  const file = configuredFile.trim()
+  if (
+    !file
+    || path.isAbsolute(file)
+    || path.win32.isAbsolute(file)
+    || path.posix.isAbsolute(file)
+    || hasParentPathSegment(file)
+  ) {
+    return null
+  }
+  return resolvePathWithin(protocolDir, path.resolve(protocolDir, file))
+}
+
 /**
  * Ordered candidates for the install root. The first one that actually holds a
  * BOOT.md wins -- existence of the directory alone is not enough, because an
@@ -120,8 +148,10 @@ export function candidateSaipenHomes(configured?: string, workspaceFolder?: stri
  */
 export function readSaipenHomeFromProjectState(workspaceFolder?: string): string | null {
   if (!workspaceFolder) return null
-  const statePath = path.join(workspaceFolder, ".saipen", "STATE.md")
-  if (!existsSync(statePath)) return null
+  const saipenDir = resolveProjectSaipenDir(workspaceFolder)
+  if (!saipenDir) return null
+  const statePath = resolveExistingContainedPath(saipenDir, path.join(saipenDir, "STATE.md"))
+  if (!statePath) return null
 
   try {
     const raw = readFileSync(statePath, "utf8")
@@ -151,9 +181,10 @@ export function resolveSaipenCore(
   for (const candidate of homes) {
     if (!isDirectory(candidate)) continue
     const resolved = resolveProtocolDir(candidate)
-    if (resolved) {
+    const canonical = resolved ? canonicalExistingPath(resolved) : null
+    if (canonical) {
       home = candidate
-      protocolDir = resolved
+      protocolDir = canonical
       break
     }
   }
@@ -170,12 +201,15 @@ export function resolveSaipenCore(
   const instructions: string[] = []
   const missing: string[] = []
 
-  for (const file of requested) {
-    const absolute = path.resolve(protocolDir, file)
-    if (existsSync(absolute)) {
+  for (const configuredFile of requested) {
+    const file = configuredFile.trim()
+    const absolute = resolveConfiguredProtocolFile(protocolDir, file)
+    if (absolute && pathEntryExists(absolute) && !isDirectory(absolute)) {
       instructions.push(toInstructionPath(absolute))
     } else {
-      missing.push(absolute)
+      missing.push(path.isAbsolute(file) || path.win32.isAbsolute(file)
+        ? path.normalize(file)
+        : path.resolve(protocolDir, file))
     }
   }
 
@@ -283,9 +317,11 @@ export interface SaipenProjectState {
 /** Reads root project state used by Goal Mode Auto. */
 export function readSaipenProjectState(workspaceFolder?: string): SaipenProjectState | null {
   if (!workspaceFolder) return null
-  const statePath = path.join(workspaceFolder, ".saipen", "STATE.md")
-  const boardPath = path.join(workspaceFolder, ".saipen", "BOARD.md")
-  if (!existsSync(statePath) || !existsSync(boardPath)) return null
+  const saipenDir = resolveProjectSaipenDir(workspaceFolder)
+  if (!saipenDir) return null
+  const statePath = resolveExistingContainedPath(saipenDir, path.join(saipenDir, "STATE.md"))
+  const boardPath = resolveExistingContainedPath(saipenDir, path.join(saipenDir, "BOARD.md"))
+  if (!statePath || !boardPath) return null
 
   try {
     const state = readFileSync(statePath, "utf8")
@@ -348,18 +384,26 @@ function emptyPackageCounts(): SaipenSubPackageCounts {
 }
 
 function resolveSubsDir(workspaceFolder: string): string | null {
-  const current = path.join(workspaceFolder, ".saipen", "extensions", "subs")
-  if (isDirectory(current)) return current
+  const saipenDir = resolveProjectSaipenDir(workspaceFolder)
+  const current = saipenDir
+    ? resolveExistingContainedPath(saipenDir, path.join(saipenDir, "extensions", "subs"))
+    : null
+  if (current && isDirectory(current)) return current
   const legacy = path.join(workspaceFolder, "extensions", "subs")
-  return isDirectory(legacy) ? legacy : null
+  const safeLegacy = resolveExistingContainedPath(workspaceFolder, legacy)
+  return safeLegacy && isDirectory(safeLegacy) ? safeLegacy : null
 }
 
 function readManifestNames(subsDir: string): string[] {
-  const manifestPath = path.join(subsDir, "MANIFEST.md")
-  if (!existsSync(manifestPath)) {
+  const manifestPath = resolveExistingContainedPath(subsDir, path.join(subsDir, "MANIFEST.md"))
+  if (!manifestPath) {
     try {
       return readdirSync(subsDir)
-        .filter((name) => name !== "TEMPLATE" && !name.startsWith("_") && isDirectory(path.join(subsDir, name)))
+        .filter((name) => {
+          if (name === "TEMPLATE" || name.startsWith("_")) return false
+          const candidate = resolveExistingContainedPath(subsDir, path.join(subsDir, name))
+          return candidate !== null && isDirectory(candidate)
+        })
         .sort()
     } catch (error) {
       log.warn({ subsDir, error }, "Failed to list saipen subs")
@@ -393,7 +437,7 @@ interface ParsedSubState {
 }
 
 function readSubState(subsDir: string, name: string): ParsedSubState {
-  const statePath = path.join(subsDir, name, "STATE.md")
+  const statePath = resolveExistingContainedPath(subsDir, path.join(subsDir, name, "STATE.md"))
   const missing = {
     phase: null,
     task: null,
@@ -403,7 +447,7 @@ function readSubState(subsDir: string, name: string): ParsedSubState {
     blocker: null,
     roleRevision: null,
   }
-  if (!existsSync(statePath)) {
+  if (!statePath) {
     return { ...missing, lifecycle: "missing", issues: [`Missing STATE.md for ${name}`] }
   }
 
@@ -465,9 +509,9 @@ function readSubPackage(
   name: string,
   state: ParsedSubState,
 ): { status: SaipenSubPackageStatus; counts: SaipenSubPackageCounts; issues: string[] } {
-  const outboxPath = path.join(subsDir, name, "kitchen", "OUTBOX.md")
+  const outboxPath = resolveExistingContainedPath(subsDir, path.join(subsDir, name, "kitchen", "OUTBOX.md"))
   const counts = emptyPackageCounts()
-  if (!existsSync(outboxPath)) {
+  if (!outboxPath) {
     return { status: "missing", counts, issues: [`Missing kitchen/OUTBOX.md for ${name}`] }
   }
 

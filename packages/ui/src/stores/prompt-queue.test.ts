@@ -1,12 +1,14 @@
 import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
 
+import { MAX_QUEUED_ATTACHMENT_BYTES } from "../../../server/src/api-types"
+import { isQueuedAttachment, isQueuedPrompt } from "../../../server/src/queue/validation"
 import type {
+  QueueMutation as ServerQueueMutation,
   QueuedPrompt as ServerQueuedPrompt,
   QueueState as ServerQueueState,
   WorkspaceEventPayload,
 } from "../../../server/src/api-types"
-import type { QueueMutation as ServerQueueMutation } from "../../../server/src/queue/manager"
 import {
   __resetQueueTransport,
   __setQueueTransport,
@@ -16,11 +18,10 @@ import {
   enqueuePromptFanOut,
   getQueue,
   getQueueLength,
-  isQueuePaused,
   moveQueuedPrompt,
+  migrateLegacyQueueStorage,
   removeQueuedPrompt,
   resetQueues,
-  restoreDequeuedPrompt,
   updateQueuedPrompt,
   type EnqueueResult,
   type QueueMutateOutcome,
@@ -40,10 +41,12 @@ class FakeQueueWorld {
   private readonly changeHandlers = new Set<(event: Extract<WorkspaceEventPayload, { type: "queue.changed" }>) => void>()
   private readonly openHandlers = new Set<() => void>()
   listCalls = 0
+  listOverride: (() => Promise<Record<string, ServerQueueState>>) | null = null
 
   readonly transport: QueueTransport = {
     list: async () => {
       this.listCalls += 1
+      if (this.listOverride) return this.listOverride()
       const out: Record<string, ServerQueueState> = {}
       for (const [key, state] of this.queues) out[key] = state
       return out
@@ -77,14 +80,31 @@ class FakeQueueWorld {
       case "enqueue": {
         const trimmed = mutation.text.trim()
         if (!trimmed && (mutation.attachments?.length ?? 0) === 0) return { status: "failed", code: "empty" }
+        const attachments = mutation.attachments ?? []
+        if (!attachments.every(isQueuedAttachment)) return { status: "failed", code: "invalid" }
         const item: ServerQueuedPrompt = {
           id: `id-${++idCounter}`,
           text: trimmed,
-          attachments: mutation.attachments ?? [],
+          attachments,
           createdAt: Date.now(),
         }
         const state = this.set(key, [...items, item], paused)
         return { status: "ok", state }
+      }
+      case "import-legacy": {
+        const imported = mutation.item
+        if (!isQueuedPrompt(imported)) return { status: "failed", code: "invalid" }
+        const existing = items.find((item) => item.id === imported.id)
+        if (existing) return { status: "ok", state: current! }
+        return { status: "ok", state: this.set(key, [...items, imported], paused) }
+      }
+      case "restore": {
+        const restored = mutation.item
+        if (!isQueuedPrompt(restored)) return { status: "failed", code: "invalid" }
+        return {
+          status: "ok",
+          state: this.set(key, [restored, ...items.filter((item) => item.id !== restored.id)], mutation.pause === true || paused),
+        }
       }
       case "dequeue": {
         if (paused) return { status: "failed", code: "paused" }
@@ -92,11 +112,6 @@ class FakeQueueWorld {
         const [head, ...rest] = items
         const state = this.set(key, rest, paused)
         return { status: "ok", state, dequeued: head }
-      }
-      case "restore": {
-        const restored = [mutation.item, ...items.filter((item) => item.id !== mutation.item.id)]
-        const state = this.set(key, restored, mutation.pause === true ? true : paused)
-        return { status: "ok", state }
       }
       case "move": {
         const index = items.findIndex((item) => item.id === mutation.id)
@@ -111,10 +126,12 @@ class FakeQueueWorld {
       }
       case "update": {
         const trimmed = mutation.text.trim()
+        const attachments = mutation.attachments
+        if (attachments && !attachments.every(isQueuedAttachment)) return { status: "failed", code: "invalid" }
         const updated = trimmed
           ? items.map((item) =>
               item.id === mutation.id
-                ? { ...item, text: trimmed, ...(mutation.attachments !== undefined ? { attachments: mutation.attachments } : {}) }
+                ? { ...item, text: trimmed, ...(attachments !== undefined ? { attachments } : {}) }
                 : item,
             )
           : items.filter((item) => item.id !== mutation.id)
@@ -144,6 +161,7 @@ const world = new FakeQueueWorld()
 beforeEach(() => {
   world.queues.clear()
   world.listCalls = 0
+  world.listOverride = null
   resetQueues()
   __setQueueTransport(world.transport)
 })
@@ -167,6 +185,17 @@ describe("prompt queue mirror", () => {
   it("refuses empty and oversized prompts without touching the server", async () => {
     assert.equal((await enqueuePrompt("one", "session", "   ")).ok, false)
     assert.equal((await enqueuePrompt("one", "session", "")).ok, false)
+    const oversized = {
+      id: "large",
+      type: "text" as const,
+      display: "pasted text",
+      url: "data:text/plain;base64,",
+      filename: "large.txt",
+      mediaType: "text/plain",
+      source: { type: "text" as const, value: "é".repeat(MAX_QUEUED_ATTACHMENT_BYTES / 2) },
+    }
+    const tooLarge = await enqueuePrompt("one", "session", "text", [oversized])
+    assert.deepEqual(tooLarge, { ok: false, reason: "too-large" })
     assert.equal(getQueue("one", "session").length, 0)
   })
 
@@ -192,32 +221,119 @@ describe("prompt queue mirror", () => {
     assert.equal(getQueue("one", "session").length, 0)
   })
 
-  it("restores a failed head once at the original front with the same identity", async () => {
-    const first = await expectQueued(enqueuePrompt("one", "session", "A"))
-    const second = await expectQueued(enqueuePrompt("one", "session", "B"))
+  it("does not let a conflict resync GET overwrite a newer SSE state", async () => {
+    await expectQueued(enqueuePrompt("one", "session", "A"))
+    const key = "one:session"
+    const serverRevision = world.queues.get(key)!.revision
+    await world.transport.mutate(key, serverRevision, { op: "dequeue" })
 
-    const failed = await dequeuePrompt("one", "session")
-    assert.equal(failed?.id, first.id)
+    let resolveList!: (queues: Record<string, ServerQueueState>) => void
+    const delayedList = new Promise<Record<string, ServerQueueState>>((resolve) => {
+      resolveList = resolve
+    })
+    world.listOverride = () => delayedList
 
-    await restoreDequeuedPrompt("one", "session", failed!)
-    await restoreDequeuedPrompt("one", "session", failed!)
-    assert.deepEqual(getQueue("one", "session").map((item) => item.id), [first.id, second.id])
-    assert.deepEqual(getQueue("one", "session").map((item) => item.text), ["A", "B"])
+    const lostDequeue = dequeuePrompt("one", "session")
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    const external = await world.transport.mutate(key, "", { op: "enqueue", text: "newer SSE", attachments: [] })
+    assert.equal(external.status, "ok")
+    if (external.status !== "ok") throw new Error("unreachable")
+    world.emitExternal(key, external.state)
+
+    resolveList({})
+    assert.equal(await lostDequeue, null)
+    assert.deepEqual(getQueue("one", "session").map((item) => item.text), ["newer SSE"])
   })
 
-  it("pauses after restoring a failed head so idle effects cannot retry it", async () => {
-    const first = await expectQueued(enqueuePrompt("one", "session", "A"))
-    await expectQueued(enqueuePrompt("one", "session", "B"))
+  it("does not let an older mutation response overwrite a newer GET snapshot", async () => {
+    const original = await expectQueued(enqueuePrompt("one", "session", "original"))
+    const key = "one:session"
+    let resolveMutation!: (outcome: QueueMutateOutcome) => void
+    const delayedMutation = new Promise<QueueMutateOutcome>((resolve) => { resolveMutation = resolve })
+    __setQueueTransport({
+      ...world.transport,
+      mutate: () => delayedMutation,
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
 
-    const failed = await dequeuePrompt("one", "session")
-    await restoreDequeuedPrompt("one", "session", failed!, { pause: true })
+    const pending = updateQueuedPrompt("one", "session", original.id, "stale response")
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    const originalServer: ServerQueuedPrompt = { id: original.id, text: original.text, attachments: [], createdAt: original.createdAt }
+    const newer: ServerQueueState = {
+      items: [{ ...originalServer, text: "newer GET" }],
+      paused: false,
+      revision: "rev-newer-get",
+    }
+    world.queues.set(key, newer)
+    world.open()
+    await new Promise<void>((resolve) => setImmediate(resolve))
 
-    assert.equal(isQueuePaused("one", "session"), true)
-    assert.equal(await dequeuePrompt("one", "session"), null)
-    assert.deepEqual(getQueue("one", "session").map((item) => item.text), ["A", "B"])
+    resolveMutation({
+      status: "ok",
+      state: { ...newer, items: [{ ...originalServer, text: "stale response" }], revision: "rev-old-response" },
+    })
+    await pending
+    assert.deepEqual(getQueue("one", "session").map((item) => item.text), ["newer GET"])
   })
 
-  it("fans out to each unique target atomically", async () => {
+  it("migrates the 0.0.2 localStorage queue once after durable server imports", async () => {
+    const values = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => { values.delete(key) },
+      clear: () => values.clear(),
+      key: (index: number) => Array.from(values.keys())[index] ?? null,
+      get length() { return values.size },
+    }
+    Object.defineProperty(globalThis, "localStorage", { value: storage, configurable: true })
+    values.set("saiwork.prompt-queue.v1", JSON.stringify({
+      "one:legacy-session": {
+        items: [{ id: "legacy-1", text: "legacy prompt", attachments: [], createdAt: 123 }],
+        paused: true,
+      },
+    }))
+    try {
+      assert.equal(await migrateLegacyQueueStorage(), true)
+      assert.equal(values.has("saiwork.prompt-queue.v1"), false)
+      assert.deepEqual(getQueue("one", "legacy-session").map((item) => item.id), ["legacy-1"])
+      assert.equal(world.queues.get("one:legacy-session")?.paused, true)
+    } finally {
+      delete (globalThis as { localStorage?: Storage }).localStorage
+    }
+  })
+
+  it("migrates a legacy snapshot updated by another window before cleanup", async () => {
+    const first = JSON.stringify({
+      "one:first": { items: [{ id: "legacy-1", text: "first", attachments: [], createdAt: 1 }], paused: false },
+    })
+    const second = JSON.stringify({
+      "one:first": { items: [{ id: "legacy-1", text: "first", attachments: [], createdAt: 1 }], paused: false },
+      "one:second": { items: [{ id: "legacy-2", text: "second", attachments: [], createdAt: 2 }], paused: false },
+    })
+    let reads = 0
+    let removed = false
+    const storage = {
+      getItem: () => removed ? null : (++reads === 1 ? first : second),
+      setItem() {},
+      removeItem: () => { removed = true },
+      clear() {},
+      key: () => null,
+      get length() { return removed ? 0 : 1 },
+    }
+    Object.defineProperty(globalThis, "localStorage", { value: storage, configurable: true })
+    try {
+      assert.equal(await migrateLegacyQueueStorage(), true)
+      assert.equal(removed, true)
+      assert.deepEqual(getQueue("one", "first").map((item) => item.id), ["legacy-1"])
+      assert.deepEqual(getQueue("one", "second").map((item) => item.id), ["legacy-2"])
+    } finally {
+      delete (globalThis as { localStorage?: Storage }).localStorage
+    }
+  })
+
+  it("fans out to each unique target", async () => {
     await expectQueued(enqueuePrompt("one", "session-a", "first"))
     const result = await enqueuePromptFanOut(
       [

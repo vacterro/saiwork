@@ -52,8 +52,55 @@ export function parseStateFrontmatter(stateText: string | null): SaipenStateFiel
   }
 }
 
-export function parseLogLines(logText: string | null): string[] {  if (!logText) return []
+export function parseLogLines(logText: string | null): string[] {
+  if (!logText) return []
   return logText.split(/\r?\n/).filter((line) => line.trim().length > 0)
+}
+
+export interface SaipenEditingFile {
+  path: string
+  content: string
+  revision: string
+}
+
+export interface SaipenEditorState {
+  editing: SaipenEditingFile
+  draft: string
+  conflict: string | null
+}
+
+export function isSaipenDraftDirty(editing: SaipenEditingFile | null, draft: string): boolean {
+  return editing !== null && draft !== editing.content
+}
+
+export function reloadSaipenEditor(
+  state: SaipenEditorState,
+  content: string,
+  revision: string,
+): SaipenEditorState {
+  return {
+    editing: { ...state.editing, content, revision },
+    draft: content,
+    conflict: null,
+  }
+}
+
+export function keepSaipenDraft(state: SaipenEditorState): SaipenEditorState {
+  return { ...state, conflict: null }
+}
+
+/** Keeps text typed while an earlier draft was being persisted. */
+export function reconcileSaipenSave(
+  state: SaipenEditorState,
+  submittedDraft: string,
+  revision: string,
+): SaipenEditorState | null {
+  if (state.draft === submittedDraft) return null
+  return {
+    editing: { ...state.editing, content: submittedDraft, revision },
+    draft: state.draft,
+    conflict: null,
+  }
 }
 
 /**
@@ -64,7 +111,9 @@ export function parseLogLines(logText: string | null): string[] {  if (!logText)
  */
 export function externalChangeAction(
   editingPath: string | null,
+  dirty: boolean,
   changedFiles: string[],
-): "refresh" | "conflict" {
-  return editingPath && changedFiles.includes(editingPath) ? "conflict" : "refresh"
+): "refresh" | "refresh-editor" | "conflict" {
+  if (!editingPath || !changedFiles.includes(editingPath)) return "refresh"
+  return dirty ? "conflict" : "refresh-editor"
 }

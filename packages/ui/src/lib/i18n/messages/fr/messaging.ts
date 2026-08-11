@@ -355,6 +355,7 @@ export const messagingMessages = {
   "thinkingStats.hint": "Compté à partir des blocs de raisonnement des réponses terminées et interrompues. Stocké uniquement sur cette machine.",
   "promptQueue.refused.title": "Prompt non mis en file",
   "promptQueue.refused.quota": "Le prompt n'a pas pu être mis en file. Ton texte est toujours dans l'éditeur — réessaie.",
+  "promptQueue.recoveryFailed": "Le prompt n'a pas été envoyé et n'a pas pu être restauré dans la file. Copie-le depuis cette boîte de dialogue avant de la fermer.",
   "promptQueue.refused.conflict": "La file a changé dans une autre fenêtre. Ton texte est toujours dans l'éditeur — réessaie.",
   "promptQueue.refused.tooLarge": "Les pièces jointes sont trop volumineuses pour la file. Ton texte est toujours dans l'éditeur. Envoie le prompt directement ou joins un fichier plus petit.",
   "session.close.errorTitle": "Session non fermée",

@@ -28,6 +28,25 @@ describe("server shutdown orchestration", () => {
     assert.deepEqual(calls, ["workspaces-1", "remote-proxy", "workspaces-2", "http"])
   })
 
+  it("stops the watcher and drains pending queue work after HTTP admission closes", async () => {
+    const calls: string[] = []
+    let releaseQueue!: () => void
+    const queueDrain = new Promise<void>((resolve) => { releaseQueue = resolve })
+    const shutdown = orchestrateServerShutdown(operations({
+      stopSaipenWatcher: () => { calls.push("watcher") },
+      stopHttpServers: () => { calls.push("http") },
+      stopQueueManager: () => { calls.push("queue"); return queueDrain },
+      stopReleaseMonitor: () => { calls.push("release-monitor") },
+    }), logger)
+
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    assert.equal(calls.filter((call) => call === "watcher").length, 1)
+    assert.ok(calls.indexOf("http") < calls.indexOf("queue"))
+    assert.ok(!calls.includes("release-monitor") || calls.indexOf("http") < calls.indexOf("release-monitor"))
+    releaseQueue()
+    await shutdown
+  })
+
   it("closes remaining resources and aggregates the concrete current error", async () => {
     const failure = new Error("workspace abc POSIX process group is still alive")
     const closed: string[] = []

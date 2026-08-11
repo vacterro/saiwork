@@ -8,12 +8,12 @@ import PromptInput from "../prompt-input"
 import PromptAttachmentsBar from "../prompt-input/PromptAttachmentsBar"
 import PromptQueuePanel from "../prompt-queue-panel"
 import SaipenBar from "../saipen-bar"
-import { clearQueue, dequeuePrompt, enqueuePrompt, enqueuePromptFanOut, getQueue, getQueueLength, isQueuePaused, restoreDequeuedPrompt } from "../../stores/prompt-queue"
+import { clearQueue, dequeuePrompt, enqueuePrompt, enqueuePromptFanOut, getQueue, getQueueLength, isQueuePaused, restoreDequeuedPrompt, restoreDequeuedPrompts } from "../../stores/prompt-queue"
 import { getAttachments, removeAttachment } from "../../stores/attachments"
 import { instances, updateInstance, waitForInstanceWorkspaceMetadataHydration } from "../../stores/instances"
 import { activeSessionId, loadMessages, sendMessage, forkSession, renameSession, isSessionMessagesLoading, getSessionMessagesLoadError, markSessionIdleSeen, ensureSessionAncestorsExpanded, setActiveSessionFromList, runShellCommand, abortSession, sessions } from "../../stores/sessions"
 import { clearSessionIdleFade, IDLE_STATUS_VISIBILITY_MS, getSessionStatus, isSessionBusy as getSessionBusyStatus, markSessionIdleFadeStarted } from "../../stores/session-status"
-import { deleteMessage } from "../../stores/session-actions"
+import { deleteMessage, didSessionPromptReachServer } from "../../stores/session-actions"
 import { showAlertDialog } from "../../stores/alerts"
 import { getLogger } from "../../lib/logger"
 import { serverApi } from "../../lib/api-client"
@@ -682,10 +682,15 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         await handleSendMessage(all.map((item) => item.text).join("\n\n"), [])
       } catch (error) {
         log.error("Failed to send queued prompts:", error)
-        for (const item of all) void enqueuePrompt(props.instanceId, props.sessionId, item.text, item.attachments)
+        let detail = error instanceof Error ? error.message : String(error)
+        if (!didSessionPromptReachServer(error)) {
+          const restored = await restoreDequeuedPrompts(props.instanceId, props.sessionId, all)
+          awaitingBusyAfterDrain = false
+          if (!restored) detail = `${t("promptQueue.recoveryFailed")}\n\n${all.map((item) => item.text).join("\n\n")}`
+        }
         showAlertDialog(t("promptInput.send.errorFallback"), {
           title: t("promptInput.send.errorTitle"),
-          detail: error instanceof Error ? error.message : String(error),
+          detail,
           variant: "error",
         })
       } finally {
@@ -702,15 +707,21 @@ export const SessionView: Component<SessionViewProps> = (props) => {
       await handleSendMessage(next.text, next.attachments)
     } catch (error) {
       log.error("Failed to send queued prompt:", error)
-      await restoreDequeuedPrompt(props.instanceId, props.sessionId, next, { pause: true })
+      let detail = error instanceof Error ? error.message : String(error)
+      if (!didSessionPromptReachServer(error)) {
+        // No promptAsync call occurred, so restoring cannot duplicate a send.
+        // Pause prevents a broken session from repeatedly draining and failing.
+        const restored = await restoreDequeuedPrompt(props.instanceId, props.sessionId, next)
+        awaitingBusyAfterDrain = false
+        if (!restored) detail = `${t("promptQueue.recoveryFailed")}\n\n${next.text}`
+      }
       showAlertDialog(t("promptInput.send.errorFallback"), {
         title: t("promptInput.send.errorTitle"),
-        detail: error instanceof Error ? error.message : String(error),
+        detail,
         variant: "error",
       })
-      // The send never started, so there is nothing to wait for: a later retry
-      // is allowed without the session having gone busy.
-      awaitingBusyAfterDrain = false
+      // Ambiguous failures keep the durable dequeue and wait for observed busy
+      // state rather than risking a duplicate dispatch.
     } finally {
       draining = false
     }

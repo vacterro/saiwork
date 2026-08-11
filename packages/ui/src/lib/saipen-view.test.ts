@@ -1,7 +1,15 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { externalChangeAction, parseLogLines, parseStateFrontmatter } from "./saipen-view.ts"
+import {
+  externalChangeAction,
+  isSaipenDraftDirty,
+  keepSaipenDraft,
+  parseLogLines,
+  parseStateFrontmatter,
+  reconcileSaipenSave,
+  reloadSaipenEditor,
+} from "./saipen-view.ts"
 
 const STATE = `---
 phase: BUILD
@@ -57,16 +65,63 @@ describe("SAIPEN view parsing", () => {
     assert.equal(lines.length, 2)
   })
 
-  it("refreshes automatically when the editor is clean and the file changed", () => {
-    assert.equal(externalChangeAction(null, ["STATE.md"]), "refresh")
-    assert.equal(externalChangeAction("", ["STATE.md"]), "refresh")
+  it("defines dirty as draft content differing from loaded content", () => {
+    const editing = { path: "STATE.md", content: "loaded", revision: "r1" }
+    assert.equal(isSaipenDraftDirty(editing, "loaded"), false)
+    assert.equal(isSaipenDraftDirty(editing, "draft"), true)
+    assert.equal(isSaipenDraftDirty(null, "draft"), false)
+  })
+
+  it("refreshes loaded editor content automatically when the clean file changed", () => {
+    assert.equal(externalChangeAction(null, false, ["STATE.md"]), "refresh")
+    assert.equal(externalChangeAction("STATE.md", false, ["STATE.md"]), "refresh-editor")
   })
 
   it("preserves the draft and marks a conflict when the dirty file changed", () => {
-    assert.equal(externalChangeAction("STATE.md", ["STATE.md"]), "conflict")
+    assert.equal(externalChangeAction("STATE.md", true, ["STATE.md"]), "conflict")
   })
 
   it("keeps an open draft when an unrelated file changed", () => {
-    assert.equal(externalChangeAction("STATE.md", ["BOARD.md", "kitchen/plan-a.md"]), "refresh")
+    assert.equal(externalChangeAction("STATE.md", true, ["BOARD.md", "kitchen/plan-a.md"]), "refresh")
+  })
+
+  it("Reload replaces loaded content, draft, and revision", () => {
+    const state = {
+      editing: { path: "STATE.md", content: "old", revision: "r1" },
+      draft: "local draft",
+      conflict: "changed externally",
+    }
+    assert.deepEqual(reloadSaipenEditor(state, "fresh", "r2"), {
+      editing: { path: "STATE.md", content: "fresh", revision: "r2" },
+      draft: "fresh",
+      conflict: null,
+    })
+  })
+
+  it("Keep Draft clears the notice without changing draft, content, or revision", () => {
+    const state = {
+      editing: { path: "STATE.md", content: "old", revision: "r1" },
+      draft: "local draft",
+      conflict: "changed externally",
+    }
+    assert.deepEqual(keepSaipenDraft(state), { ...state, conflict: null })
+  })
+
+  it("preserves keystrokes entered while an earlier draft save was pending", () => {
+    const state = reconcileSaipenSave({
+      editing: { path: "STATE.md", content: "old", revision: "rev-old" },
+      draft: "submitted plus newer typing",
+      conflict: null,
+    }, "submitted", "rev-saved")
+    assert.deepEqual(state, {
+      editing: { path: "STATE.md", content: "submitted", revision: "rev-saved" },
+      draft: "submitted plus newer typing",
+      conflict: null,
+    })
+    assert.equal(reconcileSaipenSave({
+      editing: { path: "STATE.md", content: "old", revision: "rev-old" },
+      draft: "submitted",
+      conflict: null,
+    }, "submitted", "rev-saved"), null)
   })
 })

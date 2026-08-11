@@ -58,6 +58,35 @@ function canonical(folder: string): string {
 }
 
 describe("saipen file watcher", () => {
+  it("tracks create, change, and delete for STATE, BOARD, LOG, and kitchen files", async () => {
+    const dir = createTempDir()
+    const saipen = path.join(dir, ".saipen")
+    const kitchen = path.join(saipen, "kitchen")
+    fs.mkdirSync(kitchen, { recursive: true })
+
+    const { events, watcher } = createWatcher(dir)
+    watcher.start(() => [{ id: "ws-1", folder: dir }])
+    const files = ["STATE.md", "BOARD.md", "LOG.md"]
+    const writeAll = (content: string) => {
+      for (const name of files) fs.writeFileSync(path.join(saipen, name), `${name} ${content}\n`)
+      fs.writeFileSync(path.join(kitchen, "plan.md"), `plan ${content}\n`)
+    }
+    const expected = ["STATE.md", "BOARD.md", "LOG.md", "kitchen/plan.md"]
+
+    writeAll("created")
+    await waitForEvents(events, 1)
+    assert.deepEqual((events[0] as Extract<WorkspaceEventPayload, { type: "saipen.changed" }>).files, expected)
+
+    writeAll("changed")
+    await waitForEvents(events, 2)
+    assert.deepEqual((events[1] as Extract<WorkspaceEventPayload, { type: "saipen.changed" }>).files, expected)
+
+    for (const name of files) fs.rmSync(path.join(saipen, name))
+    fs.rmSync(path.join(kitchen, "plan.md"))
+    await waitForEvents(events, 3)
+    assert.deepEqual((events[2] as Extract<WorkspaceEventPayload, { type: "saipen.changed" }>).files, expected)
+  })
+
   it("publishes saipen.changed when a watched .saipen file changes", async () => {
     const dir = createTempDir()
     const saipen = path.join(dir, ".saipen")
@@ -147,6 +176,24 @@ describe("saipen file watcher", () => {
     assert.ok(event.files.includes("STATE.md"))
   })
 
+  it("keeps watching when the .saipen directory disappears and reappears", async () => {
+    const dir = createTempDir()
+    const saipen = path.join(dir, ".saipen")
+    fs.mkdirSync(saipen)
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: DONE\n---\n")
+    const { events, watcher } = createWatcher(dir)
+    watcher.start(() => [{ id: "ws-1", folder: dir }])
+
+    fs.rmSync(saipen, { recursive: true, force: true })
+    await waitForEvents(events, 1)
+    assert.ok((events[0] as Extract<WorkspaceEventPayload, { type: "saipen.changed" }>).files.includes("STATE.md"))
+
+    fs.mkdirSync(saipen)
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: BUILD\n---\n")
+    await waitForEvents(events, 2)
+    assert.ok((events[1] as Extract<WorkspaceEventPayload, { type: "saipen.changed" }>).files.includes("STATE.md"))
+  })
+
   it("stops watching a workspace after workspace.stopped", async () => {
     const dir = createTempDir()
     const saipen = path.join(dir, ".saipen")
@@ -160,6 +207,28 @@ describe("saipen file watcher", () => {
     fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: HUNT\n---\n")
     await settle()
     assert.equal(events.length, 0)
+  })
+
+  it("keeps a shared-folder watcher until every registered workspace ID stops", async () => {
+    const dir = createTempDir()
+    const saipen = path.join(dir, ".saipen")
+    fs.mkdirSync(saipen)
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: DONE\n---\n")
+
+    const { eventBus, events, watcher } = createWatcher(dir)
+    watcher.start(() => [
+      { id: "ws-1", folder: dir },
+      { id: "ws-2", folder: dir },
+    ])
+
+    eventBus.publish({ type: "workspace.stopped", workspaceId: "ws-1", reason: "stopped" })
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: BUILD\n---\n")
+    await waitForEvents(events, 1)
+
+    eventBus.publish({ type: "workspace.stopped", workspaceId: "ws-2", reason: "stopped" })
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: SHIP\n---\n")
+    await settle()
+    assert.equal(events.length, 1)
   })
 
   it("ignores a stopped event for a workspace it never watched", async () => {
@@ -207,6 +276,9 @@ describe("saipen file watcher", () => {
 
     const { events, watcher } = createWatcher(dir)
     watcher.start(() => [{ id: "ws-1", folder: dir }])
+    watcher.start(() => [{ id: "duplicate-start", folder: dir }])
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: REVIEW\n---\n")
+    await settle(25)
     watcher.stop()
 
     fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: SHIP\n---\n")

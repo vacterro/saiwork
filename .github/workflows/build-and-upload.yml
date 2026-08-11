@@ -44,7 +44,7 @@ on:
         default: ""
         type: string
       set_versions:
-        description: "Run npm version to set workspace versions"
+        description: "Run transactional workspace version synchronization"
         required: false
         default: true
         type: boolean
@@ -84,7 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2 3; do
-            if npm version "${VERSION}" --workspaces --include-workspace-root --no-git-tag-version --allow-same-version; then
+            if npm run bumpVersion -- "${VERSION}" --allow-same-version; then
               exit 0
             fi
             echo "npm version failed (attempt $attempt/3); retrying..." >&2
@@ -250,7 +250,7 @@ jobs:
 
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
-        run: npm version ${{ env.VERSION }} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
+        run: npm run bumpVersion -- "${VERSION}" --allow-same-version
         shell: bash
 
       - name: Install dependencies
@@ -262,6 +262,9 @@ jobs:
       - name: Build Windows binaries (Electron)
         run: npm run build:win --workspace @saiwork/electron-app
 
+      - name: Verify Windows release metadata
+        run: node scripts/check-release-consistency.js --artifacts-only
+
       - name: Verify bundled Node resource (Electron Windows)
         run: node scripts/verify-bundled-node.cjs packages/electron-app/electron/resources@win32-x64
 
@@ -269,9 +272,17 @@ jobs:
         if: ${{ inputs.upload && inputs.tag != '' }}
         shell: pwsh
         run: |
-          Get-ChildItem -Path "packages/electron-app/release" -Filter *.zip -File | ForEach-Object {
-            Write-Host "Uploading $($_.FullName)"
-            gh release upload $env:TAG $_.FullName --clobber
+          $expected = @(
+            "SAIWORK-x64-$env:VERSION.zip",
+            "SAIWORK-portable-x64-$env:VERSION.exe"
+          )
+          foreach ($name in $expected) {
+            $artifact = Join-Path "packages/electron-app/release" $name
+            if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) {
+              throw "Missing validated release artifact: $artifact"
+            }
+            Write-Host "Uploading $artifact"
+            gh release upload $env:TAG $artifact --clobber
           }
 
       - name: Upload Actions artifacts (Electron Windows)
@@ -279,7 +290,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.actions_artifacts_name_prefix }}electron-windows
-          path: packages/electron-app/release/*.zip
+          path: |
+            packages/electron-app/release/*.zip
+            packages/electron-app/release/*.exe
           retention-days: ${{ inputs.actions_artifacts_retention_days }}
           if-no-files-found: error
 
@@ -303,7 +316,7 @@ jobs:
 
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
-        run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
+        run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Install dependencies
         run: npm ci --workspaces --include=optional
@@ -443,7 +456,7 @@ jobs:
 
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
-        run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
+        run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app
@@ -533,7 +546,7 @@ jobs:
 
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
-        run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
+        run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app
@@ -623,7 +636,7 @@ jobs:
 
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
-        run: npm version ${{ env.VERSION }} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
+        run: npm run bumpVersion -- "${VERSION}" --allow-same-version
         shell: bash
 
       - name: Sync Tauri package version
@@ -731,7 +744,7 @@ jobs:
 
       - name: Set workspace versions
         if: ${{ inputs.set_versions && inputs.version != '' }}
-        run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
+        run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app
@@ -945,7 +958,7 @@ jobs:
             librsvg2-dev:arm64
 
       - name: Set workspace versions
-        run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
+        run: npm run bumpVersion -- "${VERSION}" --allow-same-version
 
       - name: Sync Tauri package version
         run: npm run sync:version --workspace @saiwork/tauri-app

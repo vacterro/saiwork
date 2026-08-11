@@ -4,19 +4,24 @@ import Fastify from "fastify"
 
 import type { QueueState } from "../../api-types"
 import { EventBus } from "../../events/bus"
-import { QueueManager } from "../../queue/manager"
+import { QueueManager, type QueuePersistenceAdapter } from "../../queue/manager"
 import { registerQueueRoutes } from "./queue"
 
 const managers: QueueManager[] = []
 
-afterEach(() => {
-  for (const manager of managers) manager.flush()
+afterEach(async () => {
+  for (const manager of managers) await manager.flush()
   managers.length = 0
 })
 
-function createApp() {
+function createApp(options?: { statePath?: string; persistence?: Partial<QueuePersistenceAdapter> }) {
   const eventBus = new EventBus()
-  const queueManager = new QueueManager({ statePath: null, eventBus, logger: { debug() {}, warn() {}, error() {} } as never })
+  const queueManager = new QueueManager({
+    statePath: options?.statePath ?? null,
+    eventBus,
+    logger: { debug() {}, warn() {}, error() {} } as never,
+    persistence: options?.persistence,
+  })
   managers.push(queueManager)
   const app = Fastify({ logger: false })
   registerQueueRoutes(app, { queueManager })
@@ -69,7 +74,8 @@ describe("queue routes", () => {
 
     const stale = await app.inject({ method: "POST", url: MUTATE, payload: { op: "clear", key: "inst:session", expectedRevision: "stale" } })
     assert.equal(stale.statusCode, 409)
-    const body = stale.json() as { error: string; currentRevision: string }
+    const body = stale.json() as { ok: false; code: string; currentRevision: string; error: string }
+    assert.equal(body.code, "conflict")
     assert.match(body.error, /queue changed/)
     assert.ok(body.currentRevision.length > 0)
 
@@ -131,6 +137,63 @@ describe("queue routes", () => {
 
     await app.inject({ method: "POST", url: MUTATE, payload: { op: "enqueue", key: "inst:session", expectedRevision: "", text: "hi", attachments: [] } })
     assert.deepEqual(changes, ["inst:session"])
+    await app.close()
+  })
+
+  it("returns a structured 503 when durable storage fails", async () => {
+    const { app, queueManager } = createApp({
+      statePath: "virtual/prompt-queue.json",
+      persistence: {
+        exists: () => false,
+        mkdir() {},
+        write: () => { throw new Error("injected write failure") },
+        rename() {},
+        remove() {},
+      },
+    })
+
+    const response = await app.inject({
+      method: "POST",
+      url: MUTATE,
+      payload: { op: "enqueue", key: "inst:session", expectedRevision: "", text: "not durable", attachments: [] },
+    })
+
+    assert.equal(response.statusCode, 503)
+    assert.deepEqual(response.json(), {
+      ok: false,
+      code: "storage",
+      error: { operation: "write", message: "Failed to write prompt queue persistence" },
+    })
+    assert.equal(queueManager.get("inst:session"), null)
+    await app.close()
+  })
+
+  it("returns a structured 503 for unsupported persisted state", async () => {
+    let wrote = false
+    const { app } = createApp({
+      statePath: "virtual/prompt-queue.json",
+      persistence: {
+        exists: () => true,
+        read: () => JSON.stringify({ version: 2, queues: {} }),
+        write: () => { wrote = true },
+      },
+    })
+
+    const list = await app.inject({ method: "GET", url: "/api/queue" })
+    assert.equal(list.statusCode, 503)
+    assert.deepEqual(list.json(), {
+      ok: false,
+      code: "storage",
+      error: { operation: "load", message: "Failed to load prompt queue persistence" },
+    })
+
+    const mutation = await app.inject({
+      method: "POST",
+      url: MUTATE,
+      payload: { op: "enqueue", key: "inst:session", expectedRevision: "", text: "must not overwrite" },
+    })
+    assert.equal(mutation.statusCode, 503)
+    assert.equal(wrote, false)
     await app.close()
   })
 })

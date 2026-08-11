@@ -4,6 +4,12 @@ import { requestMicrophoneAccess } from "./permissions"
 import type { CliProcessManager, CliStatus } from "./process-manager"
 
 let wakeLockId: number | null = null
+let cliIPCRegistered = false
+
+interface CliIPCOptions {
+  getMainWindow(): BrowserWindow | null
+  openRemoteWindow(payload: { id: string; name: string; baseUrl: string; skipTlsVerify: boolean }): Promise<void>
+}
 
 interface DialogOpenRequest {
   mode: "directory" | "file"
@@ -18,23 +24,25 @@ interface DialogOpenResult {
   paths: string[]
 }
 
-export function setupCliIPC(mainWindow: BrowserWindow, cliManager: CliProcessManager) {
+export function setupCliIPC(cliManager: CliProcessManager, options: CliIPCOptions) {
+  if (cliIPCRegistered) return
+  cliIPCRegistered = true
+
+  const sendToMain = (channel: string, payload: unknown) => {
+    const mainWindow = options.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload)
+  }
+
   cliManager.on("status", (status: CliStatus) => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("cli:status", status)
-    }
+    sendToMain("cli:status", status)
   })
 
   cliManager.on("ready", (status: CliStatus) => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("cli:ready", status)
-    }
+    sendToMain("cli:ready", status)
   })
 
   cliManager.on("error", (error: Error) => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("cli:error", { message: error.message })
-    }
+    sendToMain("cli:error", { message: error.message })
   })
 
   ipcMain.handle("cli:getStatus", async () => cliManager.getStatus())
@@ -56,7 +64,8 @@ export function setupCliIPC(mainWindow: BrowserWindow, cliManager: CliProcessMan
       extensions: filter.extensions,
     }))
 
-    const windowTarget = mainWindow.isDestroyed() ? undefined : mainWindow
+    const mainWindow = options.getMainWindow()
+    const windowTarget = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined
     const dialogOptions: OpenDialogOptions = {
       title: request.title,
       defaultPath: request.defaultPath,
@@ -126,18 +135,7 @@ export function setupCliIPC(mainWindow: BrowserWindow, cliManager: CliProcessMan
       _event,
       payload: { id: string; name: string; baseUrl: string; skipTlsVerify: boolean },
     ): Promise<{ ok: boolean }> => {
-      const opener = (mainWindow as BrowserWindow & {
-        __saiworkOpenRemoteWindow?: (payload: {
-          id: string
-          name: string
-          baseUrl: string
-          skipTlsVerify: boolean
-        }) => Promise<void>
-      }).__saiworkOpenRemoteWindow
-      if (!opener) {
-        throw new Error("Remote window opening is not available")
-      }
-      await opener(payload)
+      await options.openRemoteWindow(payload)
       return { ok: true }
     },
   )
@@ -151,26 +149,11 @@ export function setupCliIPC(mainWindow: BrowserWindow, cliManager: CliProcessMan
     },
   )
 
-  ipcMain.handle(
-    "window:open-session-pane",
-    async (
-      _event,
-      payload: { instanceId: string; sessionId: string },
-    ): Promise<{ ok: boolean }> => {
-      const opener = (mainWindow as BrowserWindow & {
-        __saiworkOpenSessionPane?: (payload: { instanceId: string; sessionId: string }) => Promise<void>
-      }).__saiworkOpenSessionPane
-      if (!opener) {
-        throw new Error("Session pane opening is not available")
-      }
-      await opener(payload)
-      return { ok: true }
-    },
-  )
-
   // The app menu bar (File/Edit/View/Window) is a settings toggle; hiding it
   // removes the application menu entirely, showing it restores the template.
   ipcMain.handle("app:set-menu-visible", (_event, visible: boolean): { ok: boolean } => {
+    const mainWindow = options.getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) return { ok: false }
     const setter = (mainWindow as BrowserWindow & {
       __saiworkSetMenuVisible?: (visible: boolean) => void
     }).__saiworkSetMenuVisible
@@ -207,17 +190,4 @@ export function setupCliIPC(mainWindow: BrowserWindow, cliManager: CliProcessMan
     },
   )
 
-  // A detached session-pane window asks the main window to re-insert its pane.
-  // The main window's renderer owns the pane store, so the request is forwarded
-  // to it as a one-way event rather than being handled here.
-  ipcMain.handle(
-    "window:reattach-session-pane",
-    (_event, payload: { instanceId: string; sessionId: string }): { ok: boolean } => {
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        return { ok: false }
-      }
-      mainWindow.webContents.send("saipen:reattach-pane", payload)
-      return { ok: true }
-    },
-  )
 }

@@ -95,8 +95,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck desktop clients
-        run: npm run typecheck
+      - name: Check release consistency and types
+        run: npm run release:check
 
       - name: Test Electron client state
         run: npm run test:native --workspace @saiwork/electron-app

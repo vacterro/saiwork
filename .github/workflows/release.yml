@@ -3,7 +3,7 @@ name: Release Binaries
 on:
   push:
     branches:
-      - main
+      - saiwork
 
 permissions:
   id-token: write

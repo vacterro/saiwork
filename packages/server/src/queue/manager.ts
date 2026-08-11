@@ -1,49 +1,56 @@
 import { createHash, randomUUID } from "node:crypto"
-import { existsSync, readFileSync, renameSync, writeFileSync, mkdirSync } from "node:fs"
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import path from "node:path"
-import { MAX_QUEUED_ATTACHMENT_BYTES, type QueueState, type QueuedPrompt } from "../api-types"
+import {
+  MAX_QUEUED_ATTACHMENT_BYTES,
+  type QueueMutation,
+  type QueueMutationResult,
+  type QueueState,
+  type QueueStorageFailure,
+  type QueueStorageOperation,
+  type QueuedAttachment,
+  type QueuedPrompt,
+} from "../api-types"
 import type { EventBus } from "../events/bus"
 import type { Logger } from "../logger"
+import { isQueueState, isQueuedAttachment, isQueuedPrompt, queuedAttachmentBytes } from "./validation"
 
 /**
- * Single-owner prompt queue.
+ * Server-authoritative prompt queue shared by every renderer.
  *
- * The queue is server-authoritative so that the main window and every detached
- * session window share ONE queue instead of per-renderer copies that race each
- * other through localStorage. Every mutation carries `expectedRevision` and is
- * rejected with a structured conflict when the queue changed underneath the
- * caller, so a stale writer can never silently destroy newer changes.
- *
- * Dispatch safety falls out of ownership: an atomic CAS `dequeue` lets at most
- * one window win the head item, so "one queued prompt -> at most one dispatch"
- * holds even when two renderers see idle at the same instant.
- *
- * State is persisted atomically (temp + same-dir rename) and mutations are
- * serialized per key, mirroring the SAIPEN write discipline.
+ * All keys persist into one file, so one manager-wide transaction boundary
+ * covers CAS, tentative state, atomic persistence, memory commit, and event
+ * publication. Per-key locks are insufficient: concurrent keys would each
+ * rewrite the same snapshot and could report state that never reached disk.
  */
 
-export type QueueMutation =
-  | { op: "enqueue"; text: string; attachments: unknown[] }
-  | { op: "dequeue" }
-  | { op: "restore"; item: QueuedPrompt; pause?: boolean }
-  | { op: "move"; id: string; delta: number }
-  | { op: "remove"; id: string }
-  | { op: "update"; id: string; text: string; attachments?: unknown[] }
-  | { op: "clear" }
-  | { op: "set-paused"; paused: boolean }
+export interface QueuePersistenceAdapter {
+  exists(filePath: string): boolean
+  read(filePath: string): string
+  mkdir(directoryPath: string): void
+  write(filePath: string, content: string): void
+  rename(sourcePath: string, destinationPath: string): void
+  remove(filePath: string): void
+  syncDirectory(directoryPath: string): void
+}
 
-export type QueueMutationResult =
-  | { ok: true; state: QueueState; dequeued?: QueuedPrompt }
-  | { ok: false; code: "conflict"; currentRevision: string }
-  | { ok: false; code: "empty" }
-  | { ok: false; code: "paused" }
-  | { ok: false; code: "too-large" }
-
-interface QueueManagerOptions {
+export interface QueueManagerOptions {
   /** Where the persisted queue lives; null disables persistence (tests). */
   statePath: string | null
   eventBus: EventBus
   logger: Logger
+  /** Fault-injection seam for persistence tests. */
+  persistence?: Partial<QueuePersistenceAdapter>
 }
 
 const KEY_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+$/
@@ -54,35 +61,104 @@ interface PersistedQueue {
   queues: Record<string, QueueState>
 }
 
-function emptyState(): QueueState {
-  return { items: [], paused: false, revision: "" }
+type SuccessfulMutation = Extract<QueueMutationResult, { ok: true }>
+type FailedMutation = Exclude<QueueMutationResult, { ok: true }>
+
+type TentativeMutation =
+  | { result: SuccessfulMutation; keep: boolean }
+  | { result: FailedMutation }
+
+const DEFAULT_PERSISTENCE: QueuePersistenceAdapter = {
+  exists: existsSync,
+  read: (filePath) => readFileSync(filePath, "utf8"),
+  mkdir: (directoryPath) => mkdirSync(directoryPath, { recursive: true }),
+  write: (filePath, content) => {
+    const descriptor = openSync(filePath, "w")
+    try {
+      writeFileSync(descriptor, content, "utf8")
+      fsyncSync(descriptor)
+    } finally {
+      closeSync(descriptor)
+    }
+  },
+  rename: renameSync,
+  remove: (filePath) => rmSync(filePath, { force: true }),
+  syncDirectory: (directoryPath) => {
+    if (process.platform === "win32") return
+    const descriptor = openSync(directoryPath, "r")
+    try {
+      try {
+        fsyncSync(descriptor)
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error ? String(error.code) : ""
+        if (["EINVAL", "ENOTSUP"].includes(code)) return
+        throw error
+      }
+    } finally {
+      closeSync(descriptor)
+    }
+  },
 }
 
 function revisionOf(items: QueuedPrompt[], paused: boolean): string {
   return createHash("sha256").update(JSON.stringify({ items, paused })).digest("hex")
 }
 
-function measureBytes(value: string): number {
-  return Buffer.byteLength(value, "utf8")
-}
-
 function nextId(): string {
   return randomUUID()
 }
 
+function storageFailure(operation: QueueStorageOperation): QueueStorageFailure {
+  const action = operation === "load" ? "load" : operation === "mkdir" ? "prepare" : operation
+  return { operation, message: `Failed to ${action} prompt queue persistence` }
+}
+
+function storageResult(error: QueueStorageFailure): QueueMutationResult {
+  return { ok: false, code: "storage", error }
+}
+
+function checkAttachments(attachments: unknown[]):
+  | { ok: true; attachments: QueuedAttachment[] }
+  | { ok: false; code: "too-large" | "invalid" } {
+  const bytes = queuedAttachmentBytes(attachments)
+  if (bytes === null) return { ok: false, code: "invalid" }
+  if (bytes > MAX_QUEUED_ATTACHMENT_BYTES) return { ok: false, code: "too-large" }
+  let normalized: unknown
+  try {
+    normalized = JSON.parse(JSON.stringify(attachments))
+  } catch {
+    return { ok: false, code: "invalid" }
+  }
+  if (!Array.isArray(normalized) || !normalized.every(isQueuedAttachment)) return { ok: false, code: "invalid" }
+  return { ok: true, attachments: normalized }
+}
+
 export class QueueManager {
-  private readonly queues = new Map<string, QueueState>()
-  private readonly keyQueues = new Map<string, Promise<unknown>>()
-  private writeQueue: Promise<void> = Promise.resolve()
-  private readonly logger: Logger
+  private queues = new Map<string, QueueState>()
+  private transactionQueue: Promise<void> = Promise.resolve()
+  private readonly storage: QueuePersistenceAdapter
+  private loadFailure: QueueStorageFailure | null = null
 
   constructor(private readonly options: QueueManagerOptions) {
-    this.logger = options.logger
+    const injected = options.persistence
+    this.storage = {
+      exists: injected?.exists ?? DEFAULT_PERSISTENCE.exists,
+      read: injected?.read ?? DEFAULT_PERSISTENCE.read,
+      mkdir: injected?.mkdir ?? DEFAULT_PERSISTENCE.mkdir,
+      write: injected?.write ?? DEFAULT_PERSISTENCE.write,
+      rename: injected?.rename ?? DEFAULT_PERSISTENCE.rename,
+      remove: injected?.remove ?? DEFAULT_PERSISTENCE.remove,
+      syncDirectory: injected?.syncDirectory ?? DEFAULT_PERSISTENCE.syncDirectory,
+    }
     if (options.statePath) this.load()
   }
 
   static isValidKey(key: string): boolean {
     return KEY_RE.test(key)
+  }
+
+  getStorageFailure(): QueueStorageFailure | null {
+    return this.loadFailure ? { ...this.loadFailure } : null
   }
 
   getAll(): Record<string, QueueState> {
@@ -96,25 +172,46 @@ export class QueueManager {
     return state ? cloneState(state) : null
   }
 
-  async mutate(key: string, expectedRevision: string, mutation: QueueMutation): Promise<QueueMutationResult> {
-    if (!QueueManager.isValidKey(key)) return { ok: false, code: "empty" }
-    const result = await this.withKeyLock(key, () => this.apply(key, expectedRevision, mutation))
-    if (result.ok) {
-      await this.persist()
-      this.options.eventBus.publish({ type: "queue.changed", key, state: result.state })
-    }
-    return result
+  mutate(key: string, expectedRevision: string, mutation: QueueMutation): Promise<QueueMutationResult> {
+    if (!QueueManager.isValidKey(key)) return Promise.resolve({ ok: false, code: "invalid" })
+    return this.withTransaction(() => this.transact(key, expectedRevision, mutation))
   }
 
   async flush(): Promise<void> {
-    await this.writeQueue
+    await this.transactionQueue
   }
 
-  private apply(key: string, expectedRevision: string, mutation: QueueMutation): QueueMutationResult {
+  private transact(key: string, expectedRevision: string, mutation: QueueMutation): QueueMutationResult {
+    if (this.loadFailure) return storageResult(this.loadFailure)
+
+    const tentative = this.apply(key, expectedRevision, mutation)
+    if (!("keep" in tentative)) return tentative.result
+
+    const persistenceFailure = this.persist(key, tentative.result.state, tentative.keep)
+    if (persistenceFailure) return storageResult(persistenceFailure)
+
+    const committedState = tentative.keep
+      ? cloneState(tentative.result.state)
+      : { items: [], paused: false, revision: "" }
+    if (tentative.keep) this.queues.set(key, committedState)
+    else this.queues.delete(key)
+
+    try {
+      this.options.eventBus.publish({ type: "queue.changed", key, state: cloneState(committedState) })
+    } catch (error) {
+      this.options.logger.warn({ error, key }, "Failed to publish persisted prompt queue change")
+    }
+    return {
+      ...tentative.result,
+      state: cloneState(committedState),
+    }
+  }
+
+  private apply(key: string, expectedRevision: string, mutation: QueueMutation): TentativeMutation {
     const current = this.queues.get(key)
     const currentRevision = current?.revision ?? ""
     if (currentRevision !== expectedRevision) {
-      return { ok: false, code: "conflict", currentRevision }
+      return { result: { ok: false, code: "conflict", currentRevision, error: "queue changed; refresh and retry" } }
     }
 
     const items = [...(current?.items ?? [])]
@@ -122,166 +219,227 @@ export class QueueManager {
 
     if (mutation.op === "enqueue") {
       const trimmed = mutation.text.trim()
-      if (!trimmed && (mutation.attachments?.length ?? 0) === 0) return { ok: false, code: "empty" }
-      if (measureBytes(JSON.stringify(mutation.attachments ?? [])) > MAX_QUEUED_ATTACHMENT_BYTES) {
-        return { ok: false, code: "too-large" }
-      }
+      const rawAttachments = mutation.attachments ?? []
+      if (!trimmed && rawAttachments.length === 0) return { result: { ok: false, code: "empty" } }
+      const checked = checkAttachments(rawAttachments)
+      if (!checked.ok) return { result: { ok: false, code: checked.code } }
       const item: QueuedPrompt = {
         id: nextId(),
         text: trimmed,
-        attachments: mutation.attachments ?? [],
+        attachments: checked.attachments,
         createdAt: Date.now(),
       }
-      const state = { items: [...items, item], paused, revision: "" }
-      state.revision = revisionOf(state.items, state.paused)
-      this.queues.set(key, state)
-      return { ok: true, state: cloneState(state) }
+      const state = stateWithRevision([...items, item], paused)
+      return { result: { ok: true, state: cloneState(state) }, keep: true }
     }
 
-    if (mutation.op === "dequeue") {
-      if (paused) return { ok: false, code: "paused" }
-      if (items.length === 0) return { ok: false, code: "empty" }
-      const [head, ...rest] = items
-      const state = { items: rest, paused, revision: "" }
-      state.revision = revisionOf(state.items, state.paused)
-      if (rest.length === 0 && !paused) {
-        this.queues.delete(key)
-      } else {
-        this.queues.set(key, state)
+    if (mutation.op === "import-legacy") {
+      const imported = mutation.item
+      if (!isQueuedPrompt(imported)) return { result: { ok: false, code: "invalid" } }
+      const duplicate = items.find((item) => item.id === imported.id)
+      if (duplicate) {
+        if (JSON.stringify(duplicate) !== JSON.stringify(imported)) {
+          return { result: { ok: false, code: "invalid" } }
+        }
+        const state = stateWithRevision(items, paused)
+        return { result: { ok: true, state: cloneState(state) }, keep: true }
       }
-      return { ok: true, state: cloneState(state), dequeued: head }
+      const state = stateWithRevision([...items, clonePrompt(imported)], paused)
+      return { result: { ok: true, state: cloneState(state) }, keep: true }
     }
 
     if (mutation.op === "restore") {
-      const item = mutation.item
-      if (!item || typeof item.id !== "string") return { ok: false, code: "empty" }
-      const restored: QueueState = {
-        items: [item, ...items.filter((queued) => queued.id !== item.id)],
-        paused: mutation.pause === true ? true : paused,
-        revision: "",
+      const restored = mutation.item
+      if (!isQueuedPrompt(restored)) return { result: { ok: false, code: "invalid" } }
+      const duplicate = items.find((item) => item.id === restored.id)
+      if (duplicate && JSON.stringify(duplicate) !== JSON.stringify(restored)) {
+        return { result: { ok: false, code: "invalid" } }
       }
-      restored.revision = revisionOf(restored.items, restored.paused)
-      this.queues.set(key, restored)
-      return { ok: true, state: cloneState(restored) }
+      const state = stateWithRevision(
+        [clonePrompt(restored), ...items.filter((item) => item.id !== restored.id)],
+        mutation.pause === true || paused,
+      )
+      return { result: { ok: true, state: cloneState(state) }, keep: true }
+    }
+
+    if (mutation.op === "dequeue") {
+      if (paused) return { result: { ok: false, code: "paused" } }
+      if (items.length === 0) return { result: { ok: false, code: "empty" } }
+      const [head, ...rest] = items
+      const state = stateWithRevision(rest, paused)
+      return { result: { ok: true, state: cloneState(state), dequeued: clonePrompt(head) }, keep: rest.length > 0 }
     }
 
     if (mutation.op === "set-paused") {
-      const next: QueueState = { items, paused: mutation.paused, revision: "" }
-      next.revision = revisionOf(next.items, next.paused)
-      if (next.items.length === 0 && !next.paused) this.queues.delete(key)
-      else this.queues.set(key, next)
-      return { ok: true, state: cloneState(next) }
+      const state = stateWithRevision(items, mutation.paused)
+      return { result: { ok: true, state: cloneState(state) }, keep: state.items.length > 0 || state.paused }
     }
 
     if (mutation.op === "clear") {
-      const next: QueueState = { items: [], paused, revision: "" }
-      next.revision = revisionOf(next.items, next.paused)
-      if (!paused) this.queues.delete(key)
-      else this.queues.set(key, next)
-      return { ok: true, state: cloneState(next) }
+      const state = stateWithRevision([], paused)
+      return { result: { ok: true, state: cloneState(state) }, keep: paused }
     }
 
     if (mutation.op === "move") {
       const index = items.findIndex((item) => item.id === mutation.id)
-      if (index < 0) return { ok: false, code: "empty" }
+      if (index < 0) return { result: { ok: false, code: "empty" } }
       const target = Math.max(0, Math.min(items.length - 1, index + mutation.delta))
-      if (target === index) {
-        return { ok: true, state: cloneState(this.queues.get(key) ?? { items, paused, revision: currentRevision }) }
+      if (target !== index) {
+        const [moved] = items.splice(index, 1)
+        items.splice(target, 0, moved)
       }
-      const [moved] = items.splice(index, 1)
-      items.splice(target, 0, moved)
-      const next: QueueState = { items, paused, revision: "" }
-      next.revision = revisionOf(next.items, next.paused)
-      this.queues.set(key, next)
-      return { ok: true, state: cloneState(next) }
+      const state = stateWithRevision(items, paused)
+      return { result: { ok: true, state: cloneState(state) }, keep: true }
     }
 
     if (mutation.op === "remove") {
-      const next: QueueState = { items: items.filter((item) => item.id !== mutation.id), paused, revision: "" }
-      next.revision = revisionOf(next.items, next.paused)
-      if (next.items.length === 0 && !paused) this.queues.delete(key)
-      else this.queues.set(key, next)
-      return { ok: true, state: cloneState(next) }
+      const state = stateWithRevision(items.filter((item) => item.id !== mutation.id), paused)
+      return { result: { ok: true, state: cloneState(state) }, keep: state.items.length > 0 || paused }
     }
 
     if (mutation.op === "update") {
       const trimmed = mutation.text.trim()
-      const next: QueueState = {
-        items: trimmed
-          ? items.map((item) =>
-              item.id === mutation.id
-                ? { ...item, text: trimmed, ...(mutation.attachments !== undefined ? { attachments: mutation.attachments } : {}) }
-                : item,
-            )
-          : items.filter((item) => item.id !== mutation.id),
-        paused,
-        revision: "",
+      let attachments: QueuedAttachment[] | undefined
+      if (trimmed && mutation.attachments !== undefined) {
+        const checked = checkAttachments(mutation.attachments)
+        if (!checked.ok) return { result: { ok: false, code: checked.code } }
+        attachments = checked.attachments
       }
-      next.revision = revisionOf(next.items, next.paused)
-      if (next.items.length === 0 && !paused) this.queues.delete(key)
-      else this.queues.set(key, next)
-      return { ok: true, state: cloneState(next) }
+      const updated = trimmed
+        ? items.map((item) => item.id === mutation.id
+          ? { ...item, text: trimmed, ...(attachments ? { attachments } : {}) }
+          : item)
+        : items.filter((item) => item.id !== mutation.id)
+      const state = stateWithRevision(updated, paused)
+      return { result: { ok: true, state: cloneState(state) }, keep: state.items.length > 0 || paused }
     }
 
-    return { ok: false, code: "empty" }
+    return { result: { ok: false, code: "invalid" } }
   }
 
-  private withKeyLock<T>(key: string, operation: () => T): Promise<T> {
-    const previous = (this.keyQueues.get(key) ?? Promise.resolve()) as Promise<unknown>
-    const next = previous.then(operation, operation)
-    this.keyQueues.set(key, next.then(() => undefined, () => undefined))
+  private withTransaction<T>(operation: () => T | Promise<T>): Promise<T> {
+    const next = this.transactionQueue.then(operation, operation)
+    this.transactionQueue = next.then(() => undefined, () => undefined)
     return next
   }
 
-  private persist(): Promise<void> {
-    const snapshot = () => {
-      const queues: Record<string, QueueState> = {}
-      for (const [key, state] of this.queues) queues[key] = state
-      return queues
+  private persist(key: string, state: QueueState, keep: boolean): QueueStorageFailure | null {
+    const statePath = this.options.statePath
+    if (!statePath) return null
+
+    const queues: Record<string, QueueState> = {}
+    for (const [queuedKey, queuedState] of this.queues) queues[queuedKey] = queuedState
+    if (keep) queues[key] = state
+    else delete queues[key]
+
+    const payload: PersistedQueue = { version: PERSIST_VERSION, queues }
+    const tempPath = `${statePath}.tmp`
+    let previousContent: string | null = null
+    try {
+      previousContent = this.storage.exists(statePath) ? this.storage.read(statePath) : null
+    } catch (error) {
+      return this.reportPersistenceFailure("load", error, statePath)
     }
-    this.writeQueue = this.writeQueue.then(async () => {
-      const statePath = this.options.statePath
-      if (!statePath) return
-      const payload: PersistedQueue = { version: PERSIST_VERSION, queues: snapshot() }
-      const serialized = JSON.stringify(payload)
-      const tempPath = `${statePath}.tmp`
-      try {
-        mkdirSync(path.dirname(statePath), { recursive: true })
-        writeFileSync(tempPath, serialized, "utf8")
-        renameSync(tempPath, statePath)
-      } catch (error) {
-        this.logger.warn({ error, statePath }, "Failed to persist prompt queue")
+    try {
+      this.storage.mkdir(path.dirname(statePath))
+    } catch (error) {
+      return this.reportPersistenceFailure("mkdir", error, statePath)
+    }
+    try {
+      this.storage.write(tempPath, JSON.stringify(payload))
+    } catch (error) {
+      this.removeTemp(tempPath)
+      return this.reportPersistenceFailure("write", error, statePath)
+    }
+    try {
+      this.storage.rename(tempPath, statePath)
+    } catch (error) {
+      this.removeTemp(tempPath)
+      return this.reportPersistenceFailure("rename", error, statePath)
+    }
+    try {
+      this.storage.syncDirectory(path.dirname(statePath))
+    } catch (error) {
+      this.rollbackPersistedState(statePath, previousContent)
+      return this.reportPersistenceFailure("fsync", error, statePath)
+    }
+    return null
+  }
+
+  private rollbackPersistedState(statePath: string, previousContent: string | null): void {
+    const rollbackPath = `${statePath}.rollback`
+    try {
+      if (previousContent === null) {
+        this.storage.remove(statePath)
+      } else {
+        this.storage.write(rollbackPath, previousContent)
+        this.storage.rename(rollbackPath, statePath)
       }
-    })
-    return this.writeQueue
+      this.storage.syncDirectory(path.dirname(statePath))
+    } catch (error) {
+      this.loadFailure = storageFailure("fsync")
+      this.options.logger.error({ error, statePath }, "Failed to roll back prompt queue after directory fsync failure")
+    } finally {
+      this.removeTemp(rollbackPath)
+    }
+  }
+
+  private reportPersistenceFailure(operation: QueueStorageOperation, error: unknown, statePath: string): QueueStorageFailure {
+    this.options.logger.warn({ error, operation, statePath }, "Failed to persist prompt queue")
+    return storageFailure(operation)
+  }
+
+  private removeTemp(tempPath: string): void {
+    try {
+      this.storage.remove(tempPath)
+    } catch {
+      // Original file remains authoritative; stale temp cleanup is best effort.
+    }
   }
 
   private load(): void {
     const statePath = this.options.statePath
-    if (!statePath || !existsSync(statePath)) return
+    if (!statePath) return
     try {
-      const parsed = JSON.parse(readFileSync(statePath, "utf8")) as Partial<PersistedQueue>
-      if (parsed.version !== PERSIST_VERSION || !parsed.queues || typeof parsed.queues !== "object") return
-      for (const [key, value] of Object.entries(parsed.queues)) {
-        if (!QueueManager.isValidKey(key)) continue
-        if (!value || !Array.isArray(value.items) || typeof value.paused !== "boolean") continue
-        const items = value.items.filter((item) => item && typeof item.id === "string" && typeof item.text === "string")
-        const state: QueueState = {
-          items,
-          paused: value.paused,
-          revision: revisionOf(items, value.paused),
-        }
-        this.queues.set(key, state)
-      }
+      if (!this.storage.exists(statePath)) return
+      const parsed: unknown = JSON.parse(this.storage.read(statePath))
+      const loaded = parsePersistedQueue(parsed)
+      if (!loaded) throw new Error("Unsupported or corrupt prompt queue persistence")
+      this.queues = loaded
     } catch (error) {
-      // The queue is ephemeral user-visible state, not history: a corrupt file
-      // must not brick every send path, so start empty and let the next write
-      // replace it. Logged loudly enough to notice.
-      this.logger.warn({ error, statePath }, "Prompt queue state unreadable; starting empty")
+      this.loadFailure = storageFailure("load")
+      this.options.logger.warn({ error, statePath }, "Prompt queue persistence unavailable; mutations disabled")
     }
   }
 }
 
+function stateWithRevision(items: QueuedPrompt[], paused: boolean): QueueState {
+  return { items, paused, revision: revisionOf(items, paused) }
+}
+
+function clonePrompt(item: QueuedPrompt): QueuedPrompt {
+  return { ...item, attachments: structuredClone(item.attachments) }
+}
+
 function cloneState(state: QueueState): QueueState {
-  return { items: state.items.map((item) => ({ ...item, attachments: item.attachments })), paused: state.paused, revision: state.revision }
+  return { items: state.items.map(clonePrompt), paused: state.paused, revision: state.revision }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function parsePersistedQueue(value: unknown): Map<string, QueueState> | null {
+  if (!isRecord(value) || value.version !== PERSIST_VERSION || !isRecord(value.queues)) return null
+
+  const loaded = new Map<string, QueueState>()
+  for (const [key, rawState] of Object.entries(value.queues)) {
+    if (!QueueManager.isValidKey(key) || !isQueueState(rawState)) return null
+    const ids = new Set(rawState.items.map((item) => item.id))
+    if (ids.size !== rawState.items.length) return null
+    const state = stateWithRevision(structuredClone(rawState.items), rawState.paused)
+    if (rawState.revision !== state.revision) return null
+    if (state.items.length > 0 || state.paused) loaded.set(key, state)
+  }
+  return loaded
 }

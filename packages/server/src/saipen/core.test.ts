@@ -1,15 +1,54 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, it } from "node:test"
 
-import { readSaipenHomeFromProjectState, readSaipenProjectState, readSaipenSubStates } from "./core"
+import { readSaipenHomeFromProjectState, readSaipenProjectState, readSaipenSubStates, resolveSaipenCore } from "./core"
 
 const roots: string[] = []
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+describe("resolveSaipenCore instruction paths", () => {
+  it("allows nested protocol files but rejects absolute, parent, and symlink escapes", (context) => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-core-"))
+    roots.push(root)
+    const home = path.join(root, "home")
+    const protocol = path.join(home, "saipen")
+    const nested = path.join(protocol, "guides")
+    const outside = path.join(root, "outside")
+    mkdirSync(nested, { recursive: true })
+    mkdirSync(outside)
+    writeFileSync(path.join(protocol, "BOOT.md"), "# BOOT\n")
+    writeFileSync(path.join(nested, "GUIDE.md"), "# Guide\n")
+    const outsideFile = path.join(outside, "SECRET.md")
+    writeFileSync(outsideFile, "outside\n")
+
+    try {
+      symlinkSync(outside, path.join(protocol, "escape"), process.platform === "win32" ? "junction" : "dir")
+    } catch {
+      context.skip("directory links unavailable on this host")
+      return
+    }
+
+    const resolution = resolveSaipenCore({
+      enabled: true,
+      home,
+      files: ["guides/GUIDE.md", outsideFile, "../outside/SECRET.md", "escape/SECRET.md"],
+      extraInstructions: [outsideFile],
+    })
+
+    assert.equal(resolution.error, null)
+    assert.deepEqual(resolution.instructions, [
+      path.join(protocol, "guides", "GUIDE.md").replace(/\\/g, "/"),
+      outsideFile.replace(/\\/g, "/"),
+    ])
+    assert.equal(resolution.missing.length, 3)
+    assert.equal(resolution.instructions.filter((entry) => entry === outsideFile.replace(/\\/g, "/")).length, 1)
+  })
 })
 
 describe("readSaipenProjectState", () => {

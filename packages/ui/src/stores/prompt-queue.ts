@@ -4,15 +4,18 @@ import { serverApi } from "../lib/api-client"
 import { serverEvents } from "../lib/server-events"
 import {
   MAX_QUEUED_ATTACHMENT_BYTES,
+  type QueueMutation as ServerQueueMutation,
+  type QueueStorageFailure,
   type QueuedPrompt as ServerQueuedPrompt,
   type QueueState as ServerQueueState,
   type WorkspaceEventPayload,
 } from "../../../server/src/api-types"
-import type { QueueMutation as ServerQueueMutation } from "../../../server/src/queue/manager"
+import { isQueuedPrompt, queuedAttachmentBytes } from "../../../server/src/queue/validation"
 import type { Attachment } from "../types/attachment"
 import { createAttachmentPlaceholderRegex, getAttachmentPlaceholder } from "../lib/attachment-placeholders"
 
 const log = getLogger("actions")
+const LEGACY_STORAGE_KEY = "saiwork.prompt-queue.v1"
 
 /**
  * Prompt queue -- server-authoritative mirror.
@@ -41,7 +44,7 @@ export interface PromptQueueTarget {
   sessionId: string
 }
 
-export type EnqueueFailure = "empty" | "too-large" | "conflict"
+export type EnqueueFailure = "empty" | "too-large" | "conflict" | "storage"
 
 export type EnqueueResult = { ok: true; item: QueuedPrompt } | { ok: false; reason: EnqueueFailure }
 
@@ -51,6 +54,7 @@ export type QueueMutateOutcome =
   | { status: "ok"; state: ServerQueueState; dequeued?: ServerQueuedPrompt }
   | { status: "conflict"; currentRevision: string }
   | { status: "failed"; code: "empty" | "paused" | "too-large" | "invalid" }
+  | { status: "failed"; code: "storage"; error: QueueStorageFailure }
 
 export interface QueueTransport {
   list(): Promise<Record<string, ServerQueueState>>
@@ -75,6 +79,7 @@ let stopChange: (() => void) | null = null
 let stopOpen: (() => void) | null = null
 
 function wireTransport(): void {
+  latestRefreshRequest += 1
   stopChange?.()
   stopOpen?.()
   stopChange = transport.onChange((event) => {
@@ -104,24 +109,37 @@ function queueKey(instanceId: string, sessionId: string): string {
 }
 
 function measureAttachmentBytes(attachments: Attachment[]): number {
-  if (attachments.length === 0) return 0
-  try {
-    return JSON.stringify(attachments).length
-  } catch {
-    return Number.POSITIVE_INFINITY
-  }
+  return queuedAttachmentBytes(attachments) ?? Number.POSITIVE_INFINITY
 }
 
 /** The mirror stores server-shaped items; the panel wants typed attachments. */
 function toTyped(items: ServerQueuedPrompt[]): QueuedPrompt[] {
-  return items as unknown as QueuedPrompt[]
+  return items.map((item) => ({ ...item, attachments: item.attachments }))
 }
 
 const EMPTY: QueuedPrompt[] = []
 
 const [queues, setQueues] = createSignal<Map<string, ServerQueueState>>(new Map())
+const stateVersions = new Map<string, number>()
+let mirrorVersion = 0
+let latestRefreshRequest = 0
+let legacyMigration: Promise<boolean> | null = null
+
+function withLegacyMigrationLock(operation: () => Promise<boolean>): Promise<boolean> {
+  if (typeof navigator === "undefined" || !navigator.locks) return operation()
+  return new Promise<boolean>((resolve, reject) => {
+    void navigator.locks.request("saiwork.prompt-queue.migration", async () => {
+      try {
+        resolve(await operation())
+      } catch (error) {
+        reject(error)
+      }
+    }).catch(reject)
+  })
+}
 
 function applyState(key: string, state: ServerQueueState): void {
+  stateVersions.set(key, ++mirrorVersion)
   setQueues((prev) => {
     const next = new Map(prev)
     if (state.items.length === 0 && !state.paused) {
@@ -134,18 +152,30 @@ function applyState(key: string, state: ServerQueueState): void {
 }
 
 async function refreshAllQueues(): Promise<void> {
+  const request = ++latestRefreshRequest
+  const startedAtVersion = mirrorVersion
+  const requestTransport = transport
   try {
-    const all = await transport.list()
+    const all = await requestTransport.list()
+    if (request !== latestRefreshRequest || requestTransport !== transport) return
     setQueues((prev) => {
-      const next = new Map<string, ServerQueueState>()
-      for (const [key, state] of Object.entries(all)) next.set(key, state)
-      // A paused empty queue must stay visible as paused even if the server
-      // dropped the key.
-      for (const [key, state] of prev) {
-        if (!next.has(key) && state.paused) next.set(key, state)
+      const next = new Map(prev)
+      const fetchedKeys = new Set(Object.keys(all))
+      for (const [key, state] of Object.entries(all)) {
+        if ((stateVersions.get(key) ?? 0) > startedAtVersion) continue
+        if (state.items.length === 0 && !state.paused) next.delete(key)
+        else next.set(key, state)
+        stateVersions.set(key, ++mirrorVersion)
+      }
+      for (const key of prev.keys()) {
+        if (!fetchedKeys.has(key) && (stateVersions.get(key) ?? 0) <= startedAtVersion) {
+          next.delete(key)
+          stateVersions.set(key, ++mirrorVersion)
+        }
       }
       return next
     })
+    void migrateLegacyQueueStorage()
   } catch (error) {
     log.warn("Failed to load prompt queue:", error)
   }
@@ -186,13 +216,14 @@ async function mutateQueueState(
 ): Promise<QueueMutateOutcome> {
   const key = queueKey(instanceId, sessionId)
   const revision = queues().get(key)?.revision ?? ""
+  const startedAtVersion = mirrorVersion
   const outcome = await transport.mutate(key, revision, mutation)
   if (outcome.status === "ok") {
-    applyState(key, outcome.state)
+    if ((stateVersions.get(key) ?? 0) <= startedAtVersion) applyState(key, outcome.state)
   } else if (outcome.status === "conflict") {
     // Another window moved the queue first. Mirror the truth instead of
     // guessing: the next read shows the authoritative state.
-    void refreshAllQueues()
+    await refreshAllQueues()
   }
   return outcome
 }
@@ -216,10 +247,12 @@ export async function enqueuePrompt(
     return { ok: true, item: toTyped([item])[0]! }
   }
   if (outcome.status === "conflict") return { ok: false, reason: "conflict" }
-  return { ok: false, reason: outcome.code === "too-large" ? "too-large" : "empty" }
+  if (outcome.code === "too-large") return { ok: false, reason: "too-large" }
+  if (outcome.code === "storage") return { ok: false, reason: "storage" }
+  return { ok: false, reason: "empty" }
 }
 
-/** Adds one prompt to several session queues. All or nothing. */
+/** Adds one prompt per target and compensates completed writes after a later failure. */
 export async function enqueuePromptFanOut(
   targets: PromptQueueTarget[],
   text: string,
@@ -240,11 +273,20 @@ export async function enqueuePromptFanOut(
   for (const target of unique) {
     const outcome = await mutateQueueState(target.instanceId, target.sessionId, { op: "enqueue", text: trimmed, attachments })
     if (outcome.status !== "ok") {
-      // Roll back what already landed so the user never sees a partial fan-out.
+      // Best-effort compensation; each target is an independent durable CAS.
       for (const prior of added) {
-        void mutateQueueState(prior.target.instanceId, prior.target.sessionId, { op: "remove", id: prior.id })
+        await mutateQueueState(prior.target.instanceId, prior.target.sessionId, { op: "remove", id: prior.id })
       }
-      return { ok: false, reason: outcome.status === "conflict" ? "conflict" : "too-large" }
+      return {
+        ok: false,
+        reason: outcome.status === "conflict"
+          ? "conflict"
+          : outcome.code === "storage"
+            ? "storage"
+            : outcome.code === "too-large"
+              ? "too-large"
+              : "empty",
+      }
     }
     const item = outcome.state.items[outcome.state.items.length - 1]
     if (item) {
@@ -260,20 +302,6 @@ export async function dequeuePrompt(instanceId: string, sessionId: string): Prom
   const outcome = await mutateQueueState(instanceId, sessionId, { op: "dequeue" })
   if (outcome.status !== "ok" || !outcome.dequeued) return null
   return toTyped([outcome.dequeued])[0]!
-}
-
-/** Restores a failed dequeue at the front without changing identity or order. */
-export async function restoreDequeuedPrompt(
-  instanceId: string,
-  sessionId: string,
-  item: QueuedPrompt,
-  options?: { pause?: boolean },
-): Promise<void> {
-  await mutateQueueState(instanceId, sessionId, {
-    op: "restore",
-    item: { id: item.id, text: item.text, attachments: item.attachments, createdAt: item.createdAt },
-    ...(options?.pause ? { pause: true } : {}),
-  })
 }
 
 export function removeQueuedPrompt(instanceId: string, sessionId: string, id: string): Promise<void> {
@@ -331,5 +359,98 @@ export async function toggleQueuePaused(instanceId: string, sessionId: string): 
 
 /** Test seam: drops all mirrored state. */
 export function resetQueues() {
+  latestRefreshRequest += 1
+  stateVersions.clear()
+  mirrorVersion = 0
   setQueues(new Map())
+}
+
+/** Restores only prompts proven not to have reached promptAsync. */
+export async function restoreDequeuedPrompt(
+  instanceId: string,
+  sessionId: string,
+  item: QueuedPrompt,
+): Promise<boolean> {
+  let outcome = await mutateQueueState(instanceId, sessionId, { op: "restore", item, pause: true })
+  if (outcome.status === "conflict") {
+    outcome = await mutateQueueState(instanceId, sessionId, { op: "restore", item, pause: true })
+  }
+  return outcome.status === "ok"
+}
+
+export async function restoreDequeuedPrompts(
+  instanceId: string,
+  sessionId: string,
+  items: QueuedPrompt[],
+): Promise<boolean> {
+  // Reverse single-item restores prepend each item while keeping every request
+  // below Fastify's bounded body limit.
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (!(await restoreDequeuedPrompt(instanceId, sessionId, items[index]!))) return false
+  }
+  return true
+}
+
+/** Imports the shipped 0.0.2 renderer queue once, then removes its old owner. */
+export function migrateLegacyQueueStorage(): Promise<boolean> {
+  if (legacyMigration) return legacyMigration
+  if (typeof localStorage === "undefined") return Promise.resolve(true)
+  const initialRaw = localStorage.getItem(LEGACY_STORAGE_KEY)
+  if (!initialRaw) return Promise.resolve(true)
+
+  legacyMigration = withLegacyMigrationLock(async () => {
+    let raw = initialRaw
+    for (let snapshotAttempt = 0; snapshotAttempt < 3; snapshotAttempt += 1) {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(raw)
+      } catch (error) {
+        log.warn("Failed to parse legacy prompt queue; preserving local copy:", error)
+        return false
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false
+
+      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return false
+        const candidate = value as { items?: unknown; paused?: unknown }
+        if (!Array.isArray(candidate.items) || !candidate.items.every(isQueuedPrompt)) return false
+        const separator = key.indexOf(":")
+        if (separator <= 0 || separator !== key.lastIndexOf(":") || separator === key.length - 1) return false
+        const instanceId = key.slice(0, separator)
+        const sessionId = key.slice(separator + 1)
+        for (const item of candidate.items) {
+          let outcome = await mutateQueueState(instanceId, sessionId, { op: "import-legacy", item })
+          if (outcome.status === "conflict") {
+            outcome = await mutateQueueState(instanceId, sessionId, { op: "import-legacy", item })
+          }
+          if (outcome.status !== "ok") return false
+        }
+        if (candidate.paused === true) {
+          let outcome = await mutateQueueState(instanceId, sessionId, { op: "set-paused", paused: true })
+          if (outcome.status === "conflict") {
+            outcome = await mutateQueueState(instanceId, sessionId, { op: "set-paused", paused: true })
+          }
+          if (outcome.status !== "ok") return false
+        }
+      }
+
+      const currentRaw = localStorage.getItem(LEGACY_STORAGE_KEY)
+      if (currentRaw !== raw) {
+        if (!currentRaw) return true
+        raw = currentRaw
+        continue
+      }
+      try {
+        localStorage.removeItem(LEGACY_STORAGE_KEY)
+        return true
+      } catch (error) {
+        log.warn("Legacy prompt queue imported but local cleanup failed:", error)
+        return false
+      }
+    }
+    return false
+  }).finally(() => {
+    legacyMigration = null
+  })
+  return legacyMigration
 }

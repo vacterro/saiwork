@@ -8,9 +8,10 @@ import { createApplicationMenu } from "./menu"
 import { ClientStateManager } from "./client-state"
 import { setupClientStateIPC } from "./client-state-ipc"
 import { ClientStateLifecycle } from "./client-state-lifecycle"
-import { shouldRecreateMainWindow } from "./window-recovery"
+import { readyCliUrl, shouldRecreateMainWindow } from "./window-recovery"
 import { ClientStateNavigationController } from "./client-state-navigation"
 import { setupCliIPC } from "./ipc"
+import { SessionPaneWindowManager } from "./session-pane-window-manager"
 import { configureMediaPermissionHandlers, isAllowedRendererOrigin } from "./permissions"
 import { resolveConfiguredRendererOrigins } from "./renderer-origin"
 import { CliProcessManager } from "./process-manager"
@@ -170,6 +171,21 @@ const bindClientStateWindow = setupClientStateIPC(
   () => mainWindow,
   getAllowedRendererOrigins,
 )
+const sessionPaneWindows = new SessionPaneWindowManager({
+  createWindow: (options) => new BrowserWindow(options),
+  getMainWindow: () => mainWindow,
+  getBaseUrl: () => currentCliUrl || readyCliUrl(cliManager.getStatus())
+    || process.env.VITE_DEV_SERVER_URL || process.env.ELECTRON_RENDERER_URL || null,
+  getIconPath,
+  getPreloadPath,
+  prepareWindow: (window) => setupNavigationGuards(window),
+  setAllowedOrigin: setWindowAllowedOrigin,
+  clearAllowedOrigin: clearWindowAllowedOrigin,
+  spellcheck: !isMac,
+  reportLoadError: (error) => {
+    if (!isIgnorableNavigationError(error)) console.error("[cli] failed to load session pane window:", error)
+  },
+})
 
 if (isMac) {
   app.commandLine.appendSwitch("disable-spell-checking")
@@ -439,6 +455,7 @@ function createWindow() {
       )
     : undefined
 
+  const reconnectCliUrl = readyCliUrl(cliManager.getStatus())
   mainWindow = new BrowserWindow({
     width: restoredBounds?.width ?? DEFAULT_WINDOW_WIDTH,
     height: restoredBounds?.height ?? DEFAULT_WINDOW_HEIGHT,
@@ -459,6 +476,7 @@ function createWindow() {
   })
 
   const window = mainWindow
+  sessionPaneWindows.attachMainWindow(window)
   const navigationController = new ClientStateNavigationController(
     window,
     {
@@ -490,7 +508,16 @@ function createWindow() {
   showingLoadingScreen = true
   currentCliUrl = null
   clearWindowAllowedOrigin(window)
-  void loadLoadingScreen(window)
+  void loadLoadingScreen(window).then(() => {
+    if (
+      mainWindow === window
+      && reconnectCliUrl
+      && currentCliUrl !== reconnectCliUrl
+      && pendingCliUrl !== reconnectCliUrl
+    ) {
+      startCliPreload(reconnectCliUrl)
+    }
+  })
 
   // DevTools stay shut unless asked for. Upstream popped a detached window on
   // every dev start, which steals focus and covers the app you are trying to
@@ -531,7 +558,6 @@ function createWindow() {
       Menu.setApplicationMenu(null)
     }
   }
-  setupCliIPC(window, cliManager)
   bindClientStateWindow(window)
   clientStateLifecycle.attachMainWindow(window, windowStateTracker)
 
@@ -727,44 +753,6 @@ async function openRemoteWindow(payload: { id: string; name: string; baseUrl: st
   }
 }
 
-/**
- * Opens a detached session-pane window: the same local UI the main window
- * loads, carrying `?instance=&session=` so the renderer can focus that session
- * after boot. The window has its own context so it never inherits the remote
- * profile path.
- */
-async function openSessionPaneWindow(payload: { instanceId: string; sessionId: string }) {
-  const baseUrl = currentCliUrl || process.env.VITE_DEV_SERVER_URL || process.env.ELECTRON_RENDERER_URL
-  if (!baseUrl) return
-  const targetUrl = new URL(baseUrl)
-  targetUrl.searchParams.set("instance", payload.instanceId)
-  targetUrl.searchParams.set("session", payload.sessionId)
-
-  const window = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 320,
-    minHeight: 400,
-    backgroundColor: "#342012",
-    icon: getIconPath(),
-    webPreferences: {
-      preload: getPreloadPath(),
-      contextIsolation: true,
-      nodeIntegration: false,
-      spellcheck: !isMac,
-      additionalArguments: ["--saiwork-window-context=local-session"],
-    },
-  })
-  setupNavigationGuards(window)
-  try {
-    await window.loadURL(targetUrl.toString())
-  } catch (error) {
-    if (!isIgnorableNavigationError(error)) {
-      console.error("[cli] failed to load session pane window:", error)
-    }
-  }
-}
-
 let bootstrapExchangeInFlight = false
 
 function extractCookieValue(setCookieHeader: string | string[] | undefined, name: string): string | null {
@@ -923,6 +911,8 @@ app.whenReady().then(() => {
     // ignore
   }
 
+  setupCliIPC(cliManager, { getMainWindow: () => mainWindow, openRemoteWindow })
+  sessionPaneWindows.registerIPC(ipcMain)
   startCli()
 
   if (isMac) {
@@ -941,8 +931,6 @@ app.whenReady().then(() => {
   }
 
   createWindow()
-  ;(mainWindow as BrowserWindow & { __saiworkOpenRemoteWindow?: typeof openRemoteWindow }).__saiworkOpenRemoteWindow = openRemoteWindow
-  ;(mainWindow as BrowserWindow & { __saiworkOpenSessionPane?: typeof openSessionPaneWindow }).__saiworkOpenSessionPane = openSessionPaneWindow
 
   app.on("certificate-error", (event, _webContents, url, error, _certificate, callback) => {
     if (isInsecureOriginAllowed(url)) {

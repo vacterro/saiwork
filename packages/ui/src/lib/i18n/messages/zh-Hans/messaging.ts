@@ -355,6 +355,7 @@ export const messagingMessages = {
   "thinkingStats.hint": "根据已完成和已中止回复中的推理块统计。仅存储在本机。",
   "promptQueue.refused.title": "未加入队列",
   "promptQueue.refused.quota": "无法加入队列。文本仍在编辑器中，请重试。",
+  "promptQueue.recoveryFailed": "提示词未发送，也无法恢复到队列。关闭此对话框前请先复制它。",
   "promptQueue.refused.conflict": "队列已在其他窗口中更改。文本仍在编辑器中，请重试。",
   "promptQueue.refused.tooLarge": "附件过大，无法加入队列。文本仍在编辑器中。请直接发送，或改用更小的文件。",
   "session.close.errorTitle": "会话未关闭",
