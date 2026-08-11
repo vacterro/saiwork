@@ -35,6 +35,7 @@ import { registerSideCarRoutes } from "./routes/sidecars"
 import { registerPreviewRoutes } from "./routes/previews"
 import { registerUsageRoutes } from "./routes/usage"
 import { registerFreebuffRoutes } from "./routes/freebuff"
+import { registerGoogleRoutes } from "./routes/google"
 import type { FreebuffController } from "../freebuff/controller"
 import { ServerMeta } from "../api-types"
 import { InstanceStore } from "../storage/instance-store"
@@ -332,6 +333,10 @@ export function createHttpServer(deps: HttpServerDeps) {
   registerUsageRoutes(app)
   registerFreebuffRoutes(app, {
     freebuff: deps.freebuff,
+    logger: apiLogger,
+  })
+  registerGoogleRoutes(app, {
+    settings: deps.settings,
     logger: apiLogger,
   })
   registerSideCarProxyRoutes(app, { sidecarManager: deps.sidecarManager, logger: proxyLogger })

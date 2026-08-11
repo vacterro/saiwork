@@ -878,3 +878,55 @@ export interface FreebuffStatusResponse {
   error: string | null
   quota: FreebuffQuotaResponse
 }
+
+/** Google provider status surface (/api/google/providers). */
+export type GoogleProviderStatusValue =
+  | "ready"
+  | "auth_required"
+  | "not_configured"
+  | "plugin_missing"
+  | "unavailable"
+
+export interface GoogleProviderInfo {
+  id: string
+  name: string
+  description: string
+  experimental: boolean
+  status: GoogleProviderStatusValue
+  detail: string | null
+  modelCount: number
+}
+
+export interface GoogleProvidersStatusResponse {
+  providers: GoogleProviderInfo[]
+  allowProviderFallback: boolean
+  antigravityAcknowledged: boolean
+}
+
+export interface GoogleModelInfo {
+  id: string
+  displayName: string
+  reasoning: boolean
+  context: number
+  providerId: string
+}
+
+export type GoogleErrorCode =
+  | "AUTH_REQUIRED"
+  | "INVALID_API_KEY"
+  | "FREE_TIER_QUOTA_EXCEEDED"
+  | "PAID_API_QUOTA_EXCEEDED"
+  | "ANTIGRAVITY_QUOTA_EXCEEDED"
+  | "PLUGIN_MISSING"
+  | "PROVIDER_UNAVAILABLE"
+  | "MODEL_UNAVAILABLE"
+  | "NETWORK_ERROR"
+  | "UNKNOWN_PROVIDER_ERROR"
+
+export interface GoogleErrorResponse {
+  code: GoogleErrorCode
+  providerId: string
+  message: string
+  retryable: boolean
+  retryAfterSeconds?: number
+}

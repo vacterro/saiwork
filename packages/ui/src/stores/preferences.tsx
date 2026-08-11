@@ -152,6 +152,15 @@ export interface UiSettings {
   osNotificationsAllowWhenVisible: boolean
   notifyOnNeedsInput: boolean
   notifyOnIdle: boolean
+
+  /**
+   * Cross-provider Google fallback (e.g. Antigravity exhausted -> Gemini API).
+   * Off by default: a silent switch between billing/quota pools could start
+   * burning paid credits without the user asking for it.
+   */
+  allowProviderFallback: boolean
+  /** One-time acknowledgement of the experimental Antigravity integration. */
+  antigravityAcknowledged: boolean
 }
 
 // Backwards-compatible alias for older imports.
@@ -265,6 +274,9 @@ const defaultUiSettings: UiSettings = {
   osNotificationsAllowWhenVisible: false,
   notifyOnNeedsInput: true,
   notifyOnIdle: true,
+
+  allowProviderFallback: false,
+  antigravityAcknowledged: false,
 }
 
 function normalizeExpansionPreference(value: unknown, fallback: ExpansionPreference): ExpansionPreference {
@@ -396,6 +408,10 @@ function normalizeUiSettings(input?: Partial<UiSettings> | null): UiSettings {
       sanitized.osNotificationsAllowWhenVisible ?? defaultUiSettings.osNotificationsAllowWhenVisible,
     notifyOnNeedsInput: sanitized.notifyOnNeedsInput ?? defaultUiSettings.notifyOnNeedsInput,
     notifyOnIdle: sanitized.notifyOnIdle ?? defaultUiSettings.notifyOnIdle,
+    allowProviderFallback:
+      sanitized.allowProviderFallback ?? defaultUiSettings.allowProviderFallback,
+    antigravityAcknowledged:
+      sanitized.antigravityAcknowledged ?? defaultUiSettings.antigravityAcknowledged,
   }
 }
 
@@ -629,6 +645,7 @@ function createRandomId(): string {
 }
 
 const [uiConfigBucket, setUiConfigBucket] = createSignal<UiConfigBucket>({})
+const [pendingThemePreference, setPendingThemePreference] = createSignal<ThemePreference | null>(null)
 const [serverConfigBucket, setServerConfigBucket] = createSignal<ServerConfigBucket>({})
 const [uiStateBucket, setUiStateBucket] = createSignal<UiStateBucket>({})
 const [isLoaded, setIsLoaded] = createSignal(false)
@@ -637,7 +654,9 @@ const [useTauriNativeEventTransport, setUseTauriNativeEventTransportSignal] = cr
 )
 
 const uiSettings = createMemo<UiSettings>(() => normalizeUiSettings(uiConfigBucket().settings))
-const themePreference = createMemo<ThemePreference>(() => uiConfigBucket().theme ?? "goldendefault")
+const themePreference = createMemo<ThemePreference>(
+  () => pendingThemePreference() ?? uiConfigBucket().theme ?? "goldendefault",
+)
 const serverSettings = createMemo(() => normalizeServerConfig(serverConfigBucket()))
 const uiState = createMemo(() => normalizeUiState(uiStateBucket()))
 
@@ -647,6 +666,7 @@ const opencodeBinaries = createMemo<OpenCodeBinary[]>(() => uiState().opencodeBi
 const remoteServers = createMemo<RemoteServerProfile[]>(() => uiState().remoteServers)
 
 let loadPromise: Promise<void> | null = null
+let themePatchChain = Promise.resolve()
 
 async function ensureLoaded(): Promise<void> {
   if (isLoaded()) return
@@ -719,7 +739,19 @@ function updatePreferences(updates: Partial<UiSettings>): void {
 
 function setThemePreference(preference: ThemePreference): void {
   if (themePreference() === preference) return
-  void patchConfigOwner("ui", { theme: preference }).catch((error) => log.error("Failed to set theme", error))
+  setPendingThemePreference(preference)
+  themePatchChain = themePatchChain.then(async () => {
+    try {
+      await ensureLoaded()
+      const updated = await storage.patchConfigOwner("ui", { theme: preference })
+      const persisted = (updated as UiConfigBucket).theme ?? preference
+      setUiConfigBucket((current) => ({ ...current, theme: persisted }))
+      if (pendingThemePreference() === preference) setPendingThemePreference(null)
+    } catch (error) {
+      log.error("Failed to set theme", error)
+      if (pendingThemePreference() === preference) setPendingThemePreference(null)
+    }
+  })
 }
 
  async function setListeningMode(mode: ListeningMode): Promise<void> {

@@ -1,6 +1,6 @@
 import debug from "debug"
 
-export type LoggerNamespace = "sse" | "api" | "session" | "actions" | "foreground-refresh" | "freebuff"
+export type LoggerNamespace = "sse" | "api" | "session" | "actions" | "foreground-refresh" | "freebuff" | "google"
 
 interface Logger {
   log: (...args: unknown[]) => void
@@ -22,7 +22,7 @@ export interface LoggerControls {
   disableAllLoggers: () => void
 }
 
-const KNOWN_NAMESPACES: LoggerNamespace[] = ["sse", "api", "session", "actions", "foreground-refresh", "freebuff"]
+const KNOWN_NAMESPACES: LoggerNamespace[] = ["sse", "api", "session", "actions", "foreground-refresh", "freebuff", "google"]
 const STORAGE_KEY = "opencode:logger:namespaces"
 
 const namespaceLoggers = new Map<LoggerNamespace, Logger>()

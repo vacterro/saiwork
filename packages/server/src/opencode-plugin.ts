@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "fs"
 import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
+import { buildGoogleProviderConfig } from "./google/adapter"
 import { createLogger } from "./logger"
 
 const log = createLogger({ component: "opencode-plugin" })
@@ -69,10 +70,29 @@ export function buildOpencodeConfigContent(
       ...config,
       plugin: existingPlugins,
       ...(instructions.length > 0 ? { instructions } : {}),
+      // Two distinct Google providers: Gemini API (API key) and Antigravity
+      // (OAuth subscription). Never merged, so quota/auth state cannot leak
+      // between billing pools. User-provided provider config is preserved.
+      provider: mergeProviderConfigs(config.provider, buildGoogleProviderConfig().provider),
     },
     null,
     2,
   )
+}
+
+function mergeProviderConfigs(
+  userProviders: unknown,
+  googleProviders: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = {}
+  if (userProviders && typeof userProviders === "object" && !Array.isArray(userProviders)) {
+    Object.assign(merged, userProviders)
+  }
+  for (const [id, value] of Object.entries(googleProviders)) {
+    if (merged[id]) continue
+    merged[id] = value
+  }
+  return merged
 }
 
 export function resolveExistingOpencodeConfigContent(userEnvironment: Record<string, unknown>): string | undefined {

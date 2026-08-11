@@ -37,6 +37,9 @@ import type {
   FreebuffStatusResponse,
   FreebuffThreadView,
   FreebuffThreadMessage,
+  GoogleProvidersStatusResponse,
+  GoogleModelInfo,
+  GoogleErrorResponse,
   WorkspaceCloneRequest,
   WorkspaceCloneResponse,
   WorktreeGitCommitRequest,
@@ -322,6 +325,26 @@ export const serverApi = {
       method: "POST",
       body: "{}",
     })
+  },
+
+  fetchGoogleProviders(): Promise<GoogleProvidersStatusResponse> {
+    return request<GoogleProvidersStatusResponse>("/api/google/providers")
+  },
+
+  fetchGoogleModels(providerId?: string): Promise<{ providerId?: string; models: GoogleModelInfo[] }> {
+    const query = providerId ? `?providerId=${encodeURIComponent(providerId)}` : ""
+    return request(`/api/google/models${query}`)
+  },
+
+  patchGoogleSettings(patch: { allowProviderFallback?: boolean; antigravityAcknowledged?: boolean }): Promise<{
+    allowProviderFallback: boolean
+    antigravityAcknowledged: boolean
+  }> {
+    return request("/api/google/settings", { method: "POST", body: JSON.stringify(patch) })
+  },
+
+  classifyGoogleError(payload: { providerId: string; message?: string; status?: number; body?: unknown }): Promise<GoogleErrorResponse> {
+    return request("/api/google/classify-error", { method: "POST", body: JSON.stringify(payload) })
   },
 
   async mutateQueue(
