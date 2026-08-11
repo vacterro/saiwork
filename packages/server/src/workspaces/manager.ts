@@ -19,6 +19,7 @@ import {
   getSaiWorkPluginUrl,
   resolveExistingOpencodeConfigContent,
 } from "../opencode-plugin.js"
+import { googleSpawnEnv } from "../google/adapter"
 import {
   OPENCODE_SERVER_BASE_URL_ENV,
   buildOpencodeBasicAuthHeader,
@@ -468,6 +469,10 @@ export class WorkspaceManager {
 
       const environment = {
         ...userEnvironment,
+        // Google provider credentials: the Gemini API key (google_gemini_api)
+        // and the Antigravity OAuth token (google_antigravity) are injected at
+        // spawn time so the two pools never need a secret in config.
+        ...googleSpawnEnv(),
         OPENCODE_CONFIG_CONTENT: opencodeConfigContent,
         OPENCODE_EXPERIMENTAL_WORKSPACES: "true",
         SAIWORK_INSTANCE_ID: id,

@@ -107,6 +107,7 @@ export function detectAntigravity(overrides: GoogleDetectionOverrides = {}): Ant
     existsAny(deps, [
       path.join(deps.opencodeDataHome, "bin", "opencode"),
       path.join(deps.opencodeDataHome, "bin", "opencode.exe"),
+      path.join(deps.opencodeDataHome, "bin", "opencode.cmd"),
     ]) || envCommandOnPath(deps, "opencode")
 
   const adapterInstalled = existsAny(deps, [
@@ -118,6 +119,11 @@ export function detectAntigravity(overrides: GoogleDetectionOverrides = {}): Ant
   const sessionAvailable = readAntigravityAccessToken(deps) !== null
 
   return { opencodeAvailable, adapterInstalled, sessionAvailable }
+}
+
+/** Resolve the Antigravity OAuth access token (fresh or stored), or null. */
+export function resolveAntigravityAccessToken(overrides: GoogleDetectionOverrides = {}): string | null {
+  return readAntigravityAccessToken(resolveDeps(overrides))
 }
 
 /** Returns a fresh (or stored) Antigravity OAuth access token, or null. */
@@ -233,13 +239,16 @@ function existsAny(deps: DetectionDeps, candidates: string[]): boolean {
 
 function envCommandOnPath(deps: DetectionDeps, name: string): boolean {
   const pathValue = getString(deps.env.PATH) ?? ""
-  return pathValue.split(path.delimiter).some((entry) => {
-    try {
-      return deps.exists(path.join(entry, process.platform === "win32" ? `${name}.exe` : name))
-    } catch {
-      return false
-    }
-  })
+  const extensions = process.platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""]
+  return pathValue.split(path.delimiter).some((entry) =>
+    extensions.some((ext) => {
+      try {
+        return deps.exists(path.join(entry, `${name}${ext}`))
+      } catch {
+        return false
+      }
+    }),
+  )
 }
 
 export function providerStatusLabel(status: GoogleProviderStatus): string {

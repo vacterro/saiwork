@@ -1,4 +1,4 @@
-import { resolveGeminiApiKey } from "./providers"
+import { resolveAntigravityAccessToken, resolveGeminiApiKey } from "./providers"
 import {
   ANTIGRAVITY_PROVIDER_ID,
   GEMINI_API_PROVIDER_ID,
@@ -93,6 +93,26 @@ export function geminiSpawnEnv(
 }
 
 /**
+ * Env vars for a spawned OpenCode process covering both Google pools.
+ *
+ * GEMINI_API_KEY feeds the google_gemini_api provider; the Antigravity OAuth
+ * token feeds google_antigravity via GOOGLE_GENERATIVE_AI_API_KEY. The two
+ * standard env vars are split across the providers, so both pools can be
+ * configured at once without a custom env name or a secret in config.
+ */
+export function googleSpawnEnv(
+  resolveGeminiKey: () => string | null = resolveGeminiApiKey,
+  resolveAntigravityToken: () => string | null = resolveAntigravityAccessToken,
+): Record<string, string> {
+  const env: Record<string, string> = {}
+  const geminiKey = resolveGeminiKey()
+  if (geminiKey) env.GEMINI_API_KEY = geminiKey
+  const antigravityToken = resolveAntigravityToken()
+  if (antigravityToken) env.GOOGLE_GENERATIVE_AI_API_KEY = antigravityToken
+  return env
+}
+
+/**
  * OpenCode config fragment registering the two Google providers as distinct
  * entries. Model ids stay provider-scoped so the picker can never confuse a
  * Gemini API model with an Antigravity one.
@@ -103,7 +123,12 @@ export function buildGoogleProviderConfig(): { provider: Record<string, unknown>
       [GEMINI_API_PROVIDER_ID]: {
         npm: "@ai-sdk/google",
         name: "Gemini API",
-        env: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+        // Split the two standard Google env vars across the providers so each
+        // pool gets its own credential without a custom env name (which
+        // OpenCode rejects for npm providers). SAIWORK injects GEMINI_API_KEY
+        // (Developer API key) and GOOGLE_GENERATIVE_AI_API_KEY (Antigravity
+        // OAuth token) at workspace spawn; nothing is stored in config.
+        env: ["GEMINI_API_KEY"],
         options: { baseURL: "https://generativelanguage.googleapis.com/v1beta" },
         models: {
           "gemini-3.1-pro-preview": { name: "Gemini 3.1 Pro Preview", reasoning: true },

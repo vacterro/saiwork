@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { maybeClassifyGoogleError, redactSecrets } from "./saiwork.js"
+import { maybeClassifyGoogleError, redactSecrets } from "./lib/google-errors.js"
 
 function fakeClient(overrides: Record<string, unknown> = {}) {
   const calls: Array<{ name: string; arg: unknown }> = []

@@ -25,6 +25,22 @@
   the dev loop (vite + esbuild HMR) is fragile on Windows and can SIGABRT
   mid-session, which looks like a UI hang.
 
+## Plugin hygiene (MANDATORY)
+
+- NEVER add named exports to `packages/opencode-plugin/plugin/saiwork.ts`
+  beyond the plugin factory and the existing sanitize helper. OpenCode's plugin
+  loader calls named function exports during plugin load with its own
+  arguments; an extra export such as `redactSecrets` got invoked with a
+  non-string and threw `output.replace is not a function`, which failed plugin
+  loading and cascaded into a 500 on the workspace `/provider` endpoint
+  (reproduced 2026-08-11). Keep helper logic in separate modules under
+  `plugin/lib/` and import it; export nothing extra from the plugin entry.
+- NEVER `Stop-Process` on `opencode.exe` / `node.exe` by name to "clean up" a
+  workspace — it kills the user's running OpenCode/agent mid-session. The
+  SAIWORK server and its workspaces are managed through the app; the agent only
+  starts/stops the SAIWORK server via its own lifecycle. If a workspace process
+  must be stopped, do it through the SAIWORK API, never by process name.
+
 ## Styling Guidelines
 - Reuse the existing token & utility layers before introducing new CSS variables or custom properties. Extend `src/styles/tokens.css` / `src/styles/utilities.css` if a shared pattern is needed.
 - Keep aggregate entry files (e.g., `src/styles/controls.css`, `messaging.css`, `panels.css`) lean—they should only `@import` feature-specific subfiles located inside `src/styles/{components|messaging|panels}`.
