@@ -53,6 +53,25 @@ export function createSaiWorkRequester(config: SaiWorkConfig) {
     return nodeFetch(url, { ...init, headers }, { rejectUnauthorized: false })
   }
 
+  // Server-root request (outside the workspace plugin namespace), e.g. the
+  // google classify route. Uses the same auth as the plugin endpoints.
+  const requestServerJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
+    const normalized = path.startsWith("/") ? path : `/${path}`
+    const response = await nodeFetch(
+      `${baseUrl}${normalized}`,
+      { ...init, headers: buildHeaders(init?.headers, init?.body !== undefined) },
+      { rejectUnauthorized: false },
+    )
+    if (!response.ok) {
+      const message = await response.text().catch(() => "")
+      throw new Error(message || `Request failed with ${response.status}`)
+    }
+    if (response.status === 204) {
+      return undefined as T
+    }
+    return (await response.json()) as T
+  }
+
   const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
     const response = await fetchWithAuth(path, init)
     if (!response.ok) {
@@ -87,6 +106,7 @@ export function createSaiWorkRequester(config: SaiWorkConfig) {
     buildUrl,
     fetch: fetchWithAuth,
     requestJson,
+    requestServerJson,
     requestVoid,
     requestSseBody,
   }

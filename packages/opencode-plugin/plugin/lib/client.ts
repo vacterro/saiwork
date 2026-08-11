@@ -11,6 +11,17 @@ export function createSaiWorkClient(config: SaiWorkConfig) {
         method: "POST",
         body: JSON.stringify(event),
       }),
+    classifyGoogleError: (payload: { providerId: string; message?: string; status?: number; body?: unknown }) =>
+      requester.requestServerJson("/api/google/classify-error", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }) as Promise<{
+        code: string
+        providerId: string
+        message: string
+        retryable: boolean
+        retryAfterSeconds?: number
+      }>,
     startEvents: (onEvent: (event: PluginEvent) => void) => startPluginEvents(requester, onEvent),
   }
 }

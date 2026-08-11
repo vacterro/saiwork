@@ -20,6 +20,20 @@ export function handlePluginEvent(workspaceId: string, event: PluginInboundEvent
       deps.logger.debug({ workspaceId, properties: event.properties }, "Plugin pong received")
       return
 
+    case "saiwork.googleError": {
+      // Forwarded by the plugin from a google_* provider session error. The
+      // message is already normalized and sanitized by the classifier; do not
+      // log the raw properties (they could carry credentials).
+      const code = typeof event.properties?.code === "string" ? event.properties.code : "UNKNOWN_PROVIDER_ERROR"
+      deps.logger.warn({ workspaceId, code }, "Google provider error surfaced by plugin")
+      deps.eventBus.publish({
+        type: "saiwork.googleError",
+        workspaceId,
+        properties: { code, ...event.properties },
+      } as never)
+      return
+    }
+
     default:
       deps.logger.debug({ workspaceId, eventType: event.type }, "Unhandled plugin event")
   }
