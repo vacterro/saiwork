@@ -160,9 +160,31 @@ describe("antigravity shim translation", () => {
         role: "model",
         parts: [{ thoughtSignature: "SIG123", functionCall: { name: "calc", args: { a: 2, b: 2 }, id: "call_1" } }],
       },
-      { role: "user", parts: [{ functionResponse: { name: "calc", response: { result: 4 } } }] },
+      { role: "user", parts: [{ functionResponse: { name: "calc", id: "call_1", response: { result: 4 } } }] },
     ])
     assert.ok(args.tools)
+  })
+
+  it("echoes the tool call id on every function response (backend requires tool_use_id)", () => {
+    const registry = new ToolCallRegistry()
+    registry.record("call_9", "bash", "SIG9")
+    const request: OpenAiChatRequest = {
+      model: "gemini-3.6-flash-medium",
+      messages: [
+        { role: "user", content: "run it" },
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [{ id: "call_9", type: "function", function: { name: "bash", arguments: '{"command":"echo hi"}' } }],
+        },
+        { role: "tool", tool_call_id: "call_9", content: "hi" },
+      ],
+    }
+    const args = translateOpenAiRequest(request, registry)
+    const second = args.contents[2] as Record<string, unknown> | undefined
+    const parts = second?.parts as Array<Record<string, unknown>> | undefined
+    const responsePart = parts?.[0]?.functionResponse as Record<string, unknown> | undefined
+    assert.equal(responsePart?.id, "call_9", "functionResponse must carry the call id the backend validates as tool_use_id")
   })
 
   it("emits tool calls and records signatures from cloudcode frames", () => {

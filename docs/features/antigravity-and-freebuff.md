@@ -64,6 +64,10 @@ models through the subscription, without the Antigravity app running.
   a tool call REQUIRES echoing it back (the part is
   `{"thoughtSignature":"...","functionCall":{...}}`). SAIWORK's
   `ToolCallRegistry` remembers `id -> signature` across stateless replays.
+- Every function RESPONSE must reference the call it answers: the
+  `functionResponse` part carries `id` equal to the echoed `functionCall.id`
+  (the backend validates it as `tool_use_id`; an id-less response is rejected
+  with `messages.N.content.0.tool_result.tool_use_id: Field required`).
 - Tool `parameters` only accept an OpenAPI 3.0 subset. The backend rejects
   `$schema`, `$defs`, `$ref`, `definitions`, `exclusiveMinimum/Maximum`,
   `multipleOf`, `const`, `examples`, `uniqueItems`, object-form

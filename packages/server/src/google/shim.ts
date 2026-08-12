@@ -261,9 +261,20 @@ export function translateOpenAiRequest(
     if (message.role === "tool") {
       const call = registry.lookup(message.tool_call_id)
       if (!call) continue
+      // The backend requires every function response to reference the call it
+      // answers (`tool_use_id` in its Anthropic-style validation). The OpenAI
+      // tool_call_id IS that id -- it is the same value echoed on the
+      // assistant `functionCall` part above -- so it is passed through rather
+      // than invented.
       contents.push({
         role: "user",
-        parts: [{ functionResponse: { name: call.name, response: functionStructValue(message.content) } }],
+        parts: [{
+          functionResponse: {
+            name: call.name,
+            id: message.tool_call_id,
+            response: functionStructValue(message.content),
+          },
+        }],
       })
       continue
     }

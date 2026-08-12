@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.23] - 2026-08-12
+
+References such as `T-083` and `E-557` below are internal `.saipen` work-log
+identifiers, not Git commits or release history.
+
+### Antigravity tool responses (T-716)
+
+- Every `functionResponse` now echoes the tool-call `id` it answers: the
+  Antigravity backend rejects id-less responses with
+  `tool_result.tool_use_id: Field required`. The OpenAI `tool_call_id` is
+  passed through unchanged (the same id already on the `functionCall` part);
+  regression test + contract doc updated.
+
 ## [0.1.22] - 2026-08-12
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log
