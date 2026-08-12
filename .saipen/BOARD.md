@@ -1,4 +1,4 @@
-# BOARD -- SAIWORK 0.0.4
+# BOARD -- SAIWORK
 
 Downstream source based on CodeNomad 0.18.0 development commit `67cb394e`.
 Default `saiwork` was squash-imported; inherited history remains on `backup/pre-squash-history`.
@@ -8,9 +8,13 @@ Remotes: `origin` -> github.com/vacterro/saiwork, `upstream` -> github.com/Neura
 
 - D-01 Default branch is a squash import. Upstream is retained for comparison and
   explicit ports, not plain merges; inherited history is preserved on the backup branch.
-- D-02 Electron is the primary shell for 0.0.2. Tauri remains experimental.
+- D-02 Electron is the primary shell. Tauri remains experimental.
 - D-03 SAIPEN Core loads via opencode `instructions[]` pointing at the live
-  `saipen_home` protocol dir -- never a copy, so upstream protocol edits apply at once.
+  `saipen_home` protocol dir -- never a copy. A NEW workspace/session picks up
+  upstream protocol edits at once; an in-flight workspace cannot (OpenCode reads
+  `OPENCODE_CONFIG_CONTENT` once at launch), so same-path content drift of the
+  instruction files is detected through launch content digests and surfaced as
+  `restartRequired=true`.
 - D-04 Prompt queue supports reorder, edit, delete, pause/resume and idle dispatch.
   Shell commands and recognized slash commands bypass it.
 - D-05 Vintage structure and Golden default are applied by an override layer
@@ -51,19 +55,20 @@ Remotes: `origin` -> github.com/vacterro/saiwork, `upstream` -> github.com/Neura
 - [ ] T-095 HUNT-9: defer pruning -- inventory then disable/delete only unused features with build+test+runtime smoke | verify: candidate list audited, kept surface green
 - [ ] T-096 Mirror the agent's live CodeNomad plan (Status -> PLAN, between Usage and Background) on a PLAN button in SaipenBar; button reflects current plan state, not .saipen ROADMAP | verify: PLAN button shows agent plan list/state and opens the same view
 - [ ] T-097 Pressed/sunken visual state for the selected session tab: both sidebar session rows and top project tabs indicate the active session | verify: selected rows/tabs render sunken distinct from idle
-- [ ] T-079 Contain background-process startup, output-stream and asynchronous finalization failures so errors cannot crash the server, hang completion or leave a false running record | verify: server tests inject spawn, output-stream and finalize failures and confirm bounded cleanup plus a settled non-running record
-- [ ] T-080 Preserve the background-process index on read or parse failure instead of treating corruption as an empty list and overwriting process history | verify: server tests inject unreadable and malformed indexes and confirm mutation fails closed without replacing original records
-- [ ] T-081 Make YAML settings persistence fail honestly: write errors propagate, cache/API never report unsaved state, and PATCH returns failure | verify: settings store/route tests inject mkdir/write failure and confirm non-2xx response plus unchanged cached and persisted state
-- [ ] T-082 Bound binary `--version` probes so a hanging executable cannot freeze the server event loop indefinitely | verify: spawn probe test runs a hanging shim and returns a timeout error within the configured bound
 
 Wave 3 -- window management, as the user scoped it: split panes in one window
-plus detached OS windows, Ctrl+Q snaps the active window to a preset size and
-position, window-layout presets are saveable/restorable, all configurable in
-settings.
+plus detached OS windows and Ctrl+Q window snapping are implemented (T-063,
+T-099). Window-layout presets (saveable/restorable, configurable in settings)
+remain open work.
 
 Wave 2 order: the four defects the user hit in a live session come first, then
 the gate that keeps them from coming back, then wave 1's remaining findings.
 ## DONE
+- [x] T-715 [P0] HUNT integrity audit: atomic fan-out queue transaction (QueueManager.mutateMany, /api/queue/fanout, UI uses it; conflict/persistence aborts commit NONE), workspaceId identity in saipen.changed (panel filters by id, no casefold path), strict extraInstructions absolute-file contract (rejected list), D-03 live-core content digests (restartRequired on same-path drift), settings publish as-any removed; BOARD/README version prose reconciled, Wave 3 prose made honest; similar-bug-class hunt closed (SSE already normalized, dead unbounded runUserShellCommandSync removed) | verify: fault-injection tests for every new persistence/process invariant, server 520 + UI + plugin + electron green, release:check PASS, validate --gate ship conformant
+- [x] T-081 Make YAML settings persistence fail honestly: load failures are persistent and thrown (never empty), mutations are one transactional temp-write+fsync+rename with cache committed only after durable success; storage errors map to 500 on PATCH/GET; `as any` event escape removed | verify: yaml-doc-store + service fault-injection tests (mkdir/write/rename/fsync/load), PATCH non-2xx, no changed event on failed persistence, corrupt source never overwritten
+- [x] T-079 Contain background-process startup, output-stream and asynchronous finalization failures so errors cannot crash the server, hang completion or leave a false running record | verify: fault-injection tests for spawn-throws, index-write-at-start, corrupt index, child/output/finalize failures; every path settles once with no false running
+- [x] T-080 Preserve the background-process index on read or parse failure instead of treating corruption as an empty list and overwriting process history | verify: corrupt index test confirms start fails closed and original bytes are preserved; reads fail closed (BackgroundProcessIndexError)
+- [x] T-082 Bound binary `--version` probes so a hanging executable cannot freeze the server event loop indefinitely | verify: probe is async with 4s timeout + process-tree kill; hanging-child test returns a timeout error within the bound; dead unbounded runUserShellCommandSync removed
 - [x] T-714 [P1] Audit similar bug classes: the \n\n-only SSE splitter (T-712 class) existed in 3 more consumers — opencode-plugin/plugin/lib/client.ts (SAIWORK /event stream), server workspaces/instance-events.ts (opencode instance stream), freebuff/client.ts (engine stream): a CRLF transport would collapse each stream to its first frame, grow the buffer unboundedly and drop unterminated tail frames; all normalized (CRLF/CR -> LF) + tail flush added; removed dead export frameHasFinishReason (google/shim.ts, 0 importers); electron .catch(()=>{}) sites reviewed (intentional queue/temp cleanup, no change) | verify: server 483 + opencode-plugin 12 + google 42 tests green, typecheck clean | owner: opencode | claim_time: 2026-08-12T17:46:00Z
 - [x] T-713 [P1] Electron main-process stability: global uncaughtException/unhandledRejection guard suppresses the native "A JavaScript error occurred in the main process" dialog and survives the benign WebContents teardown race ("Object has been destroyed" from WebContents.disconnectRenderer during render-process-gone emit); session-pane window destroy deferred out of Electron's event dispatch; main-process-guard tests + updated session-pane test | verify: electron native 137 tests green, typecheck clean | owner: opencode | claim_time: 2026-08-12T16:56:00Z
 - [x] T-712 [P1] Antigravity answer truncation: cloudcode-pa streams CRLF-delimited SSE frames, the shim split on \n\n only, so the whole stream collapsed and just the first data: line survived (agent reply truncated to its first word; tool turns worked because the tool decision arrives in the first frame); normalize CRLF/CR before frame splitting + CRLF regression test | verify: antigravity-session CRLF test passes (2 frames assembled), google suite 42 green, typecheck clean | owner: opencode | claim_time: 2026-08-12T16:44:00Z

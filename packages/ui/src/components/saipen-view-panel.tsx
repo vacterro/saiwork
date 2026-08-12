@@ -18,9 +18,9 @@ import "../styles/components/saipen-view.css"
 
 const log = getLogger("actions")
 
-/** Folder comparison tolerant of trailing separators and case differences. */
+/** Folder equality for the no-workspaceId fallback: trailing separators trimmed, NO case folding. */
 function sameFolder(a: string, b: string): boolean {
-  const normalize = (value: string) => value.replace(/[\\/]+$/, "").toLowerCase()
+  const normalize = (value: string) => value.replace(/[\\/]+$/, "")
   return normalize(a) === normalize(b)
 }
 
@@ -28,6 +28,8 @@ export type SaipenViewTab = "status" | "board" | "log" | "state" | "plan"
 
 interface SaipenViewPanelProps {
   folder: string
+  /** Canonical workspace identity for `saipen.changed` filtering. */
+  workspaceId?: string
   tab: SaipenViewTab
   onTabChange: (tab: SaipenViewTab) => void
   /** Kept mounted but hidden so toggling never re-fetches. */
@@ -219,7 +221,14 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
     void refresh()
     const stopEvents = serverEvents.on("saipen.changed", (event) => {
       if (event.type !== "saipen.changed") return
-      if (!sameFolder(event.folder, props.folder)) return
+      // Identity is the workspace id, never the (case-folded) path. A panel for
+      // workspace A must not refresh when B's files change, even if A and B
+      // differ only by path case.
+      if (props.workspaceId) {
+        if (event.workspaceId !== props.workspaceId) return
+      } else if (!sameFolder(event.folder, props.folder)) {
+        return
+      }
       handleExternalChange(event.files)
     })
     onCleanup(stopEvents)

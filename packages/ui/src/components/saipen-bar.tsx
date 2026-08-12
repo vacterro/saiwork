@@ -437,6 +437,7 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
 
       <SaipenViewPanel
         folder={props.folder}
+        workspaceId={props.instanceId}
         tab={viewTab()}
         collapsed={!expanded()}
         onTabChange={setViewTab}

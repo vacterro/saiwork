@@ -29,7 +29,7 @@ import {
   OPENCODE_SERVER_USERNAME_ENV,
   resolveOpencodeServerAuth,
 } from "./opencode-auth"
-import { resolveSaipenCore, type SaipenLaunchState } from "../saipen/core"
+import { resolveSaipenCore, instructionDigests, type SaipenLaunchState } from "../saipen/core"
 import { resolveWorkspaceIdentity } from "./workspace-identity"
 import { parseWslUncPath } from "./spawn"
 import { LOOPBACK_HOST } from "./loopback"
@@ -448,6 +448,7 @@ export class WorkspaceManager {
         enabled: saipen.enabled,
         protocolDir: saipen.protocolDir,
         instructions: [...saipen.instructions],
+        instructionDigests: instructionDigests(saipen.instructions),
         launchedAt: Date.now(),
       })
 

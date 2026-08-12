@@ -488,7 +488,9 @@ export type WorkspaceEventPayload =
   | { type: "instance.eventStatus"; instanceId: string; status: InstanceStreamStatus; reason?: string }
   | {
       type: "saipen.changed"
-      /** Canonical workspace folder the `.saipen` files belong to. */
+      /** Canonical workspace identity; the ONLY thing identity-sensitive code may compare. */
+      workspaceId: string
+      /** Display/debug folder path; informational, never identity. */
       folder: string
       /** Relative `.saipen` paths that changed, e.g. "STATE.md" or "kitchen/plan-a.md". */
       files: string[]
@@ -764,6 +766,22 @@ export type QueueStorageErrorResponse = {
 
 export type QueueMutationResult =
   | { ok: true; state: QueueState; dequeued?: QueuedPrompt }
+  | { ok: false; code: "conflict"; currentRevision: string; error: string }
+  | { ok: false; code: "empty" | "paused" | "too-large" | "invalid" }
+  | QueueStorageErrorResponse
+
+/** One target of an atomic fan-out enqueue. */
+export interface QueueFanOutTarget {
+  key: string
+  expectedRevision: string
+}
+
+/**
+ * Atomic fan-out enqueue result: all targets commit or none do. `ok:true`
+ * carries one freshly created item per committed target.
+ */
+export type QueueFanOutResult =
+  | { ok: true; items: QueuedPrompt[] }
   | { ok: false; code: "conflict"; currentRevision: string; error: string }
   | { ok: false; code: "empty" | "paused" | "too-large" | "invalid" }
   | QueueStorageErrorResponse

@@ -363,3 +363,112 @@ describe("queue manager", () => {
     }
   })
 })
+
+describe("QueueManager.mutateMany atomic fan-out", () => {
+  it("commits all targets on success with one new item each", async () => {
+    const { manager } = createManager()
+    const revA = await seed(manager, "i:a")
+    const revB = await seed(manager, "i:b")
+    const result = await manager.mutateMany([
+      { key: "i:a", expectedRevision: revA, mutation: { op: "enqueue", text: "fan", attachments: [] } },
+      { key: "i:b", expectedRevision: revB, mutation: { op: "enqueue", text: "fan", attachments: [] } },
+    ])
+    assert.equal(result.ok, true)
+    if (!result.ok) throw new Error("unreachable")
+    assert.equal(result.states.length, 2)
+    for (const { state } of result.states) assert.equal(state.items.length, 2)
+    assert.equal(manager.get("i:a")!.items[1].text, "fan")
+    assert.equal(manager.get("i:b")!.items[1].text, "fan")
+  })
+
+  it("second target conflict => zero targets changed", async () => {
+    const { manager } = createManager()
+    const revA = await seed(manager, "i:a")
+    const revB = await seed(manager, "i:b")
+    const result = await manager.mutateMany([
+      { key: "i:a", expectedRevision: revA, mutation: { op: "enqueue", text: "fan", attachments: [] } },
+      { key: "i:b", expectedRevision: "stale", mutation: { op: "enqueue", text: "fan", attachments: [] } },
+    ])
+    assert.equal(result.ok, false)
+    if (result.ok) throw new Error("unreachable")
+    assert.equal(result.code, "conflict")
+    assert.equal(manager.get("i:a")!.items.length, 1, "target A must NOT have committed")
+    assert.equal(manager.get("i:b")!.items.length, 1)
+  })
+
+  it("persistence failure => zero targets changed and disk untouched", async () => {
+    const dir = createTempDir()
+    const statePath = path.join(dir, "queue.json")
+    let failRename = false
+    const { manager } = createManager(statePath, {
+      rename: (from: string, to: string) => {
+        if (failRename) throw new Error("EACCES")
+        fs.renameSync(from, to)
+      },
+    })
+    const revA = await seed(manager, "i:a")
+    const revB = await seed(manager, "i:b")
+    const onDiskBefore = fs.readFileSync(statePath, "utf8")
+    failRename = true
+    const result = await manager.mutateMany([
+      { key: "i:a", expectedRevision: revA, mutation: { op: "enqueue", text: "fan", attachments: [] } },
+      { key: "i:b", expectedRevision: revB, mutation: { op: "enqueue", text: "fan", attachments: [] } },
+    ])
+    assert.equal(result.ok, false)
+    if (result.ok) throw new Error("unreachable")
+    assert.equal(result.code, "storage")
+    assert.equal(manager.get("i:a")!.items.length, 1)
+    assert.equal(manager.get("i:b")!.items.length, 1)
+    assert.equal(fs.readFileSync(statePath, "utf8"), onDiskBefore, "disk snapshot must be unchanged")
+  })
+
+  it("duplicate targets are deduped to one item per unique key", async () => {
+    const { manager } = createManager()
+    const revA = await seed(manager, "i:a")
+    const result = await manager.mutateMany([
+      { key: "i:a", expectedRevision: revA, mutation: { op: "enqueue", text: "fan", attachments: [] } },
+      { key: "i:a", expectedRevision: revA, mutation: { op: "enqueue", text: "fan", attachments: [] } },
+    ])
+    assert.equal(result.ok, true)
+    if (!result.ok) throw new Error("unreachable")
+    assert.equal(result.states.length, 1)
+    assert.equal(manager.get("i:a")!.items.length, 2)
+  })
+
+  it("two racing fan-outs serialize to one coherent winner, never partial", async () => {
+    const { manager } = createManager()
+    const revA = await seed(manager, "i:a")
+    const revB = await seed(manager, "i:b")
+    const first = manager.mutateMany([
+      { key: "i:a", expectedRevision: revA, mutation: { op: "enqueue", text: "first", attachments: [] } },
+      { key: "i:b", expectedRevision: revB, mutation: { op: "enqueue", text: "first", attachments: [] } },
+    ])
+    const second = manager.mutateMany([
+      { key: "i:a", expectedRevision: revA, mutation: { op: "enqueue", text: "second", attachments: [] } },
+      { key: "i:b", expectedRevision: revB, mutation: { op: "enqueue", text: "second", attachments: [] } },
+    ])
+    const [r1, r2] = await Promise.all([first, second])
+    const okCount = [r1, r2].filter((r) => r.ok).length
+    assert.equal(okCount, 1, "exactly one fan-out wins the race")
+    assert.equal(manager.get("i:a")!.items.length, 2, "winner committed on A")
+    assert.equal(manager.get("i:b")!.items.length, 2, "winner committed on B")
+  })
+
+  it("no ghost prompt can dispatch after a failed fan-out", async () => {
+    const { manager } = createManager()
+    const revA = await seed(manager, "i:a")
+    const revB = await seed(manager, "i:b")
+    await manager.mutateMany([
+      { key: "i:a", expectedRevision: revA, mutation: { op: "enqueue", text: "ghost", attachments: [] } },
+      { key: "i:b", expectedRevision: "stale", mutation: { op: "enqueue", text: "ghost", attachments: [] } },
+    ])
+    const stateA = manager.get("i:a")!
+    const stateB = manager.get("i:b")!
+    assert.equal(stateA.items.length, 1)
+    assert.equal(stateB.items.length, 1)
+    const dequeuedA = await manager.mutate("i:a", stateA.revision, { op: "dequeue" })
+    assert.equal(dequeuedA.ok, true)
+    if (!dequeuedA.ok) throw new Error("unreachable")
+    assert.equal(dequeuedA.dequeued?.text, "hello", "only the seed may dispatch; the ghost never queued")
+  })
+})

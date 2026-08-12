@@ -1,4 +1,4 @@
-import { spawnSync } from "child_process"
+import { spawn, spawnSync, type ChildProcess } from "child_process"
 import { statSync } from "fs"
 import path from "path"
 
@@ -155,59 +155,153 @@ export function buildSpawnSpec(binaryPath: string, args: string[], options: Buil
   return buildWindowsSpawnSpec(binaryPath, args, options)
 }
 
-export function probeBinaryVersion(binaryPath: string): {
+export interface BinaryVersionProbeResult {
   valid: boolean
   version?: string
   reported?: string
   error?: string
-} {
+}
+
+/**
+ * Kill a probe child and its whole process tree. A plain `child.kill()` only
+ * kills the direct child: on Windows a `cmd /c` wrapper spawns the real tool
+ * and would leave it alive holding our stdio pipes open, which keeps the
+ * server's event loop from ever settling.
+ */
+function killProbeTree(child: ChildProcess): void {
+  const pid = child.pid
+  if (!pid) {
+    try {
+      child.kill("SIGKILL")
+    } catch {
+      // Already dead.
+    }
+    return
+  }
+  if (process.platform === "win32") {
+    try {
+      spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" })
+    } catch {
+      try {
+        child.kill("SIGKILL")
+      } catch {
+        // Already dead.
+      }
+    }
+    return
+  }
+  try {
+    process.kill(-pid, "SIGKILL")
+  } catch {
+    try {
+      child.kill("SIGKILL")
+    } catch {
+      // Already dead.
+    }
+  }
+}
+
+const BINARY_PROBE_TIMEOUT_MS = 4000
+
+/**
+ * Bounded `--version` probe of a candidate binary.
+ *
+ * Async with a hard timeout and forced cleanup: a binary that never exits (a
+ * GUI app that swallows the flag, a hung launcher) must NOT freeze the server
+ * event loop the way a synchronous spawn would. On timeout the whole process
+ * tree is killed and the probe reports a timeout error.
+ */
+export async function probeBinaryVersion(binaryPath: string): Promise<BinaryVersionProbeResult> {
   if (!binaryPath) {
     return { valid: false, error: "Missing binary path" }
   }
 
+  let child: ChildProcess
   try {
     const spec = buildSpawnSpec(binaryPath, ["--version"])
-    const result = spawnSync(spec.command, spec.args, {
-      encoding: "utf8",
+    child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
       env: spec.env,
       windowsVerbatimArguments: Boolean(spec.options.windowsVerbatimArguments),
       windowsHide: true,
+      detached: process.platform !== "win32",
+      stdio: ["ignore", "pipe", "pipe"],
     })
-
-    if (result.error) {
-      return { valid: false, error: result.error.message }
-    }
-
-    if (result.status !== 0) {
-      const stderr = result.stderr?.trim()
-      const stdout = result.stdout?.trim()
-      const combined = stderr || stdout
-      const error = combined ? `Exited with code ${result.status}: ${combined}` : `Exited with code ${result.status}`
-      return { valid: false, error }
-    }
-
-    const stdoutLines = String(result.stdout ?? "")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-    const stderrLines = String(result.stderr ?? "")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-
-    // Prefer stdout; fall back to stderr (some tools report version there).
-    const reported = stdoutLines[0] ?? stderrLines[0]
-    if (!reported) {
-      return { valid: true }
-    }
-
-    const versionMatch = reported.match(VERSION_REGEX)
-    const version = versionMatch?.[1]
-    return { valid: true, version, reported }
   } catch (error) {
     return { valid: false, error: error instanceof Error ? error.message : String(error) }
   }
+
+  const probe = await new Promise<{
+    error?: string
+    code: number | null
+    stdout: string
+    stderr: string
+  }>((resolve) => {
+    let stdout = ""
+    let stderr = ""
+    let settled = false
+    const settle = (value: { error?: string; code: number | null; stdout: string; stderr: string }) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk
+    })
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk
+    })
+    const timer = setTimeout(() => {
+      // Forced cleanup: the probe cannot wait forever on a binary that refuses
+      // to exit. Kill the whole tree so nothing keeps our stdio pipes open.
+      killProbeTree(child)
+      settle({
+        error: `Binary version probe timed out after ${BINARY_PROBE_TIMEOUT_MS}ms`,
+        code: null,
+        stdout,
+        stderr,
+      })
+    }, BINARY_PROBE_TIMEOUT_MS)
+    timer.unref?.()
+    child.once("error", (error) => {
+      settle({ error: error.message, code: null, stdout, stderr })
+    })
+    child.once("close", (code) => {
+      settle({ code, stdout, stderr })
+    })
+  })
+
+  if (probe.error) {
+    return { valid: false, error: probe.error }
+  }
+
+  if (probe.code !== 0) {
+    const stderr = probe.stderr.trim()
+    const stdout = probe.stdout.trim()
+    const combined = stderr || stdout
+    const error = combined ? `Exited with code ${probe.code}: ${combined}` : `Exited with code ${probe.code}`
+    return { valid: false, error }
+  }
+
+  const stdoutLines = probe.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const stderrLines = probe.stderr
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+
+  // Prefer stdout; fall back to stderr (some tools report version there).
+  const reported = stdoutLines[0] ?? stderrLines[0]
+  if (!reported) {
+    return { valid: true }
+  }
+
+  const versionMatch = reported.match(VERSION_REGEX)
+  const version = versionMatch?.[1]
+  return { valid: true, version, reported }
 }
 
 function buildWslSpawnSpec(wslPath: WslPath, args: string[], options: BuildSpawnSpecOptions): SpawnSpec {

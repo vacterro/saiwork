@@ -7,7 +7,7 @@ import os from "node:os"
 import { PassThrough } from "node:stream"
 import type { ChildProcess } from "node:child_process"
 
-import { BackgroundProcessManager } from "./manager"
+import { BackgroundProcessManager, BackgroundProcessIndexError } from "./manager"
 import type { WorkspaceManager } from "../workspaces/manager"
 import type { EventBus } from "../events/bus"
 import type { Logger } from "../logger"
@@ -28,6 +28,7 @@ interface CapturedRequest {
 interface FailureHarnessOptions {
   onSpawn: (child: ChildProcess, outputStream: WriteStream) => void
   writeIndex?: (indexPath: string, records: any[]) => Promise<void>
+  spawnThrows?: boolean
 }
 
 function createFakeChild(): ChildProcess {
@@ -88,10 +89,14 @@ async function createFailureHarness(options: FailureHarnessOptions) {
     workspaceManager,
     eventBus,
     logger,
-    spawnProcess: (() => {
-      options.onSpawn(child, outputStream)
-      return child
-    }) as any,
+    spawnProcess: options.spawnThrows
+      ? (() => {
+          throw new Error("injected spawn failure")
+        }) as any
+      : (() => {
+          options.onSpawn(child, outputStream)
+          return child
+        }) as any,
     createOutputStream: (() => outputStream) as any,
     writeIndex: options.writeIndex,
     killProcess: (target) => {
@@ -305,5 +310,53 @@ describe("BackgroundProcessManager failure containment", () => {
     assert.equal(records[0].terminalReason, "failed")
     assert.ok(harness.warnings.includes("Failed to finalize background process record"))
     assert.ok(harness.updates.some((record) => record.status === "error"))
+  })
+
+  it("rejects when the child cannot spawn and leaves no false running record", async (t) => {
+    const harness = await createFailureHarness({ onSpawn: () => {}, spawnThrows: true })
+    t.after(() => fs.rm(harness.workspacePath, { recursive: true, force: true }))
+
+    await assert.rejects(harness.manager.start(WORKSPACE_ID, "spawn-failure", "ignored"), /injected spawn failure/)
+    assert.equal(harness.outputStream.destroyed, true)
+    const records = await harness.manager.list(WORKSPACE_ID)
+    assert.deepEqual(records, [])
+  })
+
+  it("fails closed when the index cannot be written at start", { timeout: TERMINAL_TIMEOUT_MS }, async (t) => {
+    const harness = await createFailureHarness({
+      onSpawn: () => {},
+      writeIndex: async () => {
+        throw new Error("injected index write failure")
+      },
+    })
+    t.after(() => fs.rm(harness.workspacePath, { recursive: true, force: true }))
+
+    await assert.rejects(harness.manager.start(WORKSPACE_ID, "index-failure", "ignored"))
+    assert.equal(harness.child.killed, true, "child must be stopped on an infrastructure failure")
+    const records = await harness.manager.list(WORKSPACE_ID)
+    assert.deepEqual(records, [])
+  })
+
+  it("fails closed on a corrupt process index and never overwrites it", { timeout: TERMINAL_TIMEOUT_MS }, async (t) => {
+    const harness = await createFailureHarness({
+      onSpawn: (child) => {
+        queueMicrotask(() => child.emit("close", 0, null))
+      },
+    })
+    t.after(() => fs.rm(harness.workspacePath, { recursive: true, force: true }))
+
+    const indexDir = path.join(harness.workspacePath, ".saiwork", "background_processes", WORKSPACE_ID)
+    await fs.mkdir(indexDir, { recursive: true })
+    const indexPath = path.join(indexDir, "index.json")
+    const corrupt = "{ this is not valid json"
+    await fs.writeFile(indexPath, corrupt)
+
+    await assert.rejects(
+      harness.manager.start(WORKSPACE_ID, "corrupt-index", "ignored"),
+      BackgroundProcessIndexError,
+    )
+    assert.equal(await fs.readFile(indexPath, "utf-8"), corrupt, "the corrupt source must never be overwritten")
+    const listed = await harness.manager.list(WORKSPACE_ID).catch(() => null)
+    assert.equal(listed, null, "reads on a corrupt index fail closed rather than reporting empty")
   })
 })

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { describe, it } from "node:test"
 
-import { buildWindowsSpawnSpec, parseWslUncPath, resolveWslWorkingDirectory } from "../spawn"
+import { buildWindowsSpawnSpec, parseWslUncPath, probeBinaryVersion, resolveWslWorkingDirectory } from "../spawn"
 
 describe("parseWslUncPath", () => {
   it("parses WSL UNC paths into distro and linux path", () => {
@@ -292,6 +292,44 @@ describe("buildWindowsSpawnSpec", () => {
 
 })
 
+describe("probeBinaryVersion", () => {
+  it("reports a valid version for a well-behaved binary", async () => {
+    const result = await probeBinaryVersion(process.execPath)
+    assert.equal(result.valid, true)
+    assert.ok(result.version, "node --version must report a version")
+  })
+
+  it("bounds a child that never exits and cleans it up", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "saiwork-probe-hang-"))
+    try {
+      const script = path.join(dir, process.platform === "win32" ? "hang.cmd" : "hang.sh")
+      writeFileSync(
+        script,
+        process.platform === "win32"
+          ? "@ping -n 999 127.0.0.1 >nul\n"
+          : "#!/bin/sh\nsleep 999\n",
+      )
+      if (process.platform !== "win32") {
+        mkdirSync(dir, { mode: 0o755 })
+      }
+      const startedAt = Date.now()
+      const result = await probeBinaryVersion(script)
+      const elapsed = Date.now() - startedAt
+      assert.equal(result.valid, false)
+      assert.match(result.error ?? "", /timed out/i)
+      assert.ok(elapsed < 10_000, `probe must bound the hang, took ${elapsed}ms`)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("reports a missing binary as invalid", async () => {
+    const missing = path.join(tmpdir(), "saiwork-no-such-binary-" + Date.now())
+    const result = await probeBinaryVersion(missing)
+    assert.equal(result.valid, false)
+  })
+})
+
 function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return value.replace(/[.*+?${}()|[\]\\]/g, "\\$&")
 }

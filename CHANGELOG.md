@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.1.22] - 2026-08-12
+
+References such as `T-083` and `E-557` below are internal `.saipen` work-log
+identifiers, not Git commits or release history.
+
+### Integrity & reliability hardening (T-715, T-079..T-082, T-081)
+
+- **Settings persistence fails closed (T-081)**: an unreadable/malformed config
+  or state file is a persistent load failure, never silently treated as empty;
+  mutations are one transactional temp-write + fsync + rename, committing the
+  cache only after the write is durable. Storage errors map to HTTP 500 on
+  GET/PATCH; a corrupt source is never overwritten; the `as any` event escape
+  was removed.
+- **Atomic prompt fan-out**: one server transaction over all targets — any
+  conflict/storage failure commits NONE, so a "failed" fan-out can never leave
+  prompts queued behind a generic error (the old per-target loop compensated
+  with removes whose results were ignored).
+- **Workspace identity, not a case-folded path**: `saipen.changed` now carries
+  the canonical `workspaceId`; panels filter by it, so two workspaces differing
+  only by path case can never refresh/conflict each other.
+- **Strict `extraInstructions` contract**: entries must be absolute paths
+  (win32 or posix), canonicalized, regular readable files; relative/directory/
+  missing entries are surfaced as rejected instead of resolved against the CWD.
+- **D-03 live-core digests**: an in-flight OpenCode process never re-reads its
+  instruction files, so same-path content drift of the protocol files is now
+  detected via launch content digests and surfaced as `restartRequired`.
+- **Background-process index fails closed (T-080)** and every spawn/stream/
+  finalize failure path is covered by fault-injection tests (T-079); the
+  binary `--version` probe is now async, bounded at 4s with a process-tree
+  kill on timeout (T-082); a dead unbounded sync shell probe was removed.
+
 ## [0.1.21] - 2026-08-12
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log

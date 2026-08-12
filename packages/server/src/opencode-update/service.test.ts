@@ -6,7 +6,7 @@ function createDeps(overrides: Partial<OpenCodeUpdateServiceDeps> = {}): OpenCod
   let currentVersion = "1.0.0"
   return {
     resolveBinary: () => ({ path: "opencode", label: "OpenCode" }),
-    probeBinary: () => ({ valid: true, version: currentVersion }),
+    probeBinary: async () => ({ valid: true, version: currentVersion }),
     findReadyInstanceId: () => "workspace-1",
     fetchLatestVersion: async () => "1.1.0",
     upgradeInstance: async (_instanceId, target) => {
@@ -67,7 +67,7 @@ test("upgrades through the matching OpenCode instance to the advertised version"
   const calls: Array<{ instanceId: string; target: string }> = []
   let currentVersion = "1.0.0"
   const service = new OpenCodeUpdateService(createDeps({
-    probeBinary: () => ({ valid: true, version: currentVersion }),
+    probeBinary: async () => ({ valid: true, version: currentVersion }),
     upgradeInstance: async (instanceId, target) => {
       calls.push({ instanceId, target })
       currentVersion = target
@@ -81,7 +81,7 @@ test("upgrades through the matching OpenCode instance to the advertised version"
 
 test("rejects success when the configured binary was not updated", async () => {
   const service = new OpenCodeUpdateService(createDeps({
-    probeBinary: () => ({ valid: true, version: "1.0.0" }),
+    probeBinary: async () => ({ valid: true, version: "1.0.0" }),
     upgradeInstance: async (_instanceId, target) => ({ success: true, version: target }),
   }))
 
@@ -99,7 +99,7 @@ test("joins concurrent upgrades for the same binary", async () => {
     finishUpgrade = resolve
   })
   const service = new OpenCodeUpdateService(createDeps({
-    probeBinary: () => ({ valid: true, version: currentVersion }),
+    probeBinary: async () => ({ valid: true, version: currentVersion }),
     upgradeInstance: async (_instanceId, target) => {
       upgrades += 1
       await gate

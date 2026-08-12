@@ -64,6 +64,16 @@ interface PersistedQueue {
 type SuccessfulMutation = Extract<QueueMutationResult, { ok: true }>
 type FailedMutation = Exclude<QueueMutationResult, { ok: true }>
 
+export interface QueueFanOutEntry {
+  key: string
+  expectedRevision: string
+  mutation: QueueMutation
+}
+
+export type QueueFanOutMutationResult =
+  | { ok: true; states: Array<{ key: string; state: QueueState }> }
+  | FailedMutation
+
 type TentativeMutation =
   | { result: SuccessfulMutation; keep: boolean }
   | { result: FailedMutation }
@@ -175,6 +185,56 @@ export class QueueManager {
   mutate(key: string, expectedRevision: string, mutation: QueueMutation): Promise<QueueMutationResult> {
     if (!QueueManager.isValidKey(key)) return Promise.resolve({ ok: false, code: "invalid" })
     return this.withTransaction(() => this.transact(key, expectedRevision, mutation))
+  }
+
+  /**
+   * Atomic multi-key mutation (fan-out): validate EVERY entry, build every
+   * tentative state, persist ONE complete queue snapshot, and only then commit
+   * memory and publish. Any validation/CAS/persistence failure commits NOTHING,
+   * so a "failed" fan-out can never leave half its prompts queued and
+   * dispatching.
+   */
+  mutateMany(entries: QueueFanOutEntry[]): Promise<QueueFanOutMutationResult> {
+    return this.withTransaction<QueueFanOutMutationResult>(() => {
+      if (this.loadFailure) return storageResult(this.loadFailure) as FailedMutation
+
+      const applied: Array<{ key: string; tentative: TentativeMutation }> = []
+      for (const entry of entries) {
+        if (!QueueManager.isValidKey(entry.key)) return { ok: false, code: "invalid" }
+        const tentative = this.apply(entry.key, entry.expectedRevision, entry.mutation)
+        if (!("keep" in tentative)) return tentative.result
+        applied.push({ key: entry.key, tentative })
+      }
+
+      const updates = new Map<string, { state: QueueState; keep: boolean }>()
+      for (const item of applied) {
+        if (!("keep" in item.tentative)) continue
+        updates.set(item.key, { state: item.tentative.result.state, keep: item.tentative.keep })
+      }
+
+      const persistenceFailure = this.persistSnapshot(updates)
+      if (persistenceFailure) return storageResult(persistenceFailure) as FailedMutation
+
+      const states: Array<{ key: string; state: QueueState }> = []
+      for (const [key, update] of updates) {
+        const committed = update.keep ? cloneState(update.state) : emptyState()
+        if (update.keep) this.queues.set(key, committed)
+        else this.queues.delete(key)
+        states.push({ key, state: cloneState(committed) })
+      }
+      for (const [key, update] of updates) {
+        try {
+          this.options.eventBus.publish({
+            type: "queue.changed",
+            key,
+            state: update.keep ? cloneState(update.state) : emptyState(),
+          })
+        } catch (error) {
+          this.options.logger.warn({ error, key }, "Failed to publish prompt queue change")
+        }
+      }
+      return { ok: true, states }
+    })
   }
 
   async flush(): Promise<void> {
@@ -324,13 +384,19 @@ export class QueueManager {
   }
 
   private persist(key: string, state: QueueState, keep: boolean): QueueStorageFailure | null {
+    return this.persistSnapshot(new Map([[key, { state, keep }]]))
+  }
+
+  private persistSnapshot(updates: Map<string, { state: QueueState; keep: boolean }>): QueueStorageFailure | null {
     const statePath = this.options.statePath
     if (!statePath) return null
 
     const queues: Record<string, QueueState> = {}
     for (const [queuedKey, queuedState] of this.queues) queues[queuedKey] = queuedState
-    if (keep) queues[key] = state
-    else delete queues[key]
+    for (const [key, update] of updates) {
+      if (update.keep) queues[key] = update.state
+      else delete queues[key]
+    }
 
     const payload: PersistedQueue = { version: PERSIST_VERSION, queues }
     const tempPath = `${statePath}.tmp`
@@ -415,6 +481,10 @@ export class QueueManager {
 
 function stateWithRevision(items: QueuedPrompt[], paused: boolean): QueueState {
   return { items, paused, revision: revisionOf(items, paused) }
+}
+
+function emptyState(): QueueState {
+  return { items: [], paused: false, revision: "" }
 }
 
 function clonePrompt(item: QueuedPrompt): QueuedPrompt {

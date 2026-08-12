@@ -4,6 +4,7 @@ import { serverApi } from "../lib/api-client"
 import { serverEvents } from "../lib/server-events"
 import {
   MAX_QUEUED_ATTACHMENT_BYTES,
+  type QueueFanOutResult,
   type QueueMutation as ServerQueueMutation,
   type QueueStorageFailure,
   type QueuedPrompt as ServerQueuedPrompt,
@@ -59,6 +60,11 @@ export type QueueMutateOutcome =
 export interface QueueTransport {
   list(): Promise<Record<string, ServerQueueState>>
   mutate(key: string, expectedRevision: string, mutation: ServerQueueMutation): Promise<QueueMutateOutcome>
+  mutateMany(
+    targets: Array<{ key: string; expectedRevision: string }>,
+    text: string,
+    attachments: unknown[],
+  ): Promise<QueueFanOutResult>
   onChange(handler: (event: Extract<WorkspaceEventPayload, { type: "queue.changed" }>) => void): () => void
   onOpen(handler: () => void): () => void
 }
@@ -66,6 +72,7 @@ export interface QueueTransport {
 const defaultTransport: QueueTransport = {
   list: async () => (await serverApi.fetchQueues()).queues,
   mutate: (key, expectedRevision, mutation) => serverApi.mutateQueue(key, expectedRevision, mutation),
+  mutateMany: (targets, text, attachments) => serverApi.queueFanOut(targets, text, attachments),
   onChange: (handler) =>
     serverEvents.on("queue.changed", (event) => {
       if (event.type === "queue.changed") handler(event)
@@ -252,7 +259,12 @@ export async function enqueuePrompt(
   return { ok: false, reason: "empty" }
 }
 
-/** Adds one prompt per target and compensates completed writes after a later failure. */
+/**
+ * Adds one prompt per target in a SINGLE server-side transaction: every target
+ * commits or none do. A failed fan-out therefore can never leave prompts
+ * queued behind a generic error (the old loop compensated with removes whose
+ * results were ignored).
+ */
 export async function enqueuePromptFanOut(
   targets: PromptQueueTarget[],
   text: string,
@@ -267,34 +279,25 @@ export async function enqueuePromptFanOut(
   const unique = Array.from(
     new Map(targets.map((target) => [queueKey(target.instanceId, target.sessionId), target])).values(),
   )
-  const added: Array<{ target: PromptQueueTarget; id: string }> = []
-  const items: QueuedPrompt[] = []
-
-  for (const target of unique) {
-    const outcome = await mutateQueueState(target.instanceId, target.sessionId, { op: "enqueue", text: trimmed, attachments })
-    if (outcome.status !== "ok") {
-      // Best-effort compensation; each target is an independent durable CAS.
-      for (const prior of added) {
-        await mutateQueueState(prior.target.instanceId, prior.target.sessionId, { op: "remove", id: prior.id })
-      }
-      return {
-        ok: false,
-        reason: outcome.status === "conflict"
-          ? "conflict"
-          : outcome.code === "storage"
-            ? "storage"
-            : outcome.code === "too-large"
-              ? "too-large"
-              : "empty",
-      }
-    }
-    const item = outcome.state.items[outcome.state.items.length - 1]
-    if (item) {
-      items.push(toTyped([item])[0]!)
-      added.push({ target, id: item.id })
-    }
+  const outcome = await transport.mutateMany(
+    unique.map((target) => ({
+      key: queueKey(target.instanceId, target.sessionId),
+      expectedRevision: queues().get(queueKey(target.instanceId, target.sessionId))?.revision ?? "",
+    })),
+    trimmed,
+    attachments,
+  )
+  if (outcome.ok) return { ok: true, items: outcome.items }
+  return {
+    ok: false,
+    reason: outcome.code === "conflict"
+      ? "conflict"
+      : outcome.code === "storage"
+        ? "storage"
+        : outcome.code === "too-large"
+          ? "too-large"
+          : "empty",
   }
-  return { ok: true, items }
 }
 
 /** Removes and returns the head. Returns null when paused, empty or lost the race. */

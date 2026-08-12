@@ -282,7 +282,18 @@ export class SaipenFileWatcher {
     }
 
     if (changed.length > 0 && !initial) {
-      this.deps.eventBus.publish({ type: SAIPEN_CHANGED_EVENT, folder: entry.folder, files: changed })
+      // A folder may host several registered workspaces (e.g. case-variant
+      // paths on a case-insensitive filesystem). Identity is the workspace id,
+      // so publish one event PER id -- a panel for A must never refresh from
+      // B's change, and a case-folded path is never used as identity.
+      for (const id of entry.ids) {
+        this.deps.eventBus.publish({
+          type: SAIPEN_CHANGED_EVENT,
+          workspaceId: id,
+          folder: entry.folder,
+          files: changed,
+        })
+      }
     }
   }
 }

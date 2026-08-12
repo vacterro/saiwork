@@ -101,8 +101,35 @@ describe("saipen file watcher", () => {
 
     const event = events[0] as Extract<WorkspaceEventPayload, { type: "saipen.changed" }>
     assert.equal(event.type, "saipen.changed")
+    assert.equal(event.workspaceId, "ws-1")
     assert.equal(event.folder, canonical(dir))
     assert.deepEqual(event.files, ["STATE.md"])
+  })
+
+  it("publishes one event per workspace id sharing a folder (never case-folded identity)", async () => {
+    const dir = createTempDir()
+    const saipen = path.join(dir, ".saipen")
+    fs.mkdirSync(saipen)
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: DONE\n---\n")
+
+    // Two registered workspaces that differ only by path case resolve to the
+    // SAME canonical folder; each must receive its own identity-scoped event.
+    const { events, watcher } = createWatcher(dir)
+    watcher.start(() => [
+      { id: "ws-A", folder: dir },
+      { id: "ws-B", folder: dir.toUpperCase() },
+    ])
+
+    fs.writeFileSync(path.join(saipen, "STATE.md"), "---\nphase: BUILD\n---\n")
+    await waitForEvents(events, 2)
+
+    const ids = events
+      .map((event) => (event as Extract<WorkspaceEventPayload, { type: "saipen.changed" }>).workspaceId)
+      .sort()
+    assert.deepEqual(ids, ["ws-A", "ws-B"])
+    for (const event of events) {
+      assert.deepEqual((event as Extract<WorkspaceEventPayload, { type: "saipen.changed" }>).files, ["STATE.md"])
+    }
   })
 
   it("does not re-emit when the content is unchanged", async () => {

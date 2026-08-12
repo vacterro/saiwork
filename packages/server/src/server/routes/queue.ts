@@ -1,7 +1,8 @@
 import { FastifyInstance } from "fastify"
 import { z } from "zod"
-import type { QueueMutation, QueueStorageErrorResponse } from "../../api-types"
+import type { QueueFanOutEntry } from "../../queue/manager"
 import { QueueManager } from "../../queue/manager"
+import type { QueuedPrompt, QueueMutation, QueueStorageErrorResponse } from "../../api-types"
 
 interface RouteDeps {
   queueManager: QueueManager
@@ -20,6 +21,12 @@ const MutateBodySchema = z.discriminatedUnion("op", [
 ])
 
 const ListQuerySchema = z.object({ key: z.string().min(1).optional() })
+
+const FanOutBodySchema = z.object({
+  targets: z.array(z.object({ key: z.string().min(1), expectedRevision: z.string() })).min(1).max(64),
+  text: z.string(),
+  attachments: z.array(z.unknown()).optional(),
+})
 
 export function registerQueueRoutes(app: FastifyInstance, deps: RouteDeps) {
   app.get("/api/queue", async (request, reply) => {
@@ -64,6 +71,38 @@ export function registerQueueRoutes(app: FastifyInstance, deps: RouteDeps) {
     if (result.code === "conflict") {
       return reply.code(409).send(result)
     }
+    if (result.code === "storage") return reply.code(503).send(result)
+    return result
+  })
+
+  app.post("/api/queue/fanout", async (request, reply) => {
+    const body = FanOutBodySchema.safeParse(request.body ?? {})
+    if (!body.success) return reply.code(400).send({ error: "invalid body" })
+
+    // Atomic fan-out: one server transaction over all unique targets. A single
+    // conflict/storage failure commits NONE of them, so a failed fan-out can
+    // never leave prompts queued behind a generic error.
+    const seen = new Set<string>()
+    const entries: QueueFanOutEntry[] = []
+    for (const target of body.data.targets) {
+      if (!QueueManager.isValidKey(target.key)) return reply.code(400).send({ error: "invalid key" })
+      if (seen.has(target.key)) continue
+      seen.add(target.key)
+      entries.push({
+        key: target.key,
+        expectedRevision: target.expectedRevision,
+        mutation: { op: "enqueue", text: body.data.text, attachments: body.data.attachments } as QueueMutation,
+      })
+    }
+
+    const result = await deps.queueManager.mutateMany(entries)
+    if (result.ok) {
+      const items: QueuedPrompt[] = result.states
+        .map((state) => state.state.items[state.state.items.length - 1])
+        .filter((item): item is QueuedPrompt => Boolean(item))
+      return { ok: true, items }
+    }
+    if (result.code === "conflict") return reply.code(409).send(result)
     if (result.code === "storage") return reply.code(503).send(result)
     return result
   })

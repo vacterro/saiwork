@@ -3,7 +3,7 @@
 
 # SAIWORK
 
-**Version 0.1.21** - a downstream fork based on [CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad)'s 0.18.0 development commit [`67cb394e`](https://github.com/NeuralNomadsAI/CodeNomad/commit/67cb394e8f38854383bd57a0794274a024ef3d93).
+**Version 0.1.22** - a downstream fork based on [CodeNomad](https://github.com/NeuralNomadsAI/CodeNomad)'s 0.18.0 development commit [`67cb394e`](https://github.com/NeuralNomadsAI/CodeNomad/commit/67cb394e8f38854383bd57a0794274a024ef3d93). Release history lives in [CHANGELOG.md](CHANGELOG.md); package versions are the single source of truth for a build.
 
 **Fork provenance:** SAIWORK preserves the upstream CodeNomad Git history on the
 [`backup/pre-squash-history`](https://github.com/vacterro/saiwork/tree/backup/pre-squash-history)
@@ -75,7 +75,7 @@ npm install
 npm run dev
 ```
 
-Electron is the primary shell for 0.0.3. The Tauri shell remains experimental.
+Electron is the primary shell. The Tauri shell remains experimental.
 
 ### Portable target
 
@@ -83,8 +83,8 @@ Electron is the primary shell for 0.0.3. The Tauri shell remains experimental.
 npm run build:win --workspace @saiwork/electron-app
 ```
 
-Produces `SAIWORK-x64-0.1.21.zip` and the one-file
-`SAIWORK-portable-x64-0.1.21.exe` in `packages/electron-app/release/`. The build
+Produces `SAIWORK-x64-0.1.22.zip` and the one-file
+`SAIWORK-portable-x64-0.1.22.exe` in `packages/electron-app/release/`. The build
 is locally verified; no SAIWORK binary release has been published.
 
 An empty `saiwork-data` folder beside an Electron executable redirects

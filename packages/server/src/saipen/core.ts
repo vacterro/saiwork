@@ -1,3 +1,4 @@
+import { createHash } from "crypto"
 import { existsSync, readFileSync, readdirSync, statSync } from "fs"
 import os from "os"
 import path from "path"
@@ -64,6 +65,8 @@ export interface SaipenResolution {
   instructions: string[]
   /** Requested files that are not on disk. Surfaced, never silently dropped. */
   missing: string[]
+  /** `extraInstructions` entries rejected for violating the absolute-file contract. */
+  rejected: string[]
   /** Set when the protocol could not be resolved at all. */
   error: string | null
 }
@@ -171,7 +174,7 @@ export function resolveSaipenCore(
 ): SaipenResolution {
   const enabled = settings?.enabled ?? true
   if (!enabled) {
-    return { enabled: false, home: null, protocolDir: null, instructions: [], missing: [], error: null }
+    return { enabled: false, home: null, protocolDir: null, instructions: [], missing: [], rejected: [], error: null }
   }
 
   const homes = candidateSaipenHomes(settings?.home, options.workspaceFolder)
@@ -194,12 +197,13 @@ export function resolveSaipenCore(
       homes.length > 0
         ? `SAIPEN protocol not found. Looked for BOOT.md under: ${homes.join(", ")}`
         : "SAIPEN protocol not found and no saipen home is configured."
-    return { enabled: true, home: null, protocolDir: null, instructions: [], missing: [], error }
+    return { enabled: true, home: null, protocolDir: null, instructions: [], missing: [], rejected: [], error }
   }
 
   const requested = settings?.files?.length ? settings.files : [...DEFAULT_SAIPEN_FILES]
   const instructions: string[] = []
   const missing: string[] = []
+  const rejected: string[] = []
 
   for (const configuredFile of requested) {
     const file = configuredFile.trim()
@@ -213,23 +217,40 @@ export function resolveSaipenCore(
     }
   }
 
+  // extraInstructions CONTRACT: every entry is an absolute path under win32 OR
+  // posix semantics, canonicalized, and a regular readable FILE -- never a
+  // directory, never a cwd-dependent relative value. Rejected entries are
+  // surfaced explicitly, not silently skipped.
   for (const extra of settings?.extraInstructions ?? []) {
     const trimmed = extra?.trim()
     if (!trimmed) continue
-    const absolute = path.resolve(trimmed)
-    if (existsSync(absolute)) {
-      const value = toInstructionPath(absolute)
-      if (!instructions.includes(value)) instructions.push(value)
-    } else {
-      missing.push(absolute)
+    const absoluteUnderWin32 = path.win32.isAbsolute(trimmed)
+    const absoluteUnderPosix = path.posix.isAbsolute(trimmed)
+    if (!absoluteUnderWin32 && !absoluteUnderPosix) {
+      rejected.push(trimmed)
+      continue
     }
+    // Existence and the regular-file check happen on the HOST: a value that is
+    // absolute only in the other platform's semantics resolves through the
+    // host's drive/root rules and is rejected when no such file exists.
+    const host = path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.resolve(trimmed)
+    const canonical = canonicalExistingPath(host)
+    if (!canonical || isDirectory(canonical)) {
+      rejected.push(trimmed)
+      continue
+    }
+    const value = toInstructionPath(canonical)
+    if (!instructions.includes(value)) instructions.push(value)
   }
 
   if (missing.length > 0) {
     log.warn({ missing }, "SAIPEN instruction files missing")
   }
+  if (rejected.length > 0) {
+    log.warn({ rejected }, "SAIPEN extraInstructions entries rejected (absolute file required)")
+  }
 
-  return { enabled: true, home, protocolDir, instructions, missing, error: null }
+  return { enabled: true, home, protocolDir, instructions, missing, rejected, error: null }
 }
 
 /**
@@ -253,8 +274,25 @@ export interface SaipenLaunchState {
   enabled: boolean
   protocolDir: string | null
   instructions: string[]
+  /** Content digest per instruction path AT LAUNCH. OpenCode reads
+   *  `OPENCODE_CONFIG_CONTENT` once and never re-reads it, so a same-path
+   *  content change is drift that only a restart can pick up. */
+  instructionDigests: Record<string, string>
   /** When the workspace was launched, for reporting. */
   launchedAt: number
+}
+
+/** SHA-256 content digests for the given instruction paths ("" when unreadable). */
+export function instructionDigests(paths: string[]): Record<string, string> {
+  const digests: Record<string, string> = {}
+  for (const entry of paths) {
+    try {
+      digests[entry] = createHash("sha256").update(readFileSync(entry)).digest("hex")
+    } catch {
+      digests[entry] = ""
+    }
+  }
+  return digests
 }
 
 /**
@@ -262,7 +300,11 @@ export interface SaipenLaunchState {
  *
  * Compares what is configured now against what was injected at launch. Order is
  * significant in the instruction list -- SAIPEN Core goes first on purpose --
- * so this is a sequence comparison, not a set comparison.
+ * so this is a sequence comparison, not a set comparison. On top of the list
+ * comparison, the CONTENT of each instruction file is hashed: an in-flight
+ * OpenCode process never re-reads the files it was launched with, so a
+ * same-path content drift (e.g. an upstream protocol edit) also requires a
+ * restart to take effect.
  */
 export function saipenRestartRequired(
   configured: { enabled: boolean; instructions: string[] },
@@ -271,7 +313,10 @@ export function saipenRestartRequired(
   if (!launched) return false
   if (configured.enabled !== launched.enabled) return true
   if (configured.instructions.length !== launched.instructions.length) return true
-  return configured.instructions.some((entry, index) => entry !== launched.instructions[index])
+  const listChanged = configured.instructions.some((entry, index) => entry !== launched.instructions[index])
+  if (listChanged) return true
+  const current = instructionDigests(configured.instructions)
+  return configured.instructions.some((entry) => current[entry] !== launched.instructionDigests[entry])
 }
 
 export interface SaipenSubState {

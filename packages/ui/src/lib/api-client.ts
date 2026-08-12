@@ -31,6 +31,7 @@ import type {
   YoloStateResponse,
   QueueListResponse,
   QueueMutation,
+  QueueFanOutResult,
   QueueStorageFailure,
   QueuedPrompt as ServerQueuedPrompt,
   QueueState as ServerQueueState,
@@ -413,6 +414,51 @@ export const serverApi = {
       ? (rawCode as (typeof failedCodes)[number])
       : "invalid"
     return { status: "failed", code }
+  },
+
+  async queueFanOut(
+    targets: Array<{ key: string; expectedRevision: string }>,
+    text: string,
+    attachments: unknown[] = [],
+  ): Promise<QueueFanOutResult> {
+    const url = API_BASE ? new URL("/api/queue/fanout", API_BASE).toString() : "/api/queue/fanout"
+    const headers = normalizeHeaders(undefined)
+    headers["Content-Type"] = "application/json"
+    logHttp("POST /api/queue/fanout")
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ targets, text, attachments }),
+    })
+    let parsed: unknown = null
+    try {
+      parsed = await response.json()
+    } catch {
+      parsed = null
+    }
+    if (response.status === 200 && isApiRecord(parsed) && parsed.ok === true && Array.isArray(parsed.items)) {
+      const items = parsed.items.filter(isQueuedPrompt)
+      if (items.length !== parsed.items.length) return { ok: false, code: "invalid" }
+      return { ok: true, items }
+    }
+    if (response.status === 409 && isApiRecord(parsed)) {
+      return {
+        ok: false,
+        code: "conflict",
+        currentRevision: typeof parsed.currentRevision === "string" ? parsed.currentRevision : "",
+        error: typeof parsed.error === "string" ? parsed.error : "queue changed; refresh and retry",
+      }
+    }
+    if (response.status === 503 && isApiRecord(parsed) && parsed.code === "storage" && isQueueStorageFailure(parsed.error)) {
+      return { ok: false, code: "storage", error: parsed.error }
+    }
+    const failedCodes = ["empty", "paused", "too-large", "invalid"] as const
+    const rawCode = isApiRecord(parsed) && typeof parsed.code === "string" ? parsed.code : "invalid"
+    const code = (failedCodes as readonly string[]).includes(rawCode)
+      ? (rawCode as (typeof failedCodes)[number])
+      : "invalid"
+    return { ok: false, code }
   },
 
   fetchProviderUsage(providerId: string, modelId?: string): Promise<ProviderUsageResponse> {

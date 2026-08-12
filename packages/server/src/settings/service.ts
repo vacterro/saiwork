@@ -116,13 +116,21 @@ export class SettingsService {
 
   private publish(kind: DocKind, owner: string, value?: SettingsDoc) {
     if (!this.eventBus) return
-    const type = kind === "config" ? "storage.configChanged" : "storage.stateChanged"
     const nextValue = value ?? this.getOwner(kind, owner)
+    if (kind === "config") {
+      const payload: WorkspaceEventPayload = {
+        type: "storage.configChanged",
+        owner,
+        value: sanitizeConfigOwner(owner, nextValue),
+      }
+      this.eventBus.publish(payload)
+      return
+    }
     const payload: WorkspaceEventPayload = {
-      type,
+      type: "storage.stateChanged",
       owner,
-      value: kind === "config" ? sanitizeConfigOwner(owner, nextValue) : nextValue,
-    } as any
+      value: nextValue,
+    }
     this.eventBus.publish(payload)
   }
 }

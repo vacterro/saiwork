@@ -51,6 +51,14 @@ interface PersistedBackgroundProcess extends BackgroundProcess {
   notify?: BackgroundProcessNotificationState
 }
 
+/** Structured failure when the persisted process index is unreadable/corrupt. */
+export class BackgroundProcessIndexError extends Error {
+  constructor(message: string, readonly cause?: unknown) {
+    super(message)
+    this.name = "BackgroundProcessIndexError"
+  }
+}
+
 interface StartOptions {
   notify?: boolean
   notification?: {
@@ -656,13 +664,25 @@ export class BackgroundProcessManager {
     const indexPath = await this.getIndexPath(workspaceId)
     if (!existsSync(indexPath)) return []
 
+    // A corrupt/unreadable index is DATA, not "empty": every mutation reads it
+    // through here, so it fails closed and can never overwrite the original
+    // with an empty or partial list.
+    const raw = await fs.readFile(indexPath, "utf-8")
+    let parsed: unknown
     try {
-      const raw = await fs.readFile(indexPath, "utf-8")
-      const parsed = JSON.parse(raw)
-      return Array.isArray(parsed) ? (parsed as PersistedBackgroundProcess[]) : []
-    } catch {
-      return []
+      parsed = JSON.parse(raw)
+    } catch (error) {
+      throw new BackgroundProcessIndexError(
+        `Background process index is corrupt (invalid JSON) at ${indexPath}`,
+        error,
+      )
     }
+    if (!Array.isArray(parsed)) {
+      throw new BackgroundProcessIndexError(
+        `Background process index is not an array at ${indexPath}`,
+      )
+    }
+    return parsed as PersistedBackgroundProcess[]
   }
 
   private async upsertIndex(workspaceId: string, record: PersistedBackgroundProcess) {

@@ -45,7 +45,7 @@ export class OpenCodeUpdateService {
 
   async getStatus(): Promise<OpenCodeUpdateStatus> {
     const binary = this.deps.resolveBinary()
-    const currentVersion = this.readCurrentVersion(binary.path)
+    const currentVersion = await this.readCurrentVersion(binary.path)
     let latestVersion: string
     try {
       latestVersion = await this.readLatestVersion()
@@ -83,7 +83,7 @@ export class OpenCodeUpdateService {
   }
 
   private async performUpgrade(binary: ResolvedBinary): Promise<OpenCodeUpdateResponse> {
-    const currentVersion = this.readCurrentVersion(binary.path)
+    const currentVersion = await this.readCurrentVersion(binary.path)
     const latestVersion = await this.readLatestVersion()
 
     if (compareVersionStrings(latestVersion, currentVersion) <= 0) {
@@ -103,7 +103,7 @@ export class OpenCodeUpdateService {
       if (!result.success) {
         throw new OpenCodeUpdateError("upgrade_failed", result.error)
       }
-      const installedVersion = this.readCurrentVersion(binary.path)
+      const installedVersion = await this.readCurrentVersion(binary.path)
       if (compareVersionStrings(installedVersion, latestVersion) !== 0) {
         throw new OpenCodeUpdateError(
           "upgrade_verification_failed",
@@ -120,11 +120,11 @@ export class OpenCodeUpdateService {
     }
   }
 
-  private readCurrentVersion(binaryPath: string): string {
+  private async readCurrentVersion(binaryPath: string): Promise<string> {
     if (process.platform === "win32" && /["\r\n]/.test(binaryPath)) {
       throw new OpenCodeUpdateError("binary_unavailable", "The configured OpenCode binary path is invalid")
     }
-    const result = this.deps.probeBinary(binaryPath)
+    const result = await this.deps.probeBinary(binaryPath)
     const version = stripTagPrefix(result.version)
     if (!result.valid || !version) {
       throw new OpenCodeUpdateError("binary_unavailable", result.error ?? "Unable to read OpenCode version")

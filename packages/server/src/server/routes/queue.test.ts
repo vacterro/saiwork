@@ -197,3 +197,54 @@ describe("queue routes", () => {
     await app.close()
   })
 })
+describe("queue fanout route", () => {
+  it("atomically enqueues one item per unique target", async () => {
+    const { app, queueManager } = createApp()
+    await queueManager.mutate("i:a", "", { op: "enqueue", text: "seed", attachments: [] })
+    await queueManager.mutate("i:b", "", { op: "enqueue", text: "seed", attachments: [] })
+    const revA = queueManager.get("i:a")!.revision
+    const revB = queueManager.get("i:b")!.revision
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/queue/fanout",
+      payload: { targets: [{ key: "i:a", expectedRevision: revA }, { key: "i:b", expectedRevision: revB }], text: "fan" },
+    })
+    assert.equal(response.statusCode, 200)
+    const body = response.json()
+    assert.equal(body.ok, true)
+    assert.equal(body.items.length, 2)
+    assert.equal(queueManager.get("i:a")!.items.length, 2)
+    assert.equal(queueManager.get("i:b")!.items.length, 2)
+    await app.close()
+  })
+
+  it("conflict on any target returns 409 and commits nothing", async () => {
+    const { app, queueManager } = createApp()
+    await queueManager.mutate("i:a", "", { op: "enqueue", text: "seed", attachments: [] })
+    const revA2 = queueManager.get("i:a")!.revision
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/queue/fanout",
+      payload: { targets: [{ key: "i:a", expectedRevision: revA2 }, { key: "i:b", expectedRevision: "stale" }], text: "fan" },
+    })
+    assert.equal(response.statusCode, 409)
+    assert.equal(queueManager.get("i:a")!.items.length, 1, "A must not have committed")
+    assert.equal(queueManager.get("i:b"), null)
+    await app.close()
+  })
+
+  it("dedupes duplicate targets", async () => {
+    const { app, queueManager } = createApp()
+    await queueManager.mutate("i:a", "", { op: "enqueue", text: "seed", attachments: [] })
+    const revA2 = queueManager.get("i:a")!.revision
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/queue/fanout",
+      payload: { targets: [{ key: "i:a", expectedRevision: revA2 }, { key: "i:a", expectedRevision: revA2 }], text: "fan" },
+    })
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.json().items.length, 1)
+    assert.equal(queueManager.get("i:a")!.items.length, 2)
+    await app.close()
+  })
+})

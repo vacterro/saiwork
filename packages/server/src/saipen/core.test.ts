@@ -49,6 +49,63 @@ describe("resolveSaipenCore instruction paths", () => {
     assert.equal(resolution.missing.length, 3)
     assert.equal(resolution.instructions.filter((entry) => entry === outsideFile.replace(/\\/g, "/")).length, 1)
   })
+
+  it("accepts an absolute existing extraInstructions file on the host semantics", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-extra-"))
+    roots.push(root)
+    const home = path.join(root, "home")
+    const protocol = path.join(home, "saipen")
+    mkdirSync(protocol, { recursive: true })
+    writeFileSync(path.join(protocol, "BOOT.md"), "# BOOT\n")
+    const extraFile = path.join(root, "extra.md")
+    writeFileSync(extraFile, "# Extra\n")
+
+    const resolution = resolveSaipenCore({
+      enabled: true,
+      home,
+      extraInstructions: [extraFile],
+    })
+    assert.equal(resolution.error, null)
+    assert.equal(resolution.rejected.length, 0)
+    assert.ok(resolution.instructions.some((entry) => entry === extraFile.replace(/\\/g, "/")))
+  })
+
+  it("rejects relative extraInstructions values outright (no cwd-dependent resolution)", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-extra-"))
+    roots.push(root)
+    const home = path.join(root, "home")
+    const protocol = path.join(home, "saipen")
+    mkdirSync(protocol, { recursive: true })
+    writeFileSync(path.join(protocol, "BOOT.md"), "# BOOT\n")
+
+    const resolution = resolveSaipenCore({
+      enabled: true,
+      home,
+      extraInstructions: ["./file.md", "../file.md", "file.md"],
+    })
+    assert.equal(resolution.error, null)
+    assert.deepEqual(resolution.rejected, ["./file.md", "../file.md", "file.md"])
+    assert.ok(resolution.instructions.every((entry) => !entry.endsWith("file.md")))
+  })
+
+  it("rejects a directory and a missing absolute path as extraInstructions", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-extra-"))
+    roots.push(root)
+    const home = path.join(root, "home")
+    const protocol = path.join(home, "saipen")
+    mkdirSync(protocol, { recursive: true })
+    writeFileSync(path.join(protocol, "BOOT.md"), "# BOOT\n")
+    const directory = path.join(root, "notes")
+    mkdirSync(directory)
+
+    const resolution = resolveSaipenCore({
+      enabled: true,
+      home,
+      extraInstructions: [directory, path.join(root, "absent.md")],
+    })
+    assert.equal(resolution.error, null)
+    assert.deepEqual(resolution.rejected, [directory, path.join(root, "absent.md")])
+  })
 })
 
 describe("readSaipenProjectState", () => {

@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "child_process"
+import { spawn } from "child_process"
 import path from "path"
 
 interface ShellCommand {
@@ -119,21 +119,4 @@ export function runUserShellCommand(userCommand: string, timeoutMs = 5000): Prom
       }
     })
   })
-}
-
-export function runUserShellCommandSync(userCommand: string): string {
-  if (!supportsUserShell()) {
-    throw new Error("User shell invocation is only supported on POSIX platforms")
-  }
-
-  const { command, args } = buildUserShellCommand(userCommand)
-  const env = getUserShellEnv()
-  const result = spawnSync(command, args, { encoding: "utf-8", env })
-
-  if (result.status !== 0) {
-    const stderr = (result.stderr || "").toString().trim()
-    throw new Error(stderr || "Shell command failed")
-  }
-
-  return (result.stdout || "").toString().trim()
 }

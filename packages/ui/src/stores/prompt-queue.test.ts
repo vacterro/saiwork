@@ -51,7 +51,41 @@ class FakeQueueWorld {
       for (const [key, state] of this.queues) out[key] = state
       return out
     },
-    mutate: (key, expectedRevision, mutation) => this.mutate(key, expectedRevision, mutation),    onChange: (handler) => {
+    mutate: (key, expectedRevision, mutation) => this.mutate(key, expectedRevision, mutation),
+    mutateMany: async (targets, text, attachments) => {
+      // Atomic, mirroring the real server transaction: validate EVERY revision
+      // first; if any conflicts, commit NONE.
+      for (const target of targets) {
+        const current = this.queues.get(target.key)
+        if ((current?.revision ?? "") !== target.expectedRevision) {
+          return {
+            ok: false,
+            code: "conflict",
+            currentRevision: current?.revision ?? "",
+            error: "queue changed; refresh and retry",
+          }
+        }
+      }
+      const trimmed = text.trim()
+      if (!trimmed && attachments.length === 0) return { ok: false, code: "empty" }
+      if (!attachments.every(isQueuedAttachment)) return { ok: false, code: "invalid" }
+      const items: ServerQueuedPrompt[] = []
+      for (const target of targets) {
+        const current = this.queues.get(target.key)
+        const item: ServerQueuedPrompt = {
+          id: `id-${++idCounter}`,
+          text: trimmed,
+          attachments,
+          createdAt: Date.now(),
+        }
+        const state = this.set(target.key, [...(current?.items ?? []), item], current?.paused ?? false)
+        items.push(item)
+        // Mirror the server's per-key `queue.changed` broadcast.
+        this.emitExternal(target.key, state)
+      }
+      return { ok: true, items }
+    },
+    onChange: (handler) => {
       this.changeHandlers.add(handler)
       return () => this.changeHandlers.delete(handler)
     },
@@ -389,9 +423,10 @@ describe("prompt queue mirror", () => {
     assert.equal(getQueue("one", "session").length, 0)
   })
 
-  it("rolls back a partial fan-out when one target loses the race", async () => {
+  it("atomic fan-out: one stale target aborts the whole batch", async () => {
     // Another window adds to target B without this renderer knowing, so the
-    // mirror's revision for B is stale and the fan-out enqueue there conflicts.
+    // mirror's revision for B is stale. The server transaction aborts the WHOLE
+    // batch: target A gets nothing either -- never a partial fan-out.
     await world.transport.mutate("two:session-b", "", { op: "enqueue", text: "foreign", attachments: [] })
 
     const result = await enqueuePromptFanOut(
@@ -399,7 +434,7 @@ describe("prompt queue mirror", () => {
       "shared",
     )
     assert.equal(result.ok, false)
-    // Target A's partial enqueue was rolled back.
+    // Target A did NOT receive a partial enqueue.
     assert.equal(world.queues.get("one:session-a")?.items.length ?? 0, 0)
     // Target B keeps the foreign item (server truth, never clobbered).
     assert.deepEqual(world.queues.get("two:session-b")?.items.map((item) => item.text), ["foreign"])
