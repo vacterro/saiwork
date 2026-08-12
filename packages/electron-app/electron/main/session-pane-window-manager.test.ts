@@ -115,6 +115,9 @@ test("close and renderer crash each notify exact pane once", async () => {
   await h.manager.open(payload)
   h.windows[1].contentsListeners.get("render-process-gone")?.()
   assert.equal(h.calls.filter((call) => call === "send:saipen:session-pane-state:recover:pane-2").length, 2)
+  // The destroy is deferred out of Electron's event dispatch (teardown race
+  // guard), so it lands on the next tick.
+  await new Promise((resolve) => setImmediate(resolve))
   assert.equal(h.calls.filter((call) => call === "destroy").length, 1)
 })
 

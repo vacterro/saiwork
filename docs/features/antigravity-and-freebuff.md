@@ -38,9 +38,12 @@ models through the subscription, without the Antigravity app running.
   `{ "project": "rising-fact-p41fc" }`.
 - Generate: `POST /v1internal:streamGenerateContent?alt=sse` with body
   `{ "model": "<id>", "request": { "contents": [...], "systemInstruction"?, "tools"?, "generationConfig"? } }`.
-  SSE frames: `data: {"response":{"candidates":[...],"usageMetadata":...}}`,
-  no `[DONE]` marker (EOF ends the stream). Skip parts without `text`
-  (a `thoughtSignature`-only part is not content).
+   SSE frames: `data: {"response":{"candidates":[...],"usageMetadata":...}}`,
+   no `[DONE]` marker (EOF ends the stream). **Frames are CRLF-delimited**
+   (`\r\n\r\n`); the parser normalizes line endings before splitting, because a
+   `\n\n`-only splitter collapses the stream to its first frame (a text answer
+   truncated to its first word). Skip parts without `text`
+   (a `thoughtSignature`-only part is not content).
 - Headers: `Authorization: Bearer <token>`, `User-Agent: antigravity/1.11.5
   windows/amd64`, `X-Goog-Api-Client: google-cloud-sdk vscode_cloudshelleditor/0.1`.
 

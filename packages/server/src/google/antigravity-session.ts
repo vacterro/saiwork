@@ -474,7 +474,16 @@ export class AntigravitySession {
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
-        buffer += decoder.decode(value, { stream: true })
+        // The backend is a gRPC-transcoded SSE endpoint and emits CRLF
+        // line endings (`data: {...}\r\n\r\n`). The frame splitter below looks
+        // for "\n\n", which never appears inside CRLF, so without normalizing
+        // the whole stream accumulated in the buffer and only the FIRST
+        // data: line survived -> every turn truncated to its first chunk (a
+        // tool-call turn still worked because the tool decision arrives in the
+        // first frame; a text answer collapsed to its first word).
+        buffer = (buffer + decoder.decode(value, { stream: true }))
+          .replace(/\r\n/g, "\n")
+          .replace(/\r/g, "\n")
         for (;;) {
           const separator = buffer.indexOf("\n\n")
           if (separator === -1) break

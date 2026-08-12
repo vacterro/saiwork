@@ -72,15 +72,16 @@ export class SessionPaneWindowManager {
   constructor(private readonly options: SessionPaneWindowManagerOptions) {}
 
   attachMainWindow(window: BrowserWindow): void {
-    if (this.ownerRenderer !== window.webContents) this.ownerRenderer = null
+    const webContents = window.webContents
+    if (this.ownerRenderer !== webContents) this.ownerRenderer = null
     const disconnectRenderer = () => {
-      if (this.ownerRenderer === window.webContents) this.ownerRenderer = null
+      if (this.ownerRenderer === webContents) this.ownerRenderer = null
     }
-    window.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
       if (isMainFrame && !isInPlace) disconnectRenderer()
     })
-    window.webContents.on("render-process-gone", disconnectRenderer)
-    window.webContents.on("destroyed", disconnectRenderer)
+    webContents.on("render-process-gone", disconnectRenderer)
+    webContents.on("destroyed", disconnectRenderer)
   }
 
   registerIPC(ipcMain: IPCRegistrar): void {
@@ -177,7 +178,16 @@ export class SessionPaneWindowManager {
     window.webContents.on("render-process-gone", () => {
       const shouldClose = this.windows.get(key) === entry
       this.recoverEntry(key, entry)
-      if (shouldClose && !window.isDestroyed()) window.destroy()
+      if (shouldClose && !window.isDestroyed()) {
+        // Defer the destroy out of Electron's event dispatch: tearing the
+        // window down while Electron is still emitting teardown internals can
+        // throw "Object has been destroyed" from inside its own
+        // WebContents.disconnectRenderer. By next tick the internal teardown
+        // has settled and destroy is safe.
+        setImmediate(() => {
+          if (!window.isDestroyed()) window.destroy()
+        })
+      }
     })
 
     entry.ready = this.loadEntry(key, entry, targetUrl.toString())

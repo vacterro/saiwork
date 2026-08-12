@@ -12,6 +12,7 @@ import { readyCliUrl, shouldRecreateMainWindow } from "./window-recovery"
 import { ClientStateNavigationController } from "./client-state-navigation"
 import { setupCliIPC } from "./ipc"
 import { SessionPaneWindowManager } from "./session-pane-window-manager"
+import { installProcessGuards } from "./main-process-guard"
 import { configureMediaPermissionHandlers, isAllowedRendererOrigin } from "./permissions"
 import { resolveConfiguredRendererOrigins } from "./renderer-origin"
 import { CliProcessManager } from "./process-manager"
@@ -28,6 +29,12 @@ const mainFilename = fileURLToPath(import.meta.url)
 const mainDirname = dirname(mainFilename)
 
 const isMac = process.platform === "darwin"
+
+// Register before any window/lifecycle code: suppresses Electron's native
+// main-process error dialog and survives benign WebContents teardown races
+// ("Object has been destroyed" from Electron's own emit during
+// render-process-gone), so a stray teardown throw cannot kill the app.
+installProcessGuards()
 
 /**
  * Portable mode: keep every byte SAIWORK writes next to the executable.

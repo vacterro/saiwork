@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.2] - 2026-08-12
+
+References such as `T-083` and `E-557` below are internal `.saipen` work-log
+identifiers, not Git commits or release history.
+
+### Stability fixes
+
+- **Antigravity answers were truncated to one word (T-712)**: the Antigravity
+  backend (cloudcode-pa) streams CRLF-delimited SSE frames, but the shim split
+  frames on `\n\n` only, so the whole stream collapsed and just the first
+  `data:` line survived — tool-call turns still worked (the tool decision is
+  the first frame), but a text answer came back as its first word. Frames are
+  now line-ending-normalized before splitting; regression test covers CRLF.
+- **Electron main-process crash dialog (T-713)**: a benign WebContents
+  teardown race (`Object has been destroyed` from `WebContents.disconnectRenderer`
+  during `render-process-gone`) raised an uncaught exception in the main
+  process and popped Electron's native error dialog. A process-level guard now
+  suppresses the dialog, logs teardown races as warnings and keeps the app
+  running (window-recovery reopens what was lost); session-pane window destroy
+  is deferred out of Electron's event dispatch.
+
 ## [0.1.1] - 2026-08-12
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log

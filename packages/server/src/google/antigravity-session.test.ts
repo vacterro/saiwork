@@ -100,6 +100,44 @@ describe("antigravity session", () => {
     }
   })
 
+  it("parses CRLF-delimited sse frames so the answer is not truncated to its first chunk", async () => {
+    // Google's gRPC-transcoded SSE uses CRLF separators. The splitter looks
+    // for "\n\n", so without line-ending normalization only the first data:
+    // line of the whole stream survives (a text answer collapses to one word).
+    const sseBody =
+      'data: {"response":{"candidates":[{"content":{"parts":[{"text":"Картинки"}]}}]}}\r\n\r\n' +
+      'data: {"response":{"candidates":[{"content":{"parts":[{"text":" \u2014 это изображения"}]}}]}}\r\n\r\n' +
+      'data: {"response":{"candidates":[{"content":{"parts":[{"text":""}}],"finishReason":"STOP"}]}}\r\n\r\n'
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => {
+      return new Response(sseBody, { status: 200 })
+    }) as typeof fetch
+    const session = new AntigravitySession({
+      readTokens: () => ({ accessToken: "ya29.stored" }),
+    })
+    try {
+      const frames: Array<Record<string, unknown>> = []
+      for await (const frame of session.streamGenerate("gemini-3.6-flash-medium", {
+        contents: [{ role: "user", parts: [{ text: "hi" }] }],
+      })) {
+        frames.push(frame)
+      }
+      const texts: string[] = []
+      for (const frame of frames) {
+        const candidates = (frame.response as { candidates?: unknown })?.candidates as
+          | Array<{ content?: { parts?: Array<{ text?: string }> } }>
+          | undefined
+        for (const part of candidates?.[0]?.content?.parts ?? []) {
+          if (part.text) texts.push(part.text)
+        }
+      }
+      assert.equal(texts.length, 2)
+      assert.equal(texts.join(""), "Картинки — это изображения")
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it("propagates backend errors with the server message", async () => {
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async () => {
