@@ -337,6 +337,8 @@
   "saipen.goalAuto.onIdleHint": "Ч¤ЧўЧ™Чњ, ЧђЧ‘Чњ ЧђЧ™Чџ ЧўЧ‘Ч•Ч“Ч” Ч¤ЧЄЧ•Ч—Ч” Ч‘ЧњЧ•Ч—, Ч•ЧњЧ›Чџ ЧњЧђ Ч™Ч™Ч©ЧњЧ— Ч“Ч‘ЧЁ.",
   "saipen.goalAuto.offHint": "Ч›Ч‘Ч•Ч™. Ч©Ч•Чќ Ч“Ч‘ЧЁ ЧњЧђ Ч Ч©ЧњЧ— ЧђЧ•ЧЧ•ЧћЧЧ™ЧЄ; Ч”ЧЁЧҐ `cc` Ч‘ЧўЧ¦ЧћЧљ.",
   "saipen.goalAuto.blockedHint": "Ч¤ЧўЧ™Чњ, ЧђЧ‘Чњ ЧћЧ¦Ч‘ Ч”ЧЄЧ•ЧЁ Ч›Ч‘Ч•Ч™, Ч•ЧњЧ›Чџ ЧњЧђ Ч Ч™ЧЄЧџ ЧњЧ©ЧњЧ•Ч— Ч“Ч‘ЧЁ. Ч”Ч¤ЧўЧњ ЧђЧЄ Ч”ЧЄЧ•ЧЁ.",
+  "saipen.goalAuto.blockedByQuotaHint": "פעיל, אך המכסה היומית של מודל זה מוצתה. Goal Auto יחזור לאחר האיפוס.",
+  "saipen.goalAuto.onWaitHint": "פעיל, אך הפרויקט ממתין לך (next_action הוא WAIT). פתור את הפריטים החסומים ו-Gool Auto יחזור.",
   "freebuff.switchDialog.title": "החלפת כרטיסיית FreeBuff",
   "freebuff.switchDialog.message": "FreeBuff מאפשר רק כרטיסייה אחת בכל פעם. לסגור את הכרטיסייה הנוכחית ולהתחיל סשן FreeBuff חדש בדיאלוג זה?",
   "freebuff.switchDialog.confirm": "החלף",

@@ -1,5 +1,6 @@
 import { antigravityCatalog } from "./models"
 import { resolveGeminiApiKey } from "./providers"
+import { ANTIGRAVITY_SHIM_API_KEY } from "../server/shim-keys"
 import {
   ANTIGRAVITY_PROVIDER_ID,
   GEMINI_API_PROVIDER_ID,
@@ -35,8 +36,8 @@ export interface ResolveExecutionOptions {
 
 /** The OpenCode provider id that fronts the local Antigravity shim. */
 export const ANTIGRAVITY_OPENCODE_PROVIDER = "saiwork-antigravity"
-/** Shared secret the shim requires from the OpenCode AI SDK client. */
-export const ANTIGRAVITY_SHIM_API_KEY = "saiwork-antigravity-shim"
+// Per-instance bearer key for the Antigravity shim (see server/shim-keys.ts).
+export { ANTIGRAVITY_SHIM_API_KEY }
 
 export function resolveGoogleExecution(
   providerId: GoogleProviderId,

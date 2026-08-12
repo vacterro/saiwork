@@ -20,7 +20,8 @@ import type { Instance } from "../../types/instance"
 import type { Command } from "../../lib/commands"
 import type { BackgroundProcess } from "../../../../server/src/api-types"
 import { keyboardRegistry, type KeyboardShortcut } from "../../lib/keyboard-registry"
-import { confirmFreebuffTabSwitch } from "../../lib/freebuff-send-guard"
+import { confirmModelSend } from "../../lib/freebuff-send-guard"
+import { normalizeShortcutMessage } from "../../lib/saipen-commands"
 
 import { isOpen as isCommandPaletteOpen, hideCommandPalette, showCommandPalette } from "../../stores/command-palette"
 import InstanceWelcomeView from "../instance-welcome-view"
@@ -1200,9 +1201,13 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   }
 
   async function handleFirstPromptSend(prompt: string, attachments: Attachment[]) {
-    // FreeBuff one-tab rule: this draft is a brand-new FreeBuff conversation;
-    // confirm switching away from any currently open FreeBuff tab first.
-    if (!(await confirmFreebuffTabSwitch(props.instance.id, NO_SESSION_DRAFT_SESSION_ID, draftModel()))) return
+    // FreeBuff one-tab rule + daily-quota reminder: this draft is a brand-new
+    // FreeBuff conversation; confirm switching away from any open tab and that
+    // the model still has daily quota before creating the session.
+    if (!(await confirmModelSend(props.instance.id, NO_SESSION_DRAFT_SESSION_ID, draftModel()))) return
+    // A bare shortcut is expanded to its canonical verb so the model never has
+    // to parse a raw key from chat.
+    prompt = normalizeShortcutMessage(prompt) ?? prompt
     await runFirstPromptSubmission((sessionId) => sendMessage(props.instance.id, sessionId, prompt, attachments))
   }
 

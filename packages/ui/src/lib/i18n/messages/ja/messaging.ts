@@ -339,6 +339,8 @@
   "saipen.goalAuto.onIdleHint": "ON гЃ§гЃ™гЃЊгЂЃгѓњгѓјгѓ‰гЃ«жњЄе®Њдє†гЃ®дЅњжҐ­гЃЊгЃЄгЃ„гЃџг‚ЃдЅ•г‚‚йЂЃдїЎгЃ•г‚ЊгЃѕгЃ›г‚“гЂ‚",
   "saipen.goalAuto.offHint": "OFFгЂ‚и‡Єе‹•йЂЃдїЎгЃЇгЃ‚г‚ЉгЃѕгЃ›г‚“гЂ‚`cc` г‚’и‡Єе€†гЃ§е®џиЎЊгЃ—гЃ¦гЃЏгЃ гЃ•гЃ„гЂ‚",
   "saipen.goalAuto.blockedHint": "ON гЃ§гЃ™гЃЊгЂЃг‚­гѓҐгѓјгѓўгѓјгѓ‰гЃЊг‚Єгѓ•гЃ®гЃџг‚ЃйЂЃдїЎгЃ§гЃЌгЃѕгЃ›г‚“гЂ‚г‚­гѓҐгѓјг‚’г‚ЄгѓігЃ«гЃ—гЃ¦гЃЏгЃ гЃ•гЃ„гЂ‚",
+  "saipen.goalAuto.blockedByQuotaHint": "オンですが、このモデルの1日の割り当てが尽きました。リセット後に Goal Auto が再開します。",
+  "saipen.goalAuto.onWaitHint": "オンの状態ですが、プロジェクトはあなたを待っています（next_action は WAIT）。ブロックされた項目を整理すると Goal Auto が再開します。",
   "freebuff.switchDialog.title": "FreeBuff タブを切り替え",
   "freebuff.switchDialog.message": "FreeBuff は一度に 1 タブのみ許可します。現在の FreeBuff タブを閉じて、このダイアログで新しい FreeBuff セッションを開始しますか？",
   "freebuff.switchDialog.confirm": "切り替え",

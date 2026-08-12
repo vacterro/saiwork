@@ -13,6 +13,8 @@ import {
   type FreebuffOpenAiChatRequest,
 } from "../../freebuff/gateway"
 import { FREEBUFF_MODELS } from "../../freebuff/models"
+import { FREEBUFF_SHIM_API_KEY } from "../shim-keys"
+import { openAiSseChunk, sseEncode } from "./sse-shared"
 
 /**
  * OpenAI-compatible gateway in front of the FreeBuff agent engine.
@@ -25,33 +27,12 @@ import { FREEBUFF_MODELS } from "../../freebuff/models"
  * created in the right project.
  */
 
-export const FREEBUFF_SHIM_API_KEY = "saiwork-freebuff-shim"
+// Per-instance bearer key for the FreeBuff shim (see server/shim-keys.ts).
+export { FREEBUFF_SHIM_API_KEY }
 
 interface GatewayDeps {
   freebuff: FreebuffController
   registry?: FreebuffThreadRegistry
-}
-
-interface OpenAiSseChunk {
-  id: string
-  object: "chat.completion.chunk"
-  created: number
-  model: string
-  choices: Array<{
-    index: number
-    delta: { content?: string }
-    finish_reason: "stop" | null
-  }>
-}
-
-function sseChunk(id: string, created: number, model: string, content?: string, finish = false): OpenAiSseChunk {
-  return {
-    id,
-    object: "chat.completion.chunk",
-    created,
-    model,
-    choices: [{ index: 0, delta: content !== undefined ? { content } : {}, finish_reason: finish ? "stop" : null }],
-  }
 }
 
 function parseChatBody(body: unknown): FreebuffOpenAiChatRequest | null {
@@ -117,7 +98,12 @@ export function registerFreebuffGatewayRoutes(app: FastifyInstance, deps: Gatewa
 
     const id = `chatcmpl-${randomUUID()}`
     const created = Math.floor(Date.now() / 1000)
-    const emit = (content: string) => reply.raw.write(`data: ${JSON.stringify(sseChunk(id, created, body.model, content))}\n\n`)
+    const emit = (content: string) => reply.raw.write(sseEncode(openAiSseChunk({
+      id,
+      created,
+      model: body.model,
+      delta: { content },
+    })))
 
     if (skip) {
       // Same prompt already dispatched; the engine is mid-turn or the client
@@ -125,7 +111,7 @@ export function registerFreebuffGatewayRoutes(app: FastifyInstance, deps: Gatewa
       if (body.stream) {
         reply.hijack()
         reply.raw.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" })
-        reply.raw.write(`data: ${JSON.stringify(sseChunk(id, created, body.model, undefined, true))}\n\n`)
+        reply.raw.write(sseEncode(openAiSseChunk({ id, created, model: body.model, finishReason: "stop" })))
         reply.raw.write("data: [DONE]\n\n")
         reply.raw.end()
         return
@@ -162,7 +148,7 @@ export function registerFreebuffGatewayRoutes(app: FastifyInstance, deps: Gatewa
         raw.write(`data: ${JSON.stringify({ error: { message } })}\n\n`)
       }
       if (!abort.signal.aborted) {
-        raw.write(`data: ${JSON.stringify(sseChunk(id, created, body.model, undefined, true))}\n\n`)
+        raw.write(sseEncode(openAiSseChunk({ id, created, model: body.model, finishReason: "stop" })))
         raw.write("data: [DONE]\n\n")
       }
       raw.end()
@@ -208,6 +194,10 @@ async function runTurnWithSlotRetry(
   onText: (text: string) => void,
   options: { signal?: AbortSignal; onStep?: (text: string) => void } = {},
 ): Promise<string> {
+  // This request owns a turn generation; a rapid next request bumps it, which
+  // makes this request's post-turn close stand down instead of closing the
+  // thread under the new turn.
+  const generation = nextTurnGeneration(threadId)
   const runOnce = async () => {
     await freebuff.freeSlotFor(threadId)
     return runFreebuffTurn(client, threadId, prompt, onText, options)
@@ -225,7 +215,21 @@ async function runTurnWithSlotRetry(
     // without hitting the one-tab limit. Sending another message reopens the
     // thread and preserves its history.
     setTimeout(() => {
+      if (currentTurnGeneration(threadId) !== generation) return
       void client.closeThread(threadId).catch(() => undefined)
     }, 750)
   }
+}
+
+const turnGenerations = new Map<string, number>()
+
+function currentTurnGeneration(threadId: string): number {
+  return turnGenerations.get(threadId) ?? 0
+}
+
+/** Mark a new turn for the thread; the pending post-turn close must stand down. */
+function nextTurnGeneration(threadId: string): number {
+  const next = currentTurnGeneration(threadId) + 1
+  turnGenerations.set(threadId, next)
+  return next
 }

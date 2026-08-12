@@ -4,9 +4,16 @@ import { describe, it } from "node:test"
 import type { SaipenStatusResponse } from "../../../server/src/api-types.ts"
 import {
   SAIPEN_CONTINUE_PROMPT,
+  beginGoalAutoCheck,
   clearDispatchedContinue,
+  endGoalAutoCheck,
+  GOAL_AUTO_ABORT_COOLDOWN_MS,
+  goalAutoCooldownRemainingMs,
   hasDispatchedContinue,
+  isGoalAutoCooldownActive,
   markContinueDispatched,
+  markGoalAutoAborted,
+  noteGoalAutoTurnIdle,
   resetDispatchedContinues,
   shouldCheckSaipenGoalAuto,
   shouldEnqueueSaipenContinue,
@@ -28,6 +35,36 @@ function status(project: SaipenStatusResponse["project"]): SaipenStatusResponse 
 }
 
 describe("SAIPEN Goal Mode Auto", () => {
+  it("blocks continues during the post-turn and post-abort cooldown", () => {
+    resetDispatchedContinues()
+    const now = 1_800_000_000_000
+    // No turn ended yet: no cooldown.
+    assert.equal(isGoalAutoCooldownActive("i", "s", now), false)
+    assert.equal(goalAutoCooldownRemainingMs("i", "s", now), 0)
+
+    // A turn just ended: cooldown active for 30s.
+    noteGoalAutoTurnIdle("i", "s", now)
+    assert.equal(isGoalAutoCooldownActive("i", "s", now + 10_000), true)
+    assert.equal(isGoalAutoCooldownActive("i", "s", now + 31_000), false)
+
+    // An explicit abort pauses much longer.
+    markGoalAutoAborted("i", "s", now)
+    assert.equal(isGoalAutoCooldownActive("i", "s", now + 60_000), true)
+    assert.equal(isGoalAutoCooldownActive("i", "s", now + GOAL_AUTO_ABORT_COOLDOWN_MS + 1_000), false)
+    assert.ok(goalAutoCooldownRemainingMs("i", "s", now) > 0)
+  })
+
+  it("serializes concurrent checks so only one enqueues", () => {
+    resetDispatchedContinues()
+    assert.equal(beginGoalAutoCheck("i", "s"), true)
+    assert.equal(beginGoalAutoCheck("i", "s"), false, "second check while in flight is refused")
+    assert.equal(beginGoalAutoCheck("i", "other"), true, "other sessions are independent")
+    endGoalAutoCheck("i", "s")
+    assert.equal(beginGoalAutoCheck("i", "s"), true, "check can run again after completion")
+    endGoalAutoCheck("i", "s")
+    endGoalAutoCheck("i", "other")
+  })
+
   it("checks only the active idle session with queue mode running", () => {
     const ready = { active: true, enabled: true, busy: false, needsInput: false, paused: false }
     assert.equal(shouldCheckSaipenGoalAuto(ready), true)

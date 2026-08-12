@@ -24,6 +24,8 @@ interface SaipenBarProps {
   goalAutoEnabled?: boolean
   /** Goal Auto needs the queue; when the queue is off it cannot run at all. */
   goalAutoBlockedByQueue?: boolean
+  /** Goal Auto stands down when the session model's daily quota is exhausted. */
+  goalAutoBlockedByQuota?: boolean
   onToggleGoalAuto?: () => void
   goalAutoLimit?: number | null
   onSetGoalAutoLimit?: (limit: number | null) => void
@@ -184,7 +186,7 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
    */
   const goalAutoState = () => {
     if (!props.goalAutoEnabled) return "off"
-    return props.goalAutoBlockedByQueue ? "blocked" : "on"
+    return props.goalAutoBlockedByQueue || props.goalAutoBlockedByQuota ? "blocked" : "on"
   }
 
   const goalAutoLabelKey = () => {
@@ -196,9 +198,13 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
   const goalAutoTitle = () => {
     const state = goalAutoState()
     if (state === "off") return t("saipen.goalAuto.offHint")
+    if (state === "blocked" && props.goalAutoBlockedByQuota) return t("saipen.goalAuto.blockedByQuotaHint")
     if (state === "blocked") return t("saipen.goalAuto.blockedHint")
     const project = status()?.project
     if (!project) return t("saipen.goalAuto.onHint")
+    // A WAIT next_action is a human brake (e.g. untriaged MARKHUNT findings):
+    // Goal Auto must not push past it, and the reason must be visible.
+    if (project.nextAction?.startsWith("WAIT:")) return t("saipen.goalAuto.onWaitHint")
     const pending = project.todoCount + project.doingCount
     if (pending === 0) return t("saipen.goalAuto.onIdleHint")
     return t("saipen.goalAuto.onWorkHint", { count: pending })

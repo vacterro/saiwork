@@ -339,6 +339,8 @@
   "saipen.goalAuto.onIdleHint": "е·ІејЂеђЇпјЊдЅ†зњ‹жќїдёЉжІЎжњ‰еѕ…еЉће·ҐдЅњпјЊе› ж­¤дёЌдјљеЏ‘йЂЃд»»дЅ•е†…е®№гЂ‚",
   "saipen.goalAuto.offHint": "е·Іе…ій—­гЂ‚дёЌдјљи‡ЄеЉЁеЏ‘йЂЃд»»дЅ•е†…е®№пј›иЇ·и‡ЄиЎЊиїђиЎЊ `cc`гЂ‚",
   "saipen.goalAuto.blockedHint": "е·ІејЂеђЇпјЊдЅ†йџе€—жЁЎејЏе·Іе…ій—­пјЊе› ж­¤ж— жі•еЏ‘йЂЃгЂ‚иЇ·ж‰“ејЂйџе€—гЂ‚",
+  "saipen.goalAuto.blockedByQuotaHint": "已开启，但该模型的每日配额已用完。配额重置后 Goal Auto 将恢复。",
+  "saipen.goalAuto.onWaitHint": "已开启，但项目正在等待你（next_action 为 WAIT）。整理受阻项目后 Goal Auto 将恢复。",
   "freebuff.switchDialog.title": "切换 FreeBuff 标签页",
   "freebuff.switchDialog.message": "FreeBuff 一次只允许一个标签页。关闭当前的 FreeBuff 标签页并在此对话中开始新的 FreeBuff 会话？",
   "freebuff.switchDialog.confirm": "切换",

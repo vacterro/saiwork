@@ -45,6 +45,8 @@ function quotaLabel(t: (key: string, vars?: Record<string, unknown>) => string, 
 const FreebuffBarStatus: Component<FreebuffBarStatusProps> = (props) => {
   const { t } = useI18n()
   const [expanded, setExpanded] = createSignal(false)
+  const [anchor, setAnchor] = createSignal<{ left: number; bottom: number } | null>(null)
+  let chipRef: HTMLButtonElement | undefined
 
   const activeSessionModel = createMemo(() => {
     const session = getActiveSession(props.instanceId)
@@ -88,15 +90,39 @@ const FreebuffBarStatus: Component<FreebuffBarStatusProps> = (props) => {
     if (isFreebuff() && status()?.ready) void refreshFreebuffThreads()
   })
 
+  // The bar's container clips overflow on both axes, so an absolutely
+  // positioned panel above the chip is cut off (the chip looked dead). Anchor
+  // the panel with position:fixed to the chip's viewport rect instead, and
+  // close it on an outside click.
+  createEffect(() => {
+    if (!expanded()) return
+    const close = (event: MouseEvent) => {
+      if (chipRef && !chipRef.contains(event.target as Node)) setExpanded(false)
+    }
+    document.addEventListener("mousedown", close)
+    onCleanup(() => document.removeEventListener("mousedown", close))
+  })
+
+  const openPanel = (event: MouseEvent) => {
+    if (chipRef) {
+      const rect = chipRef.getBoundingClientRect()
+      setAnchor({ left: rect.left, bottom: window.innerHeight - rect.top + 4 })
+    }
+    setExpanded((current) => !current)
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
   return (
     <Show when={isFreebuff()}>
       <div class="saipen-freebuff">
         <button
           type="button"
+          ref={chipRef}
           class="saipen-freebuff-chip"
           data-state={engineDot()}
           aria-expanded={expanded()}
-          onClick={() => setExpanded((current) => !current)}
+          onClick={openPanel}
           title={t("freebuff.bar.title")}
         >
           <span class="saipen-freebuff-dot" />
@@ -109,8 +135,12 @@ const FreebuffBarStatus: Component<FreebuffBarStatusProps> = (props) => {
           <span class="saipen-freebuff-chevron">{expanded() ? "▾" : "▸"}</span>
         </button>
 
-        <Show when={expanded()}>
-          <div class="saipen-freebuff-panel" role="region">
+        <Show when={expanded() && anchor()}>
+          <div
+            class="saipen-freebuff-panel"
+            role="region"
+            style={{ left: `${anchor()!.left}px`, bottom: `${anchor()!.bottom}px` }}
+          >
             <Show when={freebuffError()} keyed>
               {(message) => <p class="saipen-freebuff-error">{message}</p>}
             </Show>

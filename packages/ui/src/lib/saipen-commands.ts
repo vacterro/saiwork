@@ -167,5 +167,21 @@ export function findSaipenCommand(shortcut: string): SaipenCommand | undefined {
   return SAIPEN_COMMANDS.find((command) => command.shortcut === needle || command.cyrillic === needle)
 }
 
+/**
+ * Expand a bare declared shortcut to its canonical verb before it reaches the
+ * model. Bare keys are exact-whole-message commands (CORE §1.10), but models
+ * have proven unreliable at parsing them from chat: two consecutive keys
+ * (`cc` then `ee`) got merged into `ccee` and the agent stopped. Sending the
+ * full verb instead makes the model's job trivial and keeps command handling
+ * deterministic. Returns null when the message is not a declared shortcut.
+ */
+export function normalizeShortcutMessage(message: string): string | null {
+  const trimmed = message.trim()
+  if (!trimmed) return null
+  const command = findSaipenCommand(trimmed)
+  if (!command) return null
+  return command.verb
+}
+
 /** Surface order of the labelled groups in the shortcut bar. */
 export const SAIPEN_CATEGORIES: SaipenCommandCategory[] = ["continue", "plan", "subs"]

@@ -46,6 +46,8 @@ export class FreebuffController {
   private idleSweepTimer: ReturnType<typeof setInterval> | null = null
   /** Threads currently holding a hosted-model session slot. */
   private activeSessionThreads = new Set<string>()
+  /** Queued-prompt count per thread, from thread events (idle close skips these). */
+  private queueCountByThread = new Map<string, number>()
 
   constructor(options: FreebuffControllerOptions) {
     this.options = options
@@ -107,6 +109,7 @@ export class FreebuffController {
     this.clientCache = null
     this.threadsByProject.clear()
     this.activeSessionThreads.clear()
+    this.queueCountByThread.clear()
     await this.options.engineManager.stop()
   }
 
@@ -126,11 +129,26 @@ export class FreebuffController {
   async freeSlotFor(targetThreadId: string, options: { waitMs?: number } = {}): Promise<void> {
     const client = this.client()
     if (!client) return
-    const holders = [...this.activeSessionThreads].filter((threadId) => {
-      if (threadId === targetThreadId) return false
+    const holders: string[] = []
+    for (const threadId of [...this.activeSessionThreads]) {
+      if (threadId === targetThreadId) continue
       const thread = this.findThread(threadId)
-      return thread === null || thread.turnState !== "running"
-    })
+      if (thread !== null) {
+        // Never close a holder whose turn is running: it would destroy hours of
+        // agent work.
+        if (thread.turnState !== "running") holders.push(threadId)
+        continue
+      }
+      // Unknown to the mirror (possible desync): probe the engine before
+      // deciding, and only close a holder the engine confirms is idle.
+      try {
+        const live = await client.getThread(threadId)
+        const state = (live as { thread?: { turnState?: string } }).thread ?? live
+        if (state?.turnState === "idle") holders.push(threadId)
+      } catch {
+        // Unreachable: leave it alone rather than risk a blind kill.
+      }
+    }
     if (holders.length === 0) return
     await Promise.all(holders.map((threadId) => client.closeThread(threadId).catch(() => undefined)))
     // Give the engine time to observe the release and drop the server-side
@@ -217,6 +235,10 @@ export class FreebuffController {
       for (const thread of byId.values()) {
         if (thread.status !== "open") continue
         if (thread.turnState === "running") continue
+        // A thread with queued prompts still has pending work: closing it would
+        // interrupt the queue's delivery, so only genuinely abandoned threads
+        // are closed.
+        if ((this.queueCountByThread.get(thread.id) ?? 0) > 0) continue
         const lastActivity = thread.updatedAt ?? thread.createdAt ?? 0
         if (lastActivity > 0 && now - lastActivity >= idleMs) candidates.push(thread.id)
       }
@@ -239,6 +261,8 @@ export class FreebuffController {
     if (this.stopped) return
     if (!("thread" in event) || typeof event.thread !== "object" || event.thread === null) return
     const thread = event.thread as FreebuffThread
+    const items = Array.isArray((event as { items?: unknown }).items) ? (event as { items: unknown[] }).items : []
+    this.queueCountByThread.set(thread.id, items.length)
     const project = typeof thread.projectId === "string" ? thread.projectId : "default"
     let byId = this.threadsByProject.get(project)
     if (!byId) {
@@ -249,6 +273,7 @@ export class FreebuffController {
       byId.set(thread.id, thread)
     } else {
       byId.delete(thread.id)
+      this.queueCountByThread.delete(thread.id)
     }
   }
 }

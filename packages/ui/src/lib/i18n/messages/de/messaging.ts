@@ -337,6 +337,8 @@
   "saipen.goalAuto.onIdleHint": "Ein, aber das Board hat keine offene Arbeit, es wird nichts gesendet.",
   "saipen.goalAuto.offHint": "Aus. Es wird nichts automatisch gesendet; fГјhre `cc` selbst aus.",
   "saipen.goalAuto.blockedHint": "Ein, aber der Warteschlangenmodus ist aus, daher kann nichts gesendet werden. Schalte die Warteschlange ein.",
+  "saipen.goalAuto.blockedByQuotaHint": "Ein, aber das Tageskontingent dieses Modells ist aufgebraucht. Goal Auto setzt nach dem Reset fort.",
+  "saipen.goalAuto.onWaitHint": "Ein, aber das Projekt wartet auf dich (next_action ist WAIT). Räume die blockierten Punkte ab, dann läuft Goal Auto weiter.",
   "freebuff.switchDialog.title": "FreeBuff-Tab wechseln",
   "freebuff.switchDialog.message": "FreeBuff erlaubt nur einen Tab gleichzeitig. Den aktuellen FreeBuff-Tab schließen und in diesem Dialog eine neue FreeBuff-Sitzung starten?",
   "freebuff.switchDialog.confirm": "Wechseln",

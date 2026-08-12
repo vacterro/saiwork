@@ -115,12 +115,16 @@ export function isFreebuffSessionLimitError(error: unknown): boolean {
  * visible in the chat. Returns null for events that should not surface as steps
  * (token-level reasoning, plain text, tool results which are too verbose).
  */
-export function stepMarker(event: { type?: string; toolName?: string; agentId?: string; agentType?: string; stage?: string; text?: string }): string | null {
+export function stepMarker(event: { type?: string; toolName?: string; agentId?: string; agentType?: string; stage?: string; text?: string; input?: unknown }): string | null {
   switch (event.type) {
     case "status":
       return event.stage ? `> ${event.stage}` : null
-    case "tool_call":
-      return event.toolName ? `> tool: ${event.toolName}` : null
+    case "tool_call": {
+      const name = event.toolName
+      if (!name) return null
+      const hint = toolInputHint(event.input)
+      return hint ? `> tool: ${name} · ${hint}` : `> tool: ${name}`
+    }
     case "subagent_start": {
       const label = event.agentType ?? event.agentId
       return label ? `> subagent: ${label}` : null
@@ -128,6 +132,27 @@ export function stepMarker(event: { type?: string; toolName?: string; agentId?: 
     default:
       return null
   }
+}
+
+function stringOfAny(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value
+}
+
+/** Extract a short "what is it doing" hint from a tool call's input. */
+export function toolInputHint(input: unknown): string | null {
+  if (!input || typeof input !== "object") return null
+  const record = input as Record<string, unknown>
+  const file = stringOfAny(record.file_path) ?? stringOfAny(record.filePath) ?? stringOfAny(record.path)
+  if (file) return truncate(file, 80)
+  const command = stringOfAny(record.command)
+  if (command) return truncate(command, 60)
+  const target = stringOfAny(record.target) ?? stringOfAny(record.name)
+  if (target) return truncate(target, 60)
+  return null
 }
 
 export interface FreebuffTurnOptions {

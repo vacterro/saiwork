@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 
 import type { SettingsService } from "../../settings/service"
+import { antigravitySession } from "../../google/antigravity-session"
 import { resolveGoogleExecution } from "../../google/adapter"
 import { classifyGoogleError } from "../../google/errors"
 import { googleModelsFor } from "../../google/models"
@@ -69,6 +70,29 @@ export function registerGoogleRoutes(app: FastifyInstance, deps: RouteDeps) {
       return { providerId, models: googleModelsFor(providerId as (typeof GOOGLE_PROVIDER_IDS)[number]) }
     }
     return { models: googleModelsFor(GEMINI_API_PROVIDER_ID).concat(googleModelsFor(ANTIGRAVITY_PROVIDER_ID)) }
+  })
+
+  /**
+   * Live Antigravity per-model quota (remaining % of the current window + local
+   * reset time), used by the model picker so an exhausted model is marked and
+   * the user sees when it refreshes. Best-effort: failure returns empty models
+   * and the picker simply shows no availability.
+   */
+  app.get("/api/google/antigravity/quota", async () => {
+    try {
+      const models = await antigravitySession.listModels()
+      const quota: Record<string, { remainingPercent: number | null; resetAt: string | null }> = {}
+      for (const model of models) {
+        const remainingFraction = model.quota?.remainingFraction
+        quota[model.id] = {
+          remainingPercent: remainingFraction == null ? null : Math.max(0, Math.min(100, Math.round(remainingFraction * 100))),
+          resetAt: model.quota?.resetTime ?? null,
+        }
+      }
+      return { models: quota }
+    } catch (error) {
+      return { models: {}, error: error instanceof Error ? error.message : "Antigravity quota unavailable" }
+    }
   })
 
   app.post<{ Body: unknown }>("/api/google/classify-error", async (request, reply) => {

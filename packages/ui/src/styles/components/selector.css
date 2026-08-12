@@ -58,6 +58,21 @@
   color: var(--text-muted);
 }
 
+/* Quota-exhausted warning under the model trigger. Must NEVER shift the
+   surrounding layout: a single truncated line, no wrapping, no growth. */
+.selector-quota-warning {
+  @apply block w-full;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--danger);
+  margin: 2px 0 0 0;
+  padding: 0 2px;
+}
+
 .selector-trigger-hint--top {
   @apply self-start mt-0.5;
 }

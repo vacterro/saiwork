@@ -135,6 +135,38 @@ function sanitizeSchemaArray(value: unknown): unknown {
   return value.map((entry) => sanitizeGeminiSchema(entry))
 }
 
+/**
+ * Safe upper bound for a tool result or args payload forwarded to the backend
+ * as a `google.protobuf.Struct`. The backend rejects oversized structs
+ * ("Invalid value at ... function_response.response", size in bytes), so large
+ * tool output is truncated to its head instead of failing the whole turn.
+ */
+const MAX_FUNCTION_STRUCT_BYTES = 20_000
+
+/**
+ * Build a Struct-safe value from a tool result / args string. `google.protobuf.Struct`
+ * only accepts an object at the top level, but tool output is frequently a bare
+ * scalar (a number like `74915`, a string, an array) or large. Non-objects are
+ * wrapped under `result`; oversized payloads are truncated to their head with a
+ * `truncated` flag so the model still sees the beginning of the output.
+ */
+export function functionStructValue(content: string, maxBytes = MAX_FUNCTION_STRUCT_BYTES): Record<string, unknown> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    return { result: content }
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { result: parsed }
+  }
+  const serialized = JSON.stringify(parsed)
+  if (serialized.length > maxBytes) {
+    return { result: content.slice(0, maxBytes), truncated: true }
+  }
+  return parsed as Record<string, unknown>
+}
+
 export function sanitizeGeminiSchema(node: unknown): unknown {
   if (Array.isArray(node)) return node.map((entry) => sanitizeGeminiSchema(entry))
   if (!node || typeof node !== "object") return node
@@ -229,15 +261,9 @@ export function translateOpenAiRequest(
     if (message.role === "tool") {
       const call = registry.lookup(message.tool_call_id)
       if (!call) continue
-      let response: unknown
-      try {
-        response = JSON.parse(message.content)
-      } catch {
-        response = { result: message.content }
-      }
       contents.push({
         role: "user",
-        parts: [{ functionResponse: { name: call.name, response } }],
+        parts: [{ functionResponse: { name: call.name, response: functionStructValue(message.content) } }],
       })
       continue
     }
@@ -246,16 +272,10 @@ export function translateOpenAiRequest(
       const text = message.content ? textOf(message.content) : ""
       if (text) parts.push({ text })
       for (const call of message.tool_calls ?? []) {
-        let args: unknown
-        try {
-          args = JSON.parse(call.function.arguments)
-        } catch {
-          args = {}
-        }
         const known = registry.lookup(call.id)
         const functionCall: Record<string, unknown> = {
           name: call.function.name,
-          args,
+          args: functionStructValue(call.function.arguments),
           id: call.id,
         }
         if (known?.thoughtSignature) {

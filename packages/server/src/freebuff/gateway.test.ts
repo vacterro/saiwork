@@ -212,4 +212,21 @@ describe("freebuff gateway", () => {
     assert.equal(stepMarker({ type: "text", text: "x" }), null)
     assert.equal(stepMarker({ type: "reasoning_delta", text: "x" }), null)
   })
+
+  it("stepMarker shows what a tool is acting on from its input", () => {
+    assert.equal(
+      stepMarker({ type: "tool_call", toolName: "str_replace", input: { file_path: "src/sessions.py" } }),
+      "> tool: str_replace · src/sessions.py",
+    )
+    assert.equal(
+      stepMarker({ type: "tool_call", toolName: "run_terminal_command", input: { command: "npm test" } }),
+      "> tool: run_terminal_command · npm test",
+    )
+    assert.equal(stepMarker({ type: "tool_call", toolName: "read_files", input: { file_path: "a/b/c.py" } }), "> tool: read_files · a/b/c.py")
+    assert.equal(stepMarker({ type: "tool_call", toolName: "write_file", input: "not an object" }), "> tool: write_file")
+    const longCommand = "python -m pytest " + "x".repeat(100)
+    const marker = stepMarker({ type: "tool_call", toolName: "run_terminal_command", input: { command: longCommand } })
+    assert.ok(marker!.length < 100, "long commands are truncated")
+    assert.ok(!marker!.includes("x".repeat(50)), "command body is cut, not the whole line")
+  })
 })

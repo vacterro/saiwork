@@ -1,11 +1,12 @@
 import { Combobox } from "@kobalte/core/combobox"
-import { createEffect, createMemo, createSignal } from "solid-js"
+import { createEffect, createMemo, createSignal, Show } from "solid-js"
 import { providers, fetchProviders } from "../stores/sessions"
 import { Check, ChevronDown, PlugZap, Star } from "lucide-solid"
 import type { Model } from "../types/session"
 import { useI18n } from "../lib/i18n"
 import { getLogger } from "../lib/logger"
 import { uiState, toggleFavoriteModelPreference } from "../stores/preferences"
+import { ensureAntigravityQuota, modelAvailability } from "../stores/model-quota"
 import { ProviderManagerModal } from "./provider-auth/provider-manager-modal"
 const log = getLogger("session")
 
@@ -66,6 +67,32 @@ export default function ModelSelector(props: ModelSelectorProps) {
       fetchProviders(props.instanceId).catch((error) => log.error("Failed to fetch providers", error))
     }
   })
+
+  // Keep Antigravity quota warm for the picker (cached server-side per TTL).
+  createEffect(() => {
+    void ensureAntigravityQuota()
+  })
+
+  const availabilityOf = (model: FlatModel) => modelAvailability(model.providerId, model.id)
+  const currentAvailability = createMemo(() =>
+    modelAvailability(props.currentModel.providerId, props.currentModel.modelId),
+  )
+  const isOptionDisabled = (option: PickerOption): boolean => {
+    if (isProviderHeaderOption(option)) return true
+    return !availabilityOf(option).usable
+  }
+
+  const formatResetLocal = (resetAt: number | undefined) =>
+    resetAt ? new Date(resetAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null
+
+  const quotaHint = (availability: ReturnType<typeof modelAvailability>) => {
+    if (!availability.known) return null
+    if (availability.exhausted) {
+      const reset = formatResetLocal(availability.resetAt)
+      return reset ? t("modelSelector.quota.exhausted", { time: reset }) : t("modelSelector.quota.exhaustedNoReset")
+    }
+    return availability.remainingLabel
+  }
 
   const allModels = createMemo<FlatModel[]>(() =>
     instanceProviders().flatMap((p) =>
@@ -278,7 +305,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
         optionValue="key"
         optionTextValue="searchText"
         optionLabel={(option) => (isProviderHeaderOption(option) ? option.providerName : option.name)}
-        optionDisabled={isProviderHeaderOption}
+        optionDisabled={isOptionDisabled}
         placeholder={t("modelSelector.placeholder.search")}
         defaultFilter={customFilter}
         allowsEmptyCollection
@@ -297,6 +324,8 @@ export default function ModelSelector(props: ModelSelectorProps) {
 
           const model = itemProps.item.rawValue
           const isFavorite = () => favoriteKeySet().has(model.key)
+          const availability = availabilityOf(model)
+          const hint = quotaHint(availability)
           return (
             <Combobox.Item
               item={itemProps.item}
@@ -307,6 +336,9 @@ export default function ModelSelector(props: ModelSelectorProps) {
                   <Combobox.ItemLabel class="selector-option-label">{model.name}</Combobox.ItemLabel>
                   <Combobox.ItemDescription class="selector-option-description">
                     {model.providerName} • {model.providerId}/{model.id}
+                    <Show when={hint}>
+                      <span class={availability.exhausted ? "text-danger" : ""}> · {hint}</span>
+                    </Show>
                   </Combobox.ItemDescription>
                 </div>
                 <Combobox.ItemIndicator class="selector-option-indicator">
@@ -374,6 +406,11 @@ export default function ModelSelector(props: ModelSelectorProps) {
             </Combobox.Icon>
           </Combobox.Trigger>
         </Combobox.Control>
+        <Show when={currentAvailability().exhausted}>
+          <p class="selector-quota-warning" title={quotaHint(currentAvailability()) ?? undefined}>
+            {quotaHint(currentAvailability())}
+          </p>
+        </Show>
 
         <Combobox.Portal>
           <Combobox.Content class="selector-popover">

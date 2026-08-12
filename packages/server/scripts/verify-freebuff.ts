@@ -16,6 +16,8 @@
  * Exits non-zero on the first failed invariant. Safe to re-run.
  */
 import { mkdirSync } from "node:fs"
+import os from "node:os"
+import path from "node:path"
 import { FreebuffEngineManager } from "../src/freebuff/engine"
 import { FreebuffController } from "../src/freebuff/controller"
 import { createLogger } from "../src/logger"
@@ -23,7 +25,7 @@ import { locateFreebuffInstall } from "../src/freebuff/install"
 import { FREEBUFF_MODELS } from "../src/freebuff/models"
 
 const logger = createLogger({ component: "freebuff-verify" })
-const workspace = "V:/_TEMP_/opencode/freebuff-verify"
+const workspace = path.join(os.tmpdir(), "saiwork-freebuff-verify")
 mkdirSync(workspace, { recursive: true })
 
 async function main() {

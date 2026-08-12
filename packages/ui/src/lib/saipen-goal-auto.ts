@@ -2,6 +2,11 @@ import type { SaipenStatusResponse } from "../../../server/src/api-types"
 
 export const SAIPEN_CONTINUE_PROMPT = "saipen continue"
 
+/** Do not fire another auto-continue this soon after a turn ended. */
+export const GOAL_AUTO_TURN_COOLDOWN_MS = 30_000
+/** Much longer pause after the user explicitly aborted a turn. */
+export const GOAL_AUTO_ABORT_COOLDOWN_MS = 90_000
+
 export function shouldCheckSaipenGoalAuto(state: {
   active: boolean
   enabled: boolean
@@ -62,4 +67,73 @@ export function clearDispatchedContinue(instanceId: string, sessionId: string): 
 /** Test seam. */
 export function resetDispatchedContinues(): void {
   dispatchedContinues.clear()
+  turnIdleAt.clear()
+  abortedAt.clear()
+  inFlightChecks.clear()
+}
+
+/**
+ * Abort/cooldown guards.
+ *
+ * Without a pause after a turn ends (and a much longer one after an explicit
+ * abort), Goal Auto re-fires `saipen continue` the instant the session reports
+ * idle -- after an abort this produced a burst of continues back to back. The
+ * cooldowns below throttle automatic continues; a timer in the caller resumes
+ * the check once the cooldown expires.
+ */
+const turnIdleAt = new Map<string, number>()
+const abortedAt = new Map<string, number>()
+const inFlightChecks = new Set<string>()
+
+/** Record that a turn just ended (busy -> idle). Resets the continue cooldown. */
+export function noteGoalAutoTurnIdle(instanceId: string, sessionId: string, now = Date.now()): void {
+  turnIdleAt.set(continueKey(instanceId, sessionId), now)
+}
+
+/** Record an explicit user abort so Goal Auto stands down for a while. */
+export function markGoalAutoAborted(instanceId: string, sessionId: string, now = Date.now()): void {
+  abortedAt.set(continueKey(instanceId, sessionId), now)
+}
+
+/** True while a cooldown after the last turn end or abort is still active. */
+export function isGoalAutoCooldownActive(instanceId: string, sessionId: string, now = Date.now()): boolean {
+  const key = continueKey(instanceId, sessionId)
+  const aborted = abortedAt.get(key)
+  if (aborted !== undefined && now - aborted < GOAL_AUTO_ABORT_COOLDOWN_MS) return true
+  const idle = turnIdleAt.get(key)
+  if (idle !== undefined && now - idle < GOAL_AUTO_TURN_COOLDOWN_MS) return true
+  return false
+}
+
+/** How long until the cooldown clears (for scheduling the resume check). */
+export function goalAutoCooldownRemainingMs(instanceId: string, sessionId: string, now = Date.now()): number {
+  const key = continueKey(instanceId, sessionId)
+  const aborted = abortedAt.get(key)
+  if (aborted !== undefined) {
+    const remaining = GOAL_AUTO_ABORT_COOLDOWN_MS - (now - aborted)
+    if (remaining > 0) return remaining
+  }
+  const idle = turnIdleAt.get(key)
+  if (idle !== undefined) {
+    const remaining = GOAL_AUTO_TURN_COOLDOWN_MS - (now - idle)
+    if (remaining > 0) return remaining
+  }
+  return 0
+}
+
+/**
+ * Guards against two concurrent status checks enqueueing a continue each: the
+ * dispatched mark is only set after the async fetch resolves, so without this a
+ * second effect pass during the fetch slips past `hasDispatchedContinue` and
+ * double-enqueues. Returns false when a check is already in flight.
+ */
+export function beginGoalAutoCheck(instanceId: string, sessionId: string): boolean {
+  const key = continueKey(instanceId, sessionId)
+  if (inFlightChecks.has(key)) return false
+  inFlightChecks.add(key)
+  return true
+}
+
+export function endGoalAutoCheck(instanceId: string, sessionId: string): void {
+  inFlightChecks.delete(continueKey(instanceId, sessionId))
 }

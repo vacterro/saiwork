@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.4] - 2026-08-11
+## [0.1.0] - 2026-08-11
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log
 identifiers, not Git commits or release history.

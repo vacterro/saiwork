@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto"
 import type { FastifyInstance } from "fastify"
 
 import { ANTIGRAVITY_SHIM_API_KEY } from "../../google/adapter"
-import { AntigravitySession } from "../../google/antigravity-session"
+import { antigravitySession, type AntigravitySession } from "../../google/antigravity-session"
 import { antigravityCatalog } from "../../google/models"
+import { openAiSseChunk, sseEncode } from "./sse-shared"
 import {
   normalizeAntigravityModel,
   translateCloudCodeFrame,
@@ -29,31 +30,6 @@ import {
 interface ShimDeps {
   session?: AntigravitySession
   registry?: ToolCallRegistry
-}
-
-function sseChunk(
-  id: string,
-  created: number,
-  model: string,
-  chunk: OpenAiChunk,
-): Record<string, unknown> {
-  const delta: Record<string, unknown> = {}
-  if (chunk.content !== undefined) delta.content = chunk.content
-  if (chunk.toolCalls) {
-    delta.tool_calls = chunk.toolCalls.map((call) => ({
-      index: call.index,
-      id: call.id,
-      type: "function",
-      function: { name: call.name, arguments: call.arguments },
-    }))
-  }
-  return {
-    id,
-    object: "chat.completion.chunk",
-    created,
-    model,
-    choices: [{ index: 0, delta, finish_reason: chunk.finishReason ?? null }],
-  }
 }
 
 function openAiToolCalls(toolCalls: OpenAiChunk["toolCalls"]): OpenAiToolCall[] {
@@ -81,7 +57,7 @@ function parseChatBody(body: unknown): OpenAiChatRequest | null {
 }
 
 export function registerGoogleShimRoutes(app: FastifyInstance, deps: ShimDeps = {}) {
-  const session = deps.session ?? new AntigravitySession()
+  const session = deps.session ?? antigravitySession
   const registry = deps.registry ?? new ToolCallRegistry()
 
   app.get("/v1/models", async () => {
@@ -134,12 +110,21 @@ export function registerGoogleShimRoutes(app: FastifyInstance, deps: ShimDeps = 
               completionTokens = chunk.usage.completionTokens
               totalTokens = chunk.usage.totalTokens
             }
-            raw.write(`data: ${JSON.stringify(sseChunk(id, created, model, chunk))}\n\n`)
+            raw.write(sseEncode(openAiSseChunk({
+              id,
+              created,
+              model,
+              delta: { content: chunk.content, toolCalls: chunk.toolCalls },
+              finishReason: chunk.finishReason,
+            })))
           }
         }
-        raw.write(
-          `data: ${JSON.stringify(sseChunk(id, created, model, { finishReason: sawToolCalls ? "tool_calls" : "stop" }))}\n\n`,
-        )
+        raw.write(sseEncode(openAiSseChunk({
+          id,
+          created,
+          model,
+          finishReason: sawToolCalls ? "tool_calls" : "stop",
+        })))
         raw.write("data: [DONE]\n\n")
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)

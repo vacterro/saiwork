@@ -73,11 +73,20 @@ models through the subscription, without the Antigravity app running.
 ### Re-verify after an Antigravity update
 
 1. `readStoredTokens()` still finds the refresh token in `state.vscdb`.
-2. OAuth refresh still works (client/secret still in `language_server.exe`).
+2. OAuth refresh still works (client id hardcoded, client secrets discovered from
+   `language_server.exe` at runtime; env overrides win).
 3. `listModels()` returns the catalog; check `gemini-3.1-pro-high` vs
    `gemini-pro-agent` behaviour (the high-tier alias may start working, or move).
 4. A real generate returns frames (test with `gemini-3.6-flash-medium`).
 5. Tool schema probe: the keep-list above still matches backend errors.
+
+### Quota surface
+
+- `GET /api/google/antigravity/quota` returns per-model
+  `{ remainingPercent, resetAt }` (from `listModels()` quota, cached 60s in the
+  UI). The model picker marks a model exhausted at 0% and shows the local reset
+  time; the send guard reminds before burning the last of it; Goal Auto stands
+  down until the quota resets.
 
 ---
 

@@ -1,4 +1,4 @@
-import { Show, createMemo, createEffect, createSignal, on, onCleanup, type Component } from "solid-js"
+﻿import { Show, createMemo, createEffect, createSignal, on, onCleanup, type Component } from "solid-js"
 import type { Session } from "../../types/session"
 import type { Attachment } from "../../types/attachment"
 import type { ClientPart } from "../../types/message"
@@ -13,17 +13,26 @@ import { getAttachments, removeAttachment } from "../../stores/attachments"
 import { instances, updateInstance, waitForInstanceWorkspaceMetadataHydration } from "../../stores/instances"
 import { activeSessionId, loadMessages, sendMessage, forkSession, renameSession, isSessionMessagesLoading, getSessionMessagesLoadError, markSessionIdleSeen, ensureSessionAncestorsExpanded, setActiveSessionFromList, runShellCommand, abortSession, sessions } from "../../stores/sessions"
 import { clearResponseStartedAt, responseStartedAtSignal, setResponseStartedAt } from "../../stores/response-timer"
-import { confirmFreebuffTabSwitch } from "../../lib/freebuff-send-guard"
+import { confirmModelSend, modelQuotaBlockedNow } from "../../lib/freebuff-send-guard"
+import { ensureAntigravityQuota } from "../../stores/model-quota"
 import { clearSessionIdleFade, IDLE_STATUS_VISIBILITY_MS, getSessionStatus, isSessionBusy as getSessionBusyStatus, markSessionIdleFadeStarted } from "../../stores/session-status"
 import { deleteMessage, didSessionPromptReachServer } from "../../stores/session-actions"
 import { showAlertDialog } from "../../stores/alerts"
 import { getLogger } from "../../lib/logger"
 import { serverApi } from "../../lib/api-client"
+import { normalizeShortcutMessage } from "../../lib/saipen-commands"
+import { createDrainGate } from "../../lib/drain-gate"
 import {
   SAIPEN_CONTINUE_PROMPT,
+  beginGoalAutoCheck,
   clearDispatchedContinue,
+  endGoalAutoCheck,
+  goalAutoCooldownRemainingMs,
   hasDispatchedContinue,
+  isGoalAutoCooldownActive,
   markContinueDispatched,
+  markGoalAutoAborted,
+  noteGoalAutoTurnIdle,
   shouldCheckSaipenGoalAuto,
   shouldEnqueueSaipenContinue,
 } from "../../lib/saipen-goal-auto"
@@ -460,6 +469,10 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   }
 
   async function handleSendMessage(prompt: string, attachments: Attachment[]) {
+    // A bare shortcut (`cc`, `ee`, ...) is expanded to its canonical verb here,
+    // deterministically, so the model never has to parse a raw key from chat
+    // (two keys sent back-to-back were merged into `ccee` before).
+    prompt = normalizeShortcutMessage(prompt) ?? prompt
     const messageCount = messageStore().getSessionMessageIds(props.sessionId).length
     const submittedExchangeTargetCount = getSubmitBottomPinTargetCount(messageCount, sessionStreamingActive())
     const initialPinIntent = forceSubmittedExchangeToBottom(submittedExchangeTargetCount, { createdMessageCount: messageCount })
@@ -507,10 +520,10 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   }
 
   async function handleDispatchMessage(prompt: string, attachments: Attachment[]) {
-    // FreeBuff one-tab rule: starting a NEW FreeBuff conversation while another
-    // tab is open steals that tab's slot. Ask before it happens; declining keeps
-    // the draft text without enqueuing anything.
-    if (!(await confirmFreebuffTabSwitch(props.instanceId, props.sessionId))) return
+    // FreeBuff one-tab rule + daily-quota reminder: asking before the first
+    // send of a new FreeBuff conversation or before burning the last quota.
+    // Declining keeps the draft text without enqueuing anything.
+    if (!(await confirmModelSend(props.instanceId, props.sessionId))) return
     const outcome = await dispatchOrdinaryPrompt({
       queueEnabled: preferences().queueEnabled,
       instanceId: props.instanceId,
@@ -560,8 +573,18 @@ export const SessionView: Component<SessionViewProps> = (props) => {
 
   let autoContinueCheck = 0
   let goalAutoRetry: GoalAutoRetry | undefined
+  let previousGoalAutoBusy = false
+  let goalAutoCooldownTimer: ReturnType<typeof setTimeout> | undefined
+
+  // Warm the Antigravity quota so quota-aware guards and Goal Auto see it.
+  createEffect(() => {
+    void ensureAntigravityQuota()
+  })
 
   function runGoalAutoStatusCheck() {
+    // The dispatched mark is set only after the fetch resolves, so a concurrent
+    // effect pass would double-enqueue; one check at a time per session.
+    if (!beginGoalAutoCheck(props.instanceId, props.sessionId)) return
     const check = ++autoContinueCheck
     void serverApi
       .fetchSaipenStatus(props.instanceFolder)
@@ -594,6 +617,9 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         log.error("Failed to check SAIPEN Goal Mode Auto:", error)
         getGoalAutoRetry().retry()
       })
+      .finally(() => {
+        endGoalAutoCheck(props.instanceId, props.sessionId)
+      })
   }
 
   function getGoalAutoRetry(): GoalAutoRetry {
@@ -619,6 +645,10 @@ export const SessionView: Component<SessionViewProps> = (props) => {
     // A retry left pending by an unmounted pane must never fire against a dead
     // session.
     goalAutoRetry?.cancel()
+    if (goalAutoCooldownTimer) {
+      clearTimeout(goalAutoCooldownTimer)
+      goalAutoCooldownTimer = undefined
+    }
     // A mark left behind by an unmounted pane would block the next legitimate
     // continue for this session, which looks exactly like Goal Auto dying.
     clearDispatchedContinue(props.instanceId, props.sessionId)
@@ -635,6 +665,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         busy: sessionBusy(),
         needsInput: sessionNeedsInput(),
         paused: isQueuePaused(props.instanceId, props.sessionId),
+        quotaBlocked: modelQuotaBlockedNow(props.instanceId),
         folder: props.instanceFolder,
         sessionId: props.sessionId,
       }),
@@ -642,11 +673,39 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         // Any state change closes the previous check's retry window; the new
         // evaluation starts with a fresh budget.
         goalAutoRetry?.cancel()
+        if (goalAutoCooldownTimer) {
+          clearTimeout(goalAutoCooldownTimer)
+          goalAutoCooldownTimer = undefined
+        }
+
+        // A turn just ended (busy -> idle): start the continue cooldown so Goal
+        // Auto does not immediately fire again -- and much longer after an
+        // explicit abort.
+        if (previousGoalAutoBusy && !state.busy) {
+          noteGoalAutoTurnIdle(props.instanceId, state.sessionId)
+        }
+        previousGoalAutoBusy = state.busy
 
         // Going busy is the agent picking the last continue up, which is what
         // makes the next one legitimate. Nothing else clears the mark.
         if (state.busy) {
           clearDispatchedContinue(props.instanceId, state.sessionId)
+          return
+        }
+
+        // Daily quota exhausted (FreeBuff/Antigravity): continuing would only
+        // produce quota errors, so Goal Auto stands down until the quota resets
+        // or the model changes.
+        if (state.quotaBlocked) return
+
+        // Cooldown after the last turn/abort: schedule a resume so the next
+        // continue fires only once the pause has elapsed.
+        if (isGoalAutoCooldownActive(props.instanceId, state.sessionId)) {
+          const remaining = goalAutoCooldownRemainingMs(props.instanceId, state.sessionId)
+          goalAutoCooldownTimer = setTimeout(() => {
+            goalAutoCooldownTimer = undefined
+            runGoalAutoStatusCheck()
+          }, Math.max(500, remaining + 200))
           return
         }
 
@@ -667,13 +726,20 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   let draining = false
 
   /**
+   * Gate that blocks the next drain until the session reports busy. It is only
+   * disarmed by an observed busy transition OR a bounded timeout: a session
+   * stopped mid-send never reports busy, and without the timeout the queue
+   * would stay wedged forever (sends look fine but nothing leaves the queue).
+   */
+  const drainGate = createDrainGate({ timeoutMs: 60_000 })
+
+  /**
    * Set while the queue is waiting for the session to report working after a
    * send. Two quick enqueues used to drain in a row before the session's busy
    * status flipped, so the opencode session received both prompts in one turn
    * and the chat showed one message with both texts. The next drain waits until
    * the session has actually gone busy since the last one.
    */
-  let awaitingBusyAfterDrain = false
 
   async function drainQueueHead() {
     if (draining) return
@@ -697,7 +763,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         let detail = error instanceof Error ? error.message : String(error)
         if (!didSessionPromptReachServer(error)) {
           const restored = await restoreDequeuedPrompts(props.instanceId, props.sessionId, all)
-          awaitingBusyAfterDrain = false
+          drainGate.disarm()
           if (!restored) detail = `${t("promptQueue.recoveryFailed")}\n\n${all.map((item) => item.text).join("\n\n")}`
         }
         showAlertDialog(t("promptInput.send.errorFallback"), {
@@ -724,7 +790,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         // No promptAsync call occurred, so restoring cannot duplicate a send.
         // Pause prevents a broken session from repeatedly draining and failing.
         const restored = await restoreDequeuedPrompt(props.instanceId, props.sessionId, next)
-        awaitingBusyAfterDrain = false
+        drainGate.disarm()
         if (!restored) detail = `${t("promptQueue.recoveryFailed")}\n\n${next.text}`
       }
       showAlertDialog(t("promptInput.send.errorFallback"), {
@@ -753,10 +819,10 @@ export const SessionView: Component<SessionViewProps> = (props) => {
       (state) => {
         // The send was picked up: the next drain is allowed once the session
         // goes idle again.
-        if (state.busy) awaitingBusyAfterDrain = false
+        if (state.busy) drainGate.disarm()
         if (!shouldDrainPromptQueue(state)) return
-        if (awaitingBusyAfterDrain) return
-        awaitingBusyAfterDrain = true
+        if (drainGate.blocked()) return
+        drainGate.arm()
         void drainQueueHead()
       },
     ),
@@ -765,9 +831,11 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   async function handleAbortSession() {
     const currentSession = session()
     if (!currentSession) return
- 
+  
     try {
       await abortSession(props.instanceId, currentSession.id)
+      // The user stopped the work; Goal Auto must not instantly restart it.
+      markGoalAutoAborted(props.instanceId, currentSession.id)
       log.info("Abort requested", { instanceId: props.instanceId, sessionId: currentSession.id })
     } catch (error) {
       log.error("Failed to abort session", error)
@@ -963,6 +1031,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
                 onInsertShortcut={(text) => promptInputApi?.setPromptText(text, { focus: true })}
                 goalAutoEnabled={isSaipenGoalAutoEnabled(props.instanceFolder)}
                 goalAutoBlockedByQueue={!preferences().queueEnabled}
+                goalAutoBlockedByQuota={modelQuotaBlockedNow(props.instanceId)}
                 onToggleGoalAuto={() => toggleSaipenGoalAuto(props.instanceFolder)}
                 goalAutoLimit={getSaipenGoalAutoLimit(props.instanceFolder)}
                 onSetGoalAutoLimit={(limit) => setSaipenGoalAutoLimit(props.instanceFolder, limit)}
@@ -1013,3 +1082,4 @@ export const SessionView: Component<SessionViewProps> = (props) => {
 }
 
 export default SessionView
+

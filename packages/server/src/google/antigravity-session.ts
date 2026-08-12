@@ -292,13 +292,10 @@ export function readStoredTokens(overrides: { stateDbPath?: string } = {}): Stor
 
 function oauthClientCredentials(env: NodeJS.ProcessEnv = process.env): OAuthClientCredentials {
   const envSecrets = stringOf(env.ANTIGRAVITY_OAUTH_CLIENT_SECRET)
+  const discovered = discoverAntigravityOAuthSecrets()
   return {
     clientId: stringOf(env.ANTIGRAVITY_OAUTH_CLIENT_ID) ?? DEFAULT_OAUTH_CLIENT_ID,
-    clientSecrets: envSecrets
-      ? [envSecrets]
-      : (discoverAntigravityOAuthSecrets().length > 0
-          ? discoverAntigravityOAuthSecrets()
-          : []),
+    clientSecrets: envSecrets ? [envSecrets] : discovered,
   }
 }
 
@@ -362,7 +359,6 @@ export class AntigravitySession {
     projectId?: string
     env?: NodeJS.ProcessEnv
   } = {}) {}
-
   private async ensureAccessToken(): Promise<string> {
     if (this.accessToken && this.expiresAt - TOKEN_REFRESH_LEAD_MS >= Date.now()) {
       return this.accessToken
@@ -513,3 +509,7 @@ export class AntigravitySession {
     }
   }
 }
+
+/** Shared session used by the shim and the quota endpoint. */
+export const antigravitySession = new AntigravitySession()
+

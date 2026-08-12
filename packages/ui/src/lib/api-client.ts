@@ -336,6 +336,10 @@ export const serverApi = {
     return request(`/api/google/models${query}`)
   },
 
+  fetchAntigravityQuota(): Promise<{ models: Record<string, { remainingPercent: number | null; resetAt: string | null }>; error?: string }> {
+    return request("/api/google/antigravity/quota")
+  },
+
   patchGoogleSettings(patch: { allowProviderFallback?: boolean; antigravityAcknowledged?: boolean }): Promise<{
     allowProviderFallback: boolean
     antigravityAcknowledged: boolean

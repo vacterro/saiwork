@@ -122,9 +122,12 @@ describe("FreebuffController thread registry", () => {
         },
       },
     }
+    // t1/t3 are known idle holders in the mirror; t2 is the target.
+    const idleHolder1 = threadEvent("t1", "open", { turnState: "idle", updatedAt: 1 })
+    const idleHolder3 = threadEvent("t3", "open", { turnState: "idle", updatedAt: 1 })
     globalThis.fetch = (async (input: any, init?: any) => {
       const url = String(input)
-      if (url.endsWith("/api/events")) return sseResponse([stateEvent])
+      if (url.endsWith("/api/events")) return sseResponse([stateEvent, idleHolder1, idleHolder3])
       if (url.includes("/api/thread/") && init?.method === "POST") {
         const match = /\/api\/thread\/([^/]+)\/close/.exec(url)
         if (match) closed.push(match[1])
@@ -142,6 +145,59 @@ describe("FreebuffController thread registry", () => {
       await new Promise((resolve) => setTimeout(resolve, 50))
       await controller.freeSlotFor("t2", { waitMs: 0 })
       assert.deepEqual(closed.sort(), ["t1", "t3"])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("freeSlotFor probes unknown holders and only closes engine-confirmed idle ones", async () => {
+    const originalFetch = globalThis.fetch
+    const closed: string[] = []
+    const probed: string[] = []
+    const stateEvent = {
+      type: "state",
+      snapshot: {
+        sessions: {
+          activeSessionsByThread: {
+            unknown: { model: "deepseek/deepseek-v4-flash" },
+            running: { model: "mimo/mimo-v2.5" },
+          },
+        },
+      },
+    }
+    // `running` is in the mirror and busy; `unknown` is missing from the mirror.
+    const runningHolder = threadEvent("running", "open", { turnState: "running", updatedAt: 1 })
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) return sseResponse([stateEvent, runningHolder])
+      const getMatch = /\/api\/thread\/([^/]+)$/.exec(url)
+      if (getMatch && !init?.method) {
+        probed.push(getMatch[1])
+        if (getMatch[1] === "unknown") {
+          // Engine confirms the unknown holder is idle -> safe to close.
+          return new Response(JSON.stringify({ thread: { id: "unknown", turnState: "idle" } }), { status: 200 })
+        }
+        return new Response(JSON.stringify({ thread: { id: getMatch[1], turnState: "running" } }), { status: 200 })
+      }
+      if (url.includes("/api/thread/") && init?.method === "POST") {
+        const match = /\/api\/thread\/([^/]+)\/close/.exec(url)
+        if (match) closed.push(match[1])
+        return new Response("{}", { status: 200 })
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({
+        engineManager: fakeEngineManager(19_006),
+        logger: logger as never,
+      })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      await controller.freeSlotFor("target", { waitMs: 0 })
+      // The unknown idle holder is closed; the mirror-running holder is not.
+      assert.deepEqual(closed, ["unknown"])
+      assert.ok(probed.includes("unknown"))
     } finally {
       globalThis.fetch = originalFetch
     }

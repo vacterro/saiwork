@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import {
+  functionStructValue,
   normalizeAntigravityModel,
   openAiToolsToCloudCode,
   ToolCallRegistry,
@@ -213,5 +214,45 @@ describe("antigravity shim translation", () => {
   it("drops unknown frames", () => {
     assert.deepEqual(translateCloudCodeFrame({ error: { message: "boom" } }, new ToolCallRegistry()), [])
     assert.deepEqual(translateCloudCodeFrame({}, new ToolCallRegistry()), [])
+  })
+
+  it("wraps scalar and array tool results as Struct-safe objects", () => {
+    assert.deepEqual(functionStructValue("74915"), { result: 74915 })
+    assert.deepEqual(functionStructValue('["a","b"]'), { result: ["a", "b"] })
+    assert.deepEqual(functionStructValue("null"), { result: null })
+    assert.deepEqual(functionStructValue("plain text"), { result: "plain text" })
+    assert.deepEqual(functionStructValue('{"ok":true}'), { ok: true })
+  })
+
+  it("truncates oversized tool results instead of failing the turn", () => {
+    const big = '{"output":"' + "x".repeat(30_000) + '"}'
+    const result = functionStructValue(big, 5_000)
+    assert.equal(result.truncated, true)
+    const preview = String(result.result)
+    assert.ok(preview.length <= 5_000)
+    assert.ok(preview.startsWith('{"output":"xxx'))
+  })
+
+  it("applies Struct-safe wrapping to tool responses and call args in history", () => {
+    const registry = new ToolCallRegistry()
+    registry.record("call_1", "read_file", "SIG")
+    const request: OpenAiChatRequest = {
+      model: "gemini-3.6-flash-medium",
+      messages: [
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [{ id: "call_1", type: "function", function: { name: "read_file", arguments: "74915" } }],
+        },
+        { role: "tool", tool_call_id: "call_1", content: "74915" },
+      ],
+    }
+    const args = translateOpenAiRequest(request, registry)
+    const modelTurn = args.contents[0] as { parts: Array<Record<string, unknown>> }
+    const functionCall = modelTurn.parts[0].functionCall as Record<string, unknown>
+    assert.deepEqual(functionCall.args, { result: 74915 })
+    const userTurn = args.contents[1] as { parts: Array<Record<string, unknown>> }
+    const functionResponse = userTurn.parts[0].functionResponse as Record<string, unknown>
+    assert.deepEqual(functionResponse.response, { result: 74915 })
   })
 })

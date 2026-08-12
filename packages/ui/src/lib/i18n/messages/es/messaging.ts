@@ -339,6 +339,8 @@
   "saipen.goalAuto.onIdleHint": "Activa, pero el tablero no tiene trabajo abierto, asГ­ que no se enviarГЎ nada.",
   "saipen.goalAuto.offHint": "Inactiva. No se envГ­a nada automГЎticamente; ejecuta `cc` tГє mismo.",
   "saipen.goalAuto.blockedHint": "Activa, pero el modo de cola estГЎ desactivado, asГ­ que no se puede enviar nada. Activa la cola.",
+  "saipen.goalAuto.blockedByQuotaHint": "Activado, pero la cuota diaria de este modelo está agotada. Goal Auto se reanudará tras el restablecimiento.",
+  "saipen.goalAuto.onWaitHint": "Activado, pero el proyecto te espera (next_action es WAIT). Resuelve los elementos bloqueados y Goal Auto continuará.",
   "freebuff.switchDialog.title": "Cambiar pestaña de FreeBuff",
   "freebuff.switchDialog.message": "FreeBuff permite una sola pestaña a la vez. ¿Cerrar la pestaña de FreeBuff actual y comenzar una nueva sesión de FreeBuff en este diálogo?",
   "freebuff.switchDialog.confirm": "Cambiar",

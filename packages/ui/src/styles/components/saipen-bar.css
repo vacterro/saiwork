@@ -309,6 +309,7 @@
   background: transparent;
   color: var(--textSecondary);
   max-width: 320px;
+  min-width: 0;
 }
 
 .saipen-freebuff-chip[data-state="ready"] {
@@ -346,11 +347,21 @@
 
 .saipen-freebuff-model {
   color: var(--textPrimary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .saipen-freebuff-meta {
   color: var(--textSecondary);
   font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .saipen-freebuff-chevron {
@@ -358,9 +369,7 @@
 }
 
 .saipen-freebuff-panel {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
+  position: fixed;
   width: 340px;
   max-width: 90vw;
   max-height: 60vh;
