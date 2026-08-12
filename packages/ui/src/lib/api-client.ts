@@ -35,6 +35,7 @@ import type {
   QueuedPrompt as ServerQueuedPrompt,
   QueueState as ServerQueueState,
   FreebuffStatusResponse,
+  FreebuffReleaseSlotResponse,
   FreebuffThreadView,
   FreebuffThreadMessage,
   GoogleProvidersStatusResponse,
@@ -298,6 +299,10 @@ export const serverApi = {
     return request("/api/freebuff/stop", { method: "POST", body: "{}" })
   },
 
+  releaseFreebuffSlot(): Promise<FreebuffReleaseSlotResponse> {
+    return request("/api/freebuff/release-slot", { method: "POST", body: "{}" })
+  },
+
   fetchFreebuffThreads(): Promise<{ threads: FreebuffThreadView[] }> {
     return request("/api/freebuff/threads")
   },
@@ -309,6 +314,7 @@ export const serverApi = {
   createFreebuffThread(params: {
     projectPath: string
     model: string
+    reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
   }): Promise<FreebuffThreadView> {
     return request("/api/freebuff/threads", { method: "POST", body: JSON.stringify(params) })
   },

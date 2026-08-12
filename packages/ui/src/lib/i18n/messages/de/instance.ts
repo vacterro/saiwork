@@ -1,4 +1,4 @@
-﻿export const instanceMessages = {
+export const instanceMessages = {
   "instanceTabs.scrollLeft.ariaLabel": "Tabs nach links scrollen",
   "instanceTabs.scrollRight.ariaLabel": "Tabs nach rechts scrollen",
   "instanceTabs.more.ariaLabel": "Weitere Projekt-Tabs",
@@ -142,6 +142,11 @@
   "freebuff.bar.left": "{remaining}/{limit} übrig",
   "freebuff.bar.account": "Konto",
   "freebuff.bar.slot": "1 gehostete Sitzung gleichzeitig",
+  "freebuff.slot.title": "Slot",
+  "freebuff.slot.busy": "belegt (anderer Tab)",
+  "freebuff.slot.free": "frei",
+  "freebuff.slot.release": "Slot freigeben",
+  "freebuff.slot.releasing": "Freigeben...",
   "freebuff.bar.events": "{count} Ereignisse",
   "freebuff.engine.stop": "Engine stoppen",
   "freebuff.quota.title": "Tageskontingent",

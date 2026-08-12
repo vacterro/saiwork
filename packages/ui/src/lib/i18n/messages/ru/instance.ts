@@ -1,4 +1,4 @@
-﻿export const instanceMessages = {
+export const instanceMessages = {
   "instanceTabs.scrollLeft.ariaLabel": "РџСЂРѕРєСЂСѓС‚РёС‚СЊ РІРєР»Р°РґРєРё РІР»РµРІРѕ",
   "instanceTabs.scrollRight.ariaLabel": "РџСЂРѕРєСЂСѓС‚РёС‚СЊ РІРєР»Р°РґРєРё РІРїСЂР°РІРѕ",
   "instanceTabs.more.ariaLabel": "Р”СЂСѓРіРёРµ РІРєР»Р°РґРєРё РїСЂРѕРµРєС‚РѕРІ",
@@ -142,6 +142,11 @@
   "freebuff.bar.left": "осталось {remaining}/{limit}",
   "freebuff.bar.account": "Аккаунт",
   "freebuff.bar.slot": "1 hosted-сессия за раз",
+  "freebuff.slot.title": "Слот",
+  "freebuff.slot.busy": "занят (другая вкладка)",
+  "freebuff.slot.free": "свободен",
+  "freebuff.slot.release": "Освободить слот",
+  "freebuff.slot.releasing": "Освобождаем...",
   "freebuff.bar.events": "{count} событий",
   "freebuff.engine.stop": "РћСЃС‚Р°РЅРѕРІРёС‚СЊ РґРІРёР¶РѕРє",
   "freebuff.quota.title": "Р”РЅРµРІРЅР°СЏ РєРІРѕС‚Р°",

@@ -202,9 +202,18 @@ if (process.env.SAIWORK_DEBUG_PORT) {
 
 function getIconPath() {
   if (app.isPackaged) {
+    // On Windows an .ico lets the OS pick a native-size frame so the titlebar
+    // and taskbar keep the icon's hard (aliased) edges instead of a smoothed
+    // downscale of the PNG. The .ico is shipped via extraResources.
+    if (process.platform === "win32") {
+      return join(process.resourcesPath, "icon.ico")
+    }
     return join(process.resourcesPath, "icon.png")
   }
 
+  if (process.platform === "win32") {
+    return join(mainDirname, "../resources/icon.ico")
+  }
   return join(mainDirname, "../resources/icon.png")
 }
 

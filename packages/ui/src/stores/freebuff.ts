@@ -4,6 +4,7 @@ import { serverApi } from "../lib/api-client"
 import { getLogger } from "../lib/logger"
 import type {
   FreebuffStatusResponse,
+  FreebuffReleaseSlotResponse,
   FreebuffThreadMessage,
   FreebuffThreadView,
 } from "../../../server/src/api-types"
@@ -51,6 +52,13 @@ export function freebuffEventsFor(threadId: string | null): FreebuffAgentEventVi
 
 export function freebuffQuota() {
   return status()?.quota?.snapshot ?? null
+}
+
+/** True when codebuff.com reports another active hosted session on this network. */
+export function freebuffSlotActive(): boolean {
+  const counts = freebuffQuota()?.desktopSessionCounts
+  if (!counts) return false
+  return (counts.premium ?? 0) + (counts.unlimited ?? 0) > 0
 }
 
 export function freebuffAccountEmail(): string | null {
@@ -185,7 +193,7 @@ export async function createFreebuffThread(folder: string, model: string, title?
   setBusy(true)
   setError(null)
   try {
-    const thread = await serverApi.createFreebuffThread({ projectPath: folder, model, ...(title?.trim() ? { title: title.trim() } : {}) })
+    const thread = await serverApi.createFreebuffThread({ projectPath: folder, model, reasoningEffort: "high", ...(title?.trim() ? { title: title.trim() } : {}) })
     connectEvents()
     setActiveThreadId(thread.id)
     await refreshFreebuffThreads()
@@ -222,6 +230,29 @@ export async function freebuffPostMessage(threadId: string, text: string): Promi
     log.error("Failed to dispatch FreeBuff prompt", cause)
     setError(cause instanceof Error ? cause.message : String(cause))
     return false
+  }
+}
+
+/**
+ * Explicit slot-release sweep: closes every idle FreeBuff thread SAIWORK holds
+ * and reports whether the network slot is free again. The recovery path when a
+ * turn was rejected because another tab (often FreeBuff Desktop) holds the
+ * slot. Failed admissions consume no quota.
+ */
+export async function releaseFreebuffSlot(): Promise<FreebuffReleaseSlotResponse | null> {
+  setBusy(true)
+  setError(null)
+  try {
+    const result = await serverApi.releaseFreebuffSlot()
+    if (!result.slotFree && result.note) setError(result.note)
+    await refreshFreebuffStatus()
+    return result
+  } catch (cause) {
+    log.error("Failed to release FreeBuff slot", cause)
+    setError(cause instanceof Error ? cause.message : String(cause))
+    return null
+  } finally {
+    setBusy(false)
   }
 }
 

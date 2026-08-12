@@ -10,10 +10,12 @@ import {
   freebuffBusy,
   freebuffError,
   freebuffEventsFor,
+  freebuffSlotActive,
   freebuffStatus,
   freebuffThreads,
   refreshFreebuffStatus,
   refreshFreebuffThreads,
+  releaseFreebuffSlot,
   startFreebuffStatusPolling,
 } from "../stores/freebuff"
 
@@ -169,7 +171,20 @@ const FreebuffBarStatus: Component<FreebuffBarStatusProps> = (props) => {
                 <span class="saipen-freebuff-label">{t("freebuff.quota.tier", { tier: quota()?.accessTier ?? "" })}</span>
                 <span>{t("freebuff.bar.slot")}</span>
               </div>
+              <div class="saipen-freebuff-row">
+                <span class="saipen-freebuff-label">{t("freebuff.slot.title")}</span>
+                <span>{freebuffSlotActive() ? t("freebuff.slot.busy") : t("freebuff.slot.free")}</span>
+              </div>
             </Show>
+
+            <button
+              type="button"
+              class="saipen-freebuff-action"
+              disabled={freebuffBusy()}
+              onClick={() => void releaseFreebuffSlot()}
+            >
+              {freebuffBusy() ? t("freebuff.slot.releasing") : t("freebuff.slot.release")}
+            </button>
 
             <Show when={quota()?.rateLimitsByModel}>
               <div class="saipen-freebuff-sub">

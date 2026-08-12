@@ -280,4 +280,107 @@ describe("FreebuffController thread registry", () => {
       globalThis.fetch = originalFetch
     }
   })
+
+  it("releaseSlotNow closes every idle holder and confirms the slot dropped", async () => {
+    const originalFetch = globalThis.fetch
+    const closed: string[] = []
+    const stateEvent = {
+      type: "state",
+      snapshot: {
+        sessions: {
+          activeSessionsByThread: {
+            t1: { model: "deepseek/deepseek-v4-flash" },
+            running: { model: "mimo/mimo-v2.5" },
+            t3: { model: "deepseek/deepseek-v4-flash" },
+          },
+        },
+      },
+    }
+    const idleHolder1 = threadEvent("t1", "open", { turnState: "idle", updatedAt: 1 })
+    const runningHolder = threadEvent("running", "open", { turnState: "running", updatedAt: 1 })
+    const idleHolder3 = threadEvent("t3", "open", { turnState: "idle", updatedAt: 1 })
+    let sessionPolls = 0
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) return sseResponse([stateEvent, idleHolder1, runningHolder, idleHolder3])
+      if (url.includes("codebuff.com/api/v1/freebuff/session")) {
+        sessionPolls += 1
+        // First poll still sees the external session; the close propagates by
+        // the second poll, so the sweep declares the slot free.
+        const premium = sessionPolls >= 2 ? 0 : 1
+        return new Response(JSON.stringify({ status: "ok", accessTier: "limited", desktopSessionCounts: { premium, unlimited: 0 } }), { status: 200 })
+      }
+      if (url.includes("/api/thread/") && init?.method === "POST") {
+        const match = /\/api\/thread\/([^/]+)\/close/.exec(url)
+        if (match) closed.push(match[1])
+        return new Response("{}", { status: 200 })
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({
+        engineManager: fakeEngineManager(19_007),
+        logger: logger as never,
+      })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      const result = await controller.releaseSlotNow({ confirmTimeoutMs: 500 })
+      // Both idle holders closed; the running holder survives.
+      assert.deepEqual(closed.sort(), ["t1", "t3"])
+      assert.equal(result.closedThreads, 2)
+      assert.equal(result.slotFree, true)
+      assert.equal(result.sessionsActive, 0)
+      assert.equal(result.note, null)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("releaseSlotNow reports an external session that refuses to drop", async () => {
+    const originalFetch = globalThis.fetch
+    const closed: string[] = []
+    const stateEvent = {
+      type: "state",
+      snapshot: {
+        sessions: {
+          activeSessionsByThread: {
+            t1: { model: "deepseek/deepseek-v4-flash" },
+          },
+        },
+      },
+    }
+    const idleHolder1 = threadEvent("t1", "open", { turnState: "idle", updatedAt: 1 })
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) return sseResponse([stateEvent, idleHolder1])
+      if (url.includes("codebuff.com/api/v1/freebuff/session")) {
+        return new Response(JSON.stringify({ status: "ok", accessTier: "limited", desktopSessionCounts: { premium: 1, unlimited: 0, nextExpiryAt: "2026-08-12T07:00:00Z" } }), { status: 200 })
+      }
+      if (url.includes("/api/thread/") && init?.method === "POST") {
+        const match = /\/api\/thread\/([^/]+)\/close/.exec(url)
+        if (match) closed.push(match[1])
+        return new Response("{}", { status: 200 })
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({
+        engineManager: fakeEngineManager(19_008),
+        logger: logger as never,
+      })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      const result = await controller.releaseSlotNow({ confirmTimeoutMs: 50 })
+      // SAIWORK's own idle holder closed, but the external session persists.
+      assert.deepEqual(closed, ["t1"])
+      assert.equal(result.closedThreads, 1)
+      assert.equal(result.slotFree, false)
+      assert.equal(result.sessionsActive, 1)
+      assert.ok(result.note?.includes("expires automatically"), result.note ?? "no note")
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
 })

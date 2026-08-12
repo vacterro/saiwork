@@ -18,7 +18,7 @@ interface RouteDeps {
 const CreateThreadSchema = z.object({
   projectPath: z.string().min(1),
   model: z.string().min(1).optional(),
-  reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
+  reasoningEffort: z.enum(["low", "medium", "high", "xhigh", "max", "ultra"]).optional(),
   executionMode: z.enum([FREEBUFF_EXECUTION_MODE_LOCAL, FREEBUFF_EXECUTION_MODE_WORKTREE]).optional(),
   title: z.string().min(1).optional(),
 })
@@ -58,6 +58,13 @@ export function registerFreebuffRoutes(app: FastifyInstance, deps: RouteDeps) {
   })
 
   app.get("/api/freebuff/quota", async () => deps.freebuff.quota())
+
+  app.post("/api/freebuff/release-slot", async (_request, reply) => {
+    if (!deps.freebuff.status().ready) {
+      return reply.code(503).send({ error: "FreeBuff engine not running" })
+    }
+    return deps.freebuff.releaseSlotNow()
+  })
 
   app.get("/api/freebuff/threads", async (_request, reply) => {
     if (!deps.freebuff.status().ready) {

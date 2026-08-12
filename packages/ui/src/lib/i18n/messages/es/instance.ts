@@ -1,4 +1,4 @@
-﻿export const instanceMessages = {
+export const instanceMessages = {
   "instanceTabs.scrollLeft.ariaLabel": "Desplazar pestaГ±as a la izquierda",
   "instanceTabs.scrollRight.ariaLabel": "Desplazar pestaГ±as a la derecha",
   "instanceTabs.more.ariaLabel": "MГЎs pestaГ±as de proyectos",
@@ -142,6 +142,11 @@
   "freebuff.bar.left": "quedan {remaining}/{limit}",
   "freebuff.bar.account": "Cuenta",
   "freebuff.bar.slot": "1 sesión alojada a la vez",
+  "freebuff.slot.title": "Slot",
+  "freebuff.slot.busy": "ocupado (otra pestaña)",
+  "freebuff.slot.free": "libre",
+  "freebuff.slot.release": "Liberar slot",
+  "freebuff.slot.releasing": "Liberando...",
   "freebuff.bar.events": "{count} eventos",
   "freebuff.engine.stop": "Detener motor",
   "freebuff.quota.title": "Cuota diaria",

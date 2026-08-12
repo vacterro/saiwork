@@ -18,7 +18,7 @@ export const FREEBUFF_EXECUTION_MODE_WORKTREE = "worktree"
 export const FREEBUFF_TIER_LIMITED = "limited"
 
 export type FreebuffExecutionMode = "local" | "worktree"
-export type FreebuffReasoningEffort = "low" | "medium" | "high" | "xhigh"
+export type FreebuffReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
 
 export interface FreebuffThread {
   id: string
@@ -141,6 +141,14 @@ export interface FreebuffModelInfo {
   displayName: string
   tagline?: string
   free: boolean
+  isNew?: boolean
+  contextWindow?: number
+  /** The reasoning effort SAIWORK requests for this model (always the max). */
+  reasoningEffort?: FreebuffReasoningEffort
+  /** The full effort range the engine honors for this model, low..high. */
+  efforts?: FreebuffReasoningEffort[]
+  /** The engine's own default when no effort is requested. */
+  defaultEffort?: FreebuffReasoningEffort
 }
 
 /** Minimal thread snapshot the orchestrator returns after POST /api/threads. */

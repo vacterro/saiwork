@@ -1,4 +1,4 @@
-﻿export const instanceMessages = {
+export const instanceMessages = {
   "instanceTabs.scrollLeft.ariaLabel": "еђ‘е·¦ж»љеЉЁж ‡з­ѕйЎµ",
   "instanceTabs.scrollRight.ariaLabel": "еђ‘еЏіж»љеЉЁж ‡з­ѕйЎµ",
   "instanceTabs.more.ariaLabel": "ж›ґе¤љйЎ№з›®ж ‡з­ѕйЎµ",
@@ -142,6 +142,11 @@
   "freebuff.bar.left": "剩余 {remaining}/{limit}",
   "freebuff.bar.account": "账户",
   "freebuff.bar.slot": "每次一个托管会话",
+  "freebuff.slot.title": "会话槽",
+  "freebuff.slot.busy": "忙（另一个标签页）",
+  "freebuff.slot.free": "空闲",
+  "freebuff.slot.release": "释放会话槽",
+  "freebuff.slot.releasing": "释放中...",
   "freebuff.bar.events": "{count} 个事件",
   "freebuff.engine.stop": "еЃњж­ўеј•ж“Ћ",
   "freebuff.quota.title": "жЇЏж—Ґй…Ќйўќ",

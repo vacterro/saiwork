@@ -184,32 +184,55 @@ export function registerFreebuffGatewayRoutes(app: FastifyInstance, deps: Gatewa
  * Free the hosted-model slot, run one turn, and close the thread afterwards so
  * the slot is not held by an idle gateway conversation. If the admission still
  * fails because another tab is holding the slot, close the siblings again and
- * retry once before surfacing the error.
+ * retry for a bounded window before surfacing the error: the holder is often a
+ * FreeBuff Desktop tab the user closed a moment ago, whose cloud session takes
+ * a few seconds to expire. Waiting it out makes resuming seamless instead of
+ * failing the very first message, and an admission that never succeeded has
+ * consumed no quota at all.
  */
-async function runTurnWithSlotRetry(
+export const SLOT_RETRY_ATTEMPTS = 6
+export const SLOT_RETRY_WAIT_MS = 4_000
+
+export async function runTurnWithSlotRetry(
   freebuff: FreebuffController,
   client: FreebuffClient,
   threadId: string,
   prompt: string,
   onText: (text: string) => void,
-  options: { signal?: AbortSignal; onStep?: (text: string) => void } = {},
+  options: { signal?: AbortSignal; onStep?: (text: string) => void; slotRetry?: { attempts?: number; waitMs?: number } } = {},
 ): Promise<string> {
   // This request owns a turn generation; a rapid next request bumps it, which
   // makes this request's post-turn close stand down instead of closing the
   // thread under the new turn.
   const generation = nextTurnGeneration(threadId)
+  const attempts = options.slotRetry?.attempts ?? SLOT_RETRY_ATTEMPTS
+  const waitMs = options.slotRetry?.waitMs ?? SLOT_RETRY_WAIT_MS
   const runOnce = async () => {
     await freebuff.freeSlotFor(threadId)
     return runFreebuffTurn(client, threadId, prompt, onText, options)
   }
+  let waitingNotified = false
+  let lastError: unknown = null
   try {
-    return await runOnce()
-  } catch (error) {
-    if (!isFreebuffSessionLimitError(error)) throw error
-    // Another tab holds the slot; close the siblings and wait for the release
-    // to propagate to the cloud before retrying the admission.
-    await freebuff.freeSlotFor(threadId, { waitMs: 1500 })
-    return runOnce()
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        return await runOnce()
+      } catch (error) {
+        if (!isFreebuffSessionLimitError(error)) throw error
+        lastError = error
+        if (attempt + 1 >= attempts) break
+        // Another tab holds the slot; close the siblings and wait for the release
+        // to propagate to the cloud before retrying the admission.
+        if (!waitingNotified) {
+          waitingNotified = true
+          options.onStep?.("> waiting for the FreeBuff slot (another tab is holding it)…")
+        }
+        await freebuff.freeSlotFor(threadId, { waitMs: 1500 })
+        await new Promise((resolve) => setTimeout(resolve, waitMs))
+      }
+    }
+    const base = lastError instanceof Error ? lastError.message : String(lastError)
+    throw new Error(`${base} No FreeBuff quota was consumed. Close the other tab, or use the slot release button in the FreeBuff panel.`)
   } finally {
     // Release the slot after the turn so a different conversation can start
     // without hitting the one-tab limit. Sending another message reopens the

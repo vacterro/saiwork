@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 
 import { createFreebuffClient, type FreebuffClient } from "./client"
+import { freebuffMaxReasoningEffort } from "./models"
 import { FREEBUFF_HARNESS_ID, FREEBUFF_EXECUTION_MODE_LOCAL, type FreebuffThread } from "./types"
 
 /**
@@ -91,6 +92,10 @@ export class FreebuffThreadRegistry {
         projectPath: workspace,
         harnessId: FREEBUFF_HARNESS_ID,
         model,
+        // FreeBuff 0.0.55 reasons per-thread; always request the model's
+        // maximum effort so turns run at full reasoning instead of the
+        // engine's medium default.
+        reasoningEffort: freebuffMaxReasoningEffort(model),
         executionMode: FREEBUFF_EXECUTION_MODE_LOCAL,
         title: firstMessage.slice(0, 80),
       })

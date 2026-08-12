@@ -1,9 +1,28 @@
 # Changelog
 
-## [0.1.0] - 2026-08-11
+## [0.1.1] - 2026-08-12
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log
 identifiers, not Git commits or release history.
+
+### FreeBuff 0.0.55 integration + slot resilience (T-710)
+
+- **Always-max reasoning**: FreeBuff 0.0.55 reasons per-thread
+  (`reasoningEffort`); the gateway, the FreeBuff tab and the verify script now
+  create threads with the model's maximum effort (`high` for the free-tier
+  models, engine default was `medium`). Verified live on 0.0.55: DeepSeek V4
+  Flash streams `reasoning` + `text` agent events, admission runs
+  `admitting -> session-admitted -> request-sent`. Model catalog gains
+  reasoning metadata (efforts, default effort, 1M context window).
+- **Slot resilience**: the `/fb/v1` gateway now waits out a held slot
+  (bounded retry ~35s with a `> waiting for the FreeBuff slot…` step) instead
+  of failing the first message; failed admissions never consume quota. New
+  `POST /api/freebuff/release-slot` closes every idle holder SAIWORK can reach
+  and confirms against the codebuff.com session counter; the FreeBuff bar
+  panel shows slot state and a **Release slot** button (i18n in all 9 locales).
+- **Window icon**: titlebar/taskbar now use `SAIPEN_Orange1.png` as-is
+  (aliased); Windows windows load a multi-size `.ico` (16-256, nearest-neighbor)
+  so the OS picks native sizes instead of smoothing the PNG.
 
 ### SAIPEN write integrity (T-087..T-089)
 

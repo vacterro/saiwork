@@ -879,6 +879,14 @@ export interface FreebuffStatusResponse {
   quota: FreebuffQuotaResponse
 }
 
+/** Result of the explicit slot-release sweep (`POST /api/freebuff/release-slot`). */
+export interface FreebuffReleaseSlotResponse {
+  closedThreads: number
+  slotFree: boolean
+  sessionsActive: number
+  note: string | null
+}
+
 /** Google provider status surface (/api/google/providers). */
 export type GoogleProviderStatusValue =
   | "ready"

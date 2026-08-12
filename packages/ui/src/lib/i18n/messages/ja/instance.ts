@@ -1,4 +1,4 @@
-﻿export const instanceMessages = {
+export const instanceMessages = {
   "instanceTabs.scrollLeft.ariaLabel": "г‚їгѓ–г‚’е·¦гЃёг‚№г‚Їгѓ­гѓјгѓ«",
   "instanceTabs.scrollRight.ariaLabel": "г‚їгѓ–г‚’еЏігЃёг‚№г‚Їгѓ­гѓјгѓ«",
   "instanceTabs.more.ariaLabel": "гЃќгЃ®д»–гЃ®гѓ—гѓ­г‚ёг‚§г‚Їгѓ€г‚їгѓ–",
@@ -142,6 +142,11 @@
   "freebuff.bar.left": "残り {remaining}/{limit}",
   "freebuff.bar.account": "アカウント",
   "freebuff.bar.slot": "一度に1つのホストセッション",
+  "freebuff.slot.title": "スロット",
+  "freebuff.slot.busy": "使用中（別のタブ）",
+  "freebuff.slot.free": "空き",
+  "freebuff.slot.release": "スロット解放",
+  "freebuff.slot.releasing": "解放中...",
   "freebuff.bar.events": "{count} イベント",
   "freebuff.engine.stop": "г‚Ёгѓіг‚ёгѓіг‚’еЃњж­ў",
   "freebuff.quota.title": "ж—Ґж¬Ўг‚Їг‚©гѓјг‚ї",

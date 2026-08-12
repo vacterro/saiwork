@@ -1,7 +1,3 @@
-# Session digest
-
-done: Shipped SAIWORK v0.1.0 — Antigravity + FreeBuff as first-class engines (auto-config, quota/slot handling, per-instance shim keys, shared SSE helper); audit tickets T-700..T-708 converged; version 0.1.0 bumped, commit 06c5b22c + tag v0.1.0 pushed to origin/saiwork; ship gate green.
-
-remaining: T-105 (project-tab overflow dropdown), T-106 (16 canonical palettes in Appearance), T-104 (release workflow order, blocked on npm/WINGET tokens).
-
-awaiting: prepare saiwiki + prepare saitranslate (EE/QQ) post-ship (bind to shipped HEAD 06c5b22c); board-soft-cap CLEAN (BOARD 28 KB / LOG 298 lines).
+done: Shipped SAIWORK v0.1.0 (06c5b22c + tag v0.1.0) — Antigravity + FreeBuff first-class engines; post-ship FreeBuff 0.0.55 re-verify: deepseek/deepseek-v4-flash live (reasoning high accepted, slot free), always-max reasoningEffort wired into gateway+tab, slot-release button + wait-retry added.
+remaining: T-710 in flight (FreeBuff slot resilience + 0.0.55 wiring, uncommitted), T-105 (tab overflow), T-106 (16 palettes), T-104 (release workflow, blocked on npm/WINGET tokens).
+awaiting: commit T-710 + next ship (clears ccc SHIP gate, currently red on post-ship checkpoint HEAD 0142c63b); then prepare saiwiki + prepare saitranslate (EE/QQ); board/log soft-cap CLEAN.

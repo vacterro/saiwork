@@ -107,9 +107,23 @@ FreeBuff right-panel tab.
   - `POST /api/thread/:id/stop`, `/resume`, `/close`
   - `GET /api/thread/:id`, `GET /api/threads` (list via events mirror),
   - `GET /api/events` (SSE: `thread`, `agent`, `state`, `prompt` events)
-- Models: `deepseek/deepseek-v4-flash`, `mimo/mimo-v2.5`, `z-ai/glm-5.2`.
-  Model availability changes; `createThread` returns "invalid model" for ids
-  the engine currently rejects (observed for deepseek in 2026-08).
+- Model IDs on the limited tier: `deepseek/deepseek-v4-flash` (V4 Flash 07/31,
+  1M context, free, new), `mimo/mimo-v2.5`, `z-ai/glm-5.2`. Verified live on
+  0.0.55: `deepseek/deepseek-v4-flash` accepts `reasoningEffort: "high"` and
+  streams both `reasoning` and `text` agent events (`admitting ->
+  session-admitted -> request-sent` admission stages; a transient
+  `capacity-wait` stage can appear). `createThread` returns "invalid model"
+  for ids the engine rejects.
+- Reasoning: FreeBuff 0.0.55 reasons per-thread. `createThread` accepts a
+  `reasoningEffort` string; the orchestrator caps each model's range
+  (`EFFORTS_THROUGH_HIGH` = low/medium/high for the free-tier models,
+  `EFFORTS_THROUGH_XHIGH` = +xhigh for others; the full accepted set also
+  includes `max`/`ultra`). Engine default is `medium`; SAIWORK always requests
+  the model's maximum (`freebuffMaxReasoningEffort`, currently `high`) via the
+  gateway and the FreeBuff tab, so turns run at full reasoning instead of the
+  default. The orchestrator emits reasoning as `reasoning`/`reasoning_delta`
+  agent events; the opencode gateway intentionally drops them (text is what
+  streams back), the FreeBuff tab renders them.
 
 ### Session slot model (critical)
 
@@ -131,6 +145,20 @@ FreeBuff right-panel tab.
 - An idle sweep closes open threads with no engine activity for 6 minutes
   (controller `idleCloseMs`, interval 60s, running threads never touched) so an
   abandoned tab does not hold the slot; the thread reopens on its next message.
+- When an admission is rejected because the slot is held elsewhere (a FreeBuff
+  Desktop tab the user opened manually, or a SAIWORK thread on another
+  conversation), the gateway (`runTurnWithSlotRetry`) re-frees the slot and
+  retries for a bounded window (~35s, `SLOT_RETRY_ATTEMPTS`/`SLOT_RETRY_WAIT_MS`)
+  instead of failing the first message; it streams a `> waiting for the FreeBuff
+  slot…` step so the user sees progress. An admission that never landed consumed
+  no quota. If the window expires, the error says so and points at the release
+  button.
+- `POST /api/freebuff/release-slot` closes every idle holder SAIWORK can reach
+  and confirms against the codebuff.com session counter
+  (`desktopSessionCounts`); the FreeBuff status panel shows slot state and the
+  release button. The counter (`premium`+`unlimited`) reports an external
+  session that SAIWORK's own engine mirror cannot see, which is why
+  `freeSlotFor` alone could not recover the manual-Desktop case.
 - Quota counts are fractional floats; format them with `formatQuotaCount`
   (integer when whole, else 2 decimals) — never print the raw FP value.
 

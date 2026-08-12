@@ -22,7 +22,7 @@ import { FreebuffEngineManager } from "../src/freebuff/engine"
 import { FreebuffController } from "../src/freebuff/controller"
 import { createLogger } from "../src/logger"
 import { locateFreebuffInstall } from "../src/freebuff/install"
-import { FREEBUFF_MODELS } from "../src/freebuff/models"
+import { FREEBUFF_MODELS, freebuffMaxReasoningEffort } from "../src/freebuff/models"
 
 const logger = createLogger({ component: "freebuff-verify" })
 const workspace = path.join(os.tmpdir(), "saiwork-freebuff-verify")
@@ -59,10 +59,15 @@ async function main() {
     const rejected: string[] = []
     for (const model of FREEBUFF_MODELS) {
       try {
-        const created = await client.createThread({ projectPath: workspace, harnessId: "codebuff", model: model.id })
+        const created = await client.createThread({
+          projectPath: workspace,
+          harnessId: "codebuff",
+          model: model.id,
+          reasoningEffort: freebuffMaxReasoningEffort(model.id),
+        })
         await client.closeThread(created.id)
         accepted.push(model.id)
-        console.log(`OK  model ${model.id}: accepted`)
+        console.log(`OK  model ${model.id}: accepted (effort ${freebuffMaxReasoningEffort(model.id)})`)
       } catch (error) {
         rejected.push(model.id)
         console.log(`WARN model ${model.id}: rejected (${error instanceof Error ? error.message : String(error)})`)

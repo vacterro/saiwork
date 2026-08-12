@@ -35,6 +35,7 @@ function createApp(overrides: Partial<{ client: FreebuffClient | null; status: R
     quota: async () => ({ configured: true, snapshot: null, error: null }),
     stop: async () => {},
     freeSlotFor: async () => {},
+    releaseSlotNow: async () => ({ closedThreads: 1, slotFree: true, sessionsActive: 0, note: null }),
   } as unknown as FreebuffController
   registerFreebuffRoutes(app, { freebuff: controller, logger: logger as never })
   return app
@@ -89,6 +90,18 @@ describe("registerFreebuffRoutes", () => {
   it("returns 503 when the engine is not running", async () => {
     const app = createApp({ client: null, status: { installFound: true, engineRunning: false, ready: false, port: null, root: null, auth: null, error: "not ready" } })
     const response = await app.inject({ method: "GET", url: "/api/freebuff/threads" })
+    assert.equal(response.statusCode, 503)
+  })
+
+  it("runs the explicit slot-release sweep", async () => {
+    const response = await createApp().inject({ method: "POST", url: "/api/freebuff/release-slot" })
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { closedThreads: 1, slotFree: true, sessionsActive: 0, note: null })
+  })
+
+  it("returns 503 for release-slot when the engine is not running", async () => {
+    const app = createApp({ client: null, status: { installFound: true, engineRunning: false, ready: false, port: null, root: null, auth: null, error: "not ready" } })
+    const response = await app.inject({ method: "POST", url: "/api/freebuff/release-slot" })
     assert.equal(response.statusCode, 503)
   })
 })

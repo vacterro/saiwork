@@ -1,4 +1,4 @@
-﻿export const instanceMessages = {
+export const instanceMessages = {
   "instanceTabs.scrollLeft.ariaLabel": "а¤џаҐЌа¤Їа¤ѕа¤¬а¤№а¤°аҐ‚ а¤¬а¤ѕа¤Їа¤ѕа¤Ѓ а¤ёаҐЌа¤•аҐЌа¤°аҐ‹а¤І а¤—а¤°аҐЌа¤ЁаҐЃа¤№аҐ‹а¤ёаҐЌ",
   "instanceTabs.scrollRight.ariaLabel": "а¤џаҐЌа¤Їа¤ѕа¤¬а¤№а¤°аҐ‚ а¤¦а¤ѕа¤Їа¤ѕа¤Ѓ а¤ёаҐЌа¤•аҐЌа¤°аҐ‹а¤І а¤—а¤°аҐЌа¤ЁаҐЃа¤№аҐ‹а¤ёаҐЌ",
   "instanceTabs.more.ariaLabel": "а¤Ґа¤Є а¤Єа¤°а¤їа¤ЇаҐ‹а¤ња¤Ёа¤ѕ а¤џаҐЌа¤Їа¤ѕа¤¬а¤№а¤°аҐ‚",
@@ -142,6 +142,11 @@
   "freebuff.bar.left": "{remaining}/{limit} बाँकी",
   "freebuff.bar.account": "खाता",
   "freebuff.bar.slot": "एक पटकमा 1 होस्ट गरिएको सत्र",
+  "freebuff.slot.title": "स्लट",
+  "freebuff.slot.busy": "व्यस्त (अर्को ट्याब)",
+  "freebuff.slot.free": "खाली",
+  "freebuff.slot.release": "स्लट खाली गर्नुहोस्",
+  "freebuff.slot.releasing": "खाली गर्दै...",
   "freebuff.bar.events": "{count} घटनाहरू",
   "freebuff.engine.stop": "а¤‡а¤ЁаҐЌа¤ња¤їа¤Ё а¤°аҐ‹а¤•аҐЌа¤ЁаҐЃа¤№аҐ‹а¤ёаҐЌ",
   "freebuff.quota.title": "а¤¦аҐ€а¤Ёа¤їа¤• а¤•аҐ‹а¤џа¤ѕ",

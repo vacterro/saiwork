@@ -73,6 +73,23 @@ describe("freebuff gateway", () => {
     assert.equal(created, 2)
   })
 
+  it("requests the maximum reasoning effort when creating a thread", async () => {
+    const createdParams: Array<Record<string, unknown>> = []
+    const client = {
+      createThread: async (params: Record<string, unknown>) => {
+        createdParams.push(params)
+        return { id: `t-${createdParams.length}` }
+      },
+    } as unknown as FreebuffClient
+    const registry = new FreebuffThreadRegistry()
+
+    await registry.getOrCreate(client, "C:/proj", "deepseek/deepseek-v4-flash", "hello", "hello")
+    assert.equal(createdParams[0].reasoningEffort, "high")
+    // A catalog model without an explicit range still falls back to high.
+    await registry.getOrCreate(client, "C:/proj", "mimo/mimo-v2.5", "other", "other")
+    assert.equal(createdParams[1].reasoningEffort, "high")
+  })
+
   it("runs a turn, collects text and resolves on idle", async () => {
     let postCalled = false
     let emit: ((event: unknown) => void) | null = null

@@ -1,4 +1,4 @@
-﻿export const instanceMessages = {
+export const instanceMessages = {
   "instanceTabs.scrollLeft.ariaLabel": "Faire dГ©filer les onglets Г  gauche",
   "instanceTabs.scrollRight.ariaLabel": "Faire dГ©filer les onglets Г  droite",
   "instanceTabs.more.ariaLabel": "Plus d'onglets de projet",
@@ -142,6 +142,11 @@
   "freebuff.bar.left": "{remaining}/{limit} restants",
   "freebuff.bar.account": "Compte",
   "freebuff.bar.slot": "1 session hébergée à la fois",
+  "freebuff.slot.title": "Slot",
+  "freebuff.slot.busy": "occupé (autre onglet)",
+  "freebuff.slot.free": "libre",
+  "freebuff.slot.release": "Libérer le slot",
+  "freebuff.slot.releasing": "Libération...",
   "freebuff.bar.events": "{count} événements",
   "freebuff.engine.stop": "Arreter le moteur",
   "freebuff.quota.title": "Quota quotidien",

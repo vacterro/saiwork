@@ -23,6 +23,18 @@ export interface FreebuffControllerOptions {
   now?: () => number
 }
 
+/** Result of the explicit slot-release sweep (see `releaseSlotNow`). */
+export interface FreebuffReleaseSlotResult {
+  /** Idle slot-holding threads SAIWORK closed during the sweep. */
+  closedThreads: number
+  /** True when the network session counter reports no other active session. */
+  slotFree: boolean
+  /** Active hosted sessions reported by codebuff.com at the end of the sweep. */
+  sessionsActive: number
+  /** Human-readable explanation when the slot is still held. */
+  note: string | null
+}
+
 /**
  * Facade over the FreeBuff engine used by SAIWORK's HTTP routes.
  *
@@ -129,9 +141,67 @@ export class FreebuffController {
   async freeSlotFor(targetThreadId: string, options: { waitMs?: number } = {}): Promise<void> {
     const client = this.client()
     if (!client) return
+    const holders = await this.collectIdleHolders(targetThreadId)
+    if (holders.length === 0) return
+    await Promise.all(holders.map((threadId) => client.closeThread(threadId).catch(() => undefined)))
+    // Give the engine time to observe the release and drop the server-side
+    // usage count before the next admission is attempted.
+    const waitMs = options.waitMs ?? 400
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs))
+  }
+
+  /**
+   * Explicit "release the slot now" sweep for the FreeBuff status panel. Closes
+   * EVERY idle holder SAIWORK can reach (the same probe that `freeSlotFor`
+   * runs, minus a target exemption), then confirms against the codebuff.com
+   * session counter whether the network slot actually dropped. This is the
+   * recovery path when a turn was rejected because the slot is held elsewhere
+   * (a FreeBuff Desktop tab the user opened manually, or a thread SAIWORK
+   * abandoned). Running turns are never touched.
+   */
+  async releaseSlotNow(options: { confirmTimeoutMs?: number } = {}): Promise<FreebuffReleaseSlotResult> {
+    const client = this.client()
+    if (!client) {
+      return { closedThreads: 0, slotFree: false, sessionsActive: 0, note: "FreeBuff engine is not running" }
+    }
+    const holders = await this.collectIdleHolders()
+    const closed = holders.length > 0
+      ? (await Promise.all(holders.map((threadId) => client.closeThread(threadId).catch(() => undefined)))).filter(Boolean)
+      : []
+    // The release propagates to the cloud within a few seconds; poll the
+    // session counter for a bounded window before declaring the result.
+    const confirmTimeoutMs = options.confirmTimeoutMs ?? 6_000
+    const deadline = Date.now() + confirmTimeoutMs
+    let sessionsActive = 0
+    let note: string | null = null
+    while (true) {
+      const snapshot = (await this.quota()).snapshot
+      const counts = snapshot?.desktopSessionCounts
+      sessionsActive = counts ? (counts.premium ?? 0) + (counts.unlimited ?? 0) : 0
+      if (sessionsActive === 0) break
+      if (Date.now() >= deadline) {
+        note = counts?.nextExpiryAt
+          ? `Another hosted session is still active on this network; it expires automatically (${counts.nextExpiryAt}). No FreeBuff quota was consumed.`
+          : "Another hosted session is still active on this network (FreeBuff Desktop or another tab). No FreeBuff quota was consumed."
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+    }
+    return { closedThreads: closed.length, slotFree: sessionsActive === 0, sessionsActive, note }
+  }
+
+  /**
+   * Threads SAIWORK can safely close to free a slot: mirror-known holders that
+   * are not mid-turn, plus holders missing from the mirror that the engine
+   * confirms are idle (never a blind kill on an unknown). Excludes
+   * `exceptThreadId` when freeing a slot for that thread's own turn.
+   */
+  private async collectIdleHolders(exceptThreadId?: string): Promise<string[]> {
+    const client = this.client()
+    if (!client) return []
     const holders: string[] = []
     for (const threadId of [...this.activeSessionThreads]) {
-      if (threadId === targetThreadId) continue
+      if (threadId === exceptThreadId) continue
       const thread = this.findThread(threadId)
       if (thread !== null) {
         // Never close a holder whose turn is running: it would destroy hours of
@@ -149,12 +219,7 @@ export class FreebuffController {
         // Unreachable: leave it alone rather than risk a blind kill.
       }
     }
-    if (holders.length === 0) return
-    await Promise.all(holders.map((threadId) => client.closeThread(threadId).catch(() => undefined)))
-    // Give the engine time to observe the release and drop the server-side
-    // usage count before the next admission is attempted.
-    const waitMs = options.waitMs ?? 400
-    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs))
+    return holders
   }
 
   private findThread(threadId: string): FreebuffThread | null {

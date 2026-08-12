@@ -1,4 +1,4 @@
-﻿export const instanceMessages = {
+export const instanceMessages = {
   "instanceTabs.scrollLeft.ariaLabel": "Ч’ЧњЧ•Чњ ЧњЧ©Ч•Ч Ч™Ч•ЧЄ Ч©ЧћЧђЧњЧ”",
   "instanceTabs.scrollRight.ariaLabel": "Ч’ЧњЧ•Чњ ЧњЧ©Ч•Ч Ч™Ч•ЧЄ Ч™ЧћЧ™Ч Ч”",
   "instanceTabs.more.ariaLabel": "ЧњЧ©Ч•Ч Ч™Ч•ЧЄ Ч¤ЧЁЧ•Ч™Ч§Ч Ч Ч•ЧЎЧ¤Ч•ЧЄ",
@@ -142,6 +142,11 @@
   "freebuff.bar.left": "נותרו {remaining}/{limit}",
   "freebuff.bar.account": "חשבון",
   "freebuff.bar.slot": "סשן מתארח אחד בכל פעם",
+  "freebuff.slot.title": "סלוט",
+  "freebuff.slot.busy": "תפוס (כרטיסייה אחרת)",
+  "freebuff.slot.free": "פנוי",
+  "freebuff.slot.release": "שחרר סלוט",
+  "freebuff.slot.releasing": "משחרר...",
   "freebuff.bar.events": "{count} אירועים",
   "freebuff.engine.stop": "ЧўЧ¦Ч•ЧЁ ЧћЧ Ч•Чў",
   "freebuff.quota.title": "ЧћЧ›ЧЎЧ” Ч™Ч•ЧћЧ™ЧЄ",
