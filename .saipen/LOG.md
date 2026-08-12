@@ -295,3 +295,5 @@
 - 12.08.26 05:23 [E-671] RUN: converge T-700/T-701/T-704 done -> freeSlotFor probes unknown holders + generation-guarded 750ms close (T-700); dead i18n key removed 9 locales + portable verify path + selector helper (T-701); single discover call + quota error signal + idle-close skips queued (T-704). server 474 + UI suites green. Next: T-702, T-703
 - 12.08.26 05:28 [E-672] RUN: converge complete (ccc flow) -> T-702 done (per-instance shim keys, server/shim-keys.ts + env override), T-703 done (shared sse-shared.ts helper in both gateways); all 5 [MARKHUNT] tickets closed; pre-SHIP marker @56ffdb27; SHIP pending (commit+tag+push+EE+QQ)
 - 12.08.26 05:28 [E-673] DEC: ccc converge target -> ship @56ffdb27
+- 12.08.26 05:39 [E-674] RUN: ship v0.1.0 -> pushed 06c5b22c (saiwork branch + tag v0.1.0, origin/vacterro/saiwork); gate green, secret-scan clean; next: prepare saiwiki + saitranslate
+- 12.08.26 05:41 [E-675] DEC: ticket T-709 finished via SAIOPS -- completion (from SHIP); v0.1.0 released at 06c5b22c + tag v0.1.0; gate green

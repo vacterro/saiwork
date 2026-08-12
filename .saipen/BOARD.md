@@ -41,9 +41,6 @@ Remotes: `origin` -> github.com/vacterro/saiwork, `upstream` -> github.com/Neura
   without documentation; visual polish serves this path rather than decorating it.
 
 ## DOING
-- [/] T-709 [P1] Release ship v0.1.0: agent-integration + audit-ticket converge (T-700..T-708, T-110..T-126), version bump, commit, tag, push origin/saiwork | verify: ship gate green, push landed, tag v0.1.0 pushed | owner: opencode | claim_time: 2026-08-12T05:28:00Z
-
-
 ## TODO
 - [ ] T-105 [P0] Replace top project-tab horizontal scrolling with an ellipsis dropdown listing tabs that do not fit | verify: UI tests and 320/640px Electron smoke show no horizontal scrollbar; active tab and fixed actions stay visible and hidden tabs remain keyboard-accessible through the overflow menu | owner: opencode | claim_time: 2026-08-12T16:30:00Z
 - [ ] T-106 [P0] Expose all 16 canonical Wintage palettes in Appearance settings with correct ordering, persistence, polarity, and schema validation | verify: Appearance picker lists all 16 themes; Vintage Classic uses light color-scheme; rapid selection persists latest value; generator rejects invalid schema and duplicate identities
@@ -66,8 +63,8 @@ settings.
 
 Wave 2 order: the four defects the user hit in a live session come first, then
 the gate that keeps them from coming back, then wave 1's remaining findings.
-
 ## DONE
+- [x] T-709 [P1] Release ship v0.1.0: agent-integration + audit-ticket converge (T-700..T-708, T-110..T-126), version bump, commit, tag, push origin/saiwork | verify: ship gate green, push landed, tag v0.1.0 pushed at 06c5b22c, sha256 green | owner: opencode | claim_time: 2026-08-12T05:28:00Z
 - [x] T-108 [P1] FreeBuff tab model picker: select among quota-eligible FreeBuff models (deepseek-v4-flash, mimo-v2.5) and title new threads instead of always defaulting to deepseek-v4-flash | verify: suite green + typecheck | owner: opencode | claim_time: 2026-08-12T18:40:00Z
 - [x] T-109 [P1] Google Gemini/Antigravity integration: distinct providers google_gemini_api (official API key) vs google_antigravity (OAuth/OpenCode adapter, experimental); capability detection, provider-scoped models, normalized error classification (free_tier -> correct message), execution-boundary adapter, silent fallback off by default, secret sanitization, Google settings card (status, risk ack, fallback toggle) | verify: suite green + typecheck | owner: opencode | claim_time: 2026-08-12T18:40:00Z
 - [x] T-107 [P1] FreeBuff engine + UI surface | verify: suite green + typecheck | owner: opencode | claim_time: 2026-08-12T18:40:00Z
