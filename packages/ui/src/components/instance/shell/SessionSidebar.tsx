@@ -4,12 +4,8 @@ import type { Session } from "../../../types/session"
 import { keyboardRegistry, type KeyboardShortcut } from "../../../lib/keyboard-registry"
 import type { DrawerViewState } from "./types"
 
-import { PlusSquare, Search } from "lucide-solid"
+import { Info, PanelLeftClose, Pin, PinOff, PlusSquare, Search } from "lucide-solid"
 import IconButton from "@suid/material/IconButton"
-import MenuOpenIcon from "@suid/icons-material/MenuOpen"
-import PushPinIcon from "@suid/icons-material/PushPin"
-import PushPinOutlinedIcon from "@suid/icons-material/PushPinOutlined"
-import InfoOutlinedIcon from "@suid/icons-material/InfoOutlined"
 
 import SessionList from "../../session-list"
 import KeyboardHint from "../../keyboard-hint"
@@ -98,7 +94,7 @@ const SessionSidebar: Component<SessionSidebarProps> = (props) => (
               title={props.t("instanceShell.leftPanel.instanceInfo")}
               onClick={() => props.onSelectSession("info")}
             >
-              <InfoOutlinedIcon fontSize="small" />
+              <Info class="h-5 w-5" />
             </IconButton>
             <Show when={!props.isPhoneLayout()}>
               <IconButton
@@ -107,7 +103,7 @@ const SessionSidebar: Component<SessionSidebarProps> = (props) => (
                 aria-label={props.leftPinned() ? props.t("instanceShell.leftDrawer.unpin") : props.t("instanceShell.leftDrawer.pin")}
                 onClick={() => (props.leftPinned() ? props.onUnpinLeftDrawer() : props.onPinLeftDrawer())}
               >
-                {props.leftPinned() ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
+                {props.leftPinned() ? <Pin class="h-5 w-5" /> : <PinOff class="h-5 w-5" />}
               </IconButton>
             </Show>
             <IconButton
@@ -117,7 +113,7 @@ const SessionSidebar: Component<SessionSidebarProps> = (props) => (
               title={props.t("instanceShell.leftDrawer.toggle.close")}
               onClick={props.onCloseLeftDrawer}
             >
-              <MenuOpenIcon fontSize="small" />
+              <PanelLeftClose class="h-5 w-5" />
             </IconButton>
           </div>
         </div>

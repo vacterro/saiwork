@@ -1,6 +1,8 @@
 import { existsSync, readdirSync } from "fs"
 import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
+import { FREEBUFF_MODELS } from "./freebuff/models"
+import { FREEBUFF_SHIM_API_KEY } from "./server/routes/freebuff-gateway"
 import { buildGoogleProviderConfig } from "./google/adapter"
 import { createLogger } from "./logger"
 
@@ -48,6 +50,9 @@ export function buildOpencodeConfigContent(
   existingContent: string | undefined,
   pluginUrl: string,
   saipenInstructions: string[] = [],
+  googleShimBaseUrl?: string,
+  freebuffWorkspacePath?: string,
+  options: { includeAntigravity?: boolean; includeFreebuff?: boolean } = {},
 ): string {
   const config = existingContent?.trim() ? parseJsoncObject(existingContent) : {}
   const existingPlugins = normalizePluginEntries(config.plugin)
@@ -70,10 +75,24 @@ export function buildOpencodeConfigContent(
       ...config,
       plugin: existingPlugins,
       ...(instructions.length > 0 ? { instructions } : {}),
-      // Two distinct Google providers: Gemini API (API key) and Antigravity
-      // (OAuth subscription). Never merged, so quota/auth state cannot leak
-      // between billing pools. User-provided provider config is preserved.
-      provider: mergeProviderConfigs(config.provider, buildGoogleProviderConfig().provider),
+      // Google providers: Gemini API (API key, direct) and Antigravity (OAuth
+      // subscription through the local shim). Never merged, so quota/auth state
+      // cannot leak between billing pools. Plus FreeBuff (the local agent
+      // engine) as a first-class OpenAI-compatible provider. Antigravity is
+      // only registered when a session exists and FreeBuff only when its
+      // install is present, so a fresh user never sees models that cannot run.
+      // User-provided provider config is preserved.
+      provider: mergeProviderConfigs(
+        config.provider,
+        {
+          ...buildGoogleProviderConfig(googleShimBaseUrl
+            ? { baseUrl: googleShimBaseUrl, includeAntigravity: options.includeAntigravity }
+            : { includeAntigravity: options.includeAntigravity }).provider,
+          ...(freebuffWorkspacePath && options.includeFreebuff !== false
+            ? { freebuff: buildFreebuffProviderConfig(googleShimBaseUrl ?? "http://127.0.0.1:4000", freebuffWorkspacePath) }
+            : {}),
+        },
+      ),
     },
     null,
     2,
@@ -93,6 +112,30 @@ function mergeProviderConfigs(
     merged[id] = value
   }
   return merged
+}
+
+/**
+ * OpenCode provider fragment exposing the local FreeBuff engine as a model
+ * pool. OpenCode talks OpenAI-compatible to `${baseUrl}/fb/v1`; the workspace
+ * path travels in a request header so the gateway creates threads in the right
+ * project.
+ */
+export function buildFreebuffProviderConfig(baseUrl: string, workspacePath: string): Record<string, unknown> {
+  const shimBaseUrl = baseUrl.replace(/\/+$/, "")
+  const models: Record<string, unknown> = {}
+  for (const model of FREEBUFF_MODELS) {
+    models[model.id] = { name: model.displayName, reasoning: true }
+  }
+  return {
+    npm: "@ai-sdk/openai-compatible",
+    name: "FreeBuff",
+    options: {
+      baseURL: `${shimBaseUrl}/fb/v1`,
+      apiKey: FREEBUFF_SHIM_API_KEY,
+      headers: { "x-saiwork-workspace": workspacePath },
+    },
+    models,
+  }
 }
 
 export function resolveExistingOpencodeConfigContent(userEnvironment: Record<string, unknown>): string | undefined {

@@ -24,6 +24,7 @@ import {
 } from "../../../../../stores/freebuff"
 import { FREEBUFF_MODELS } from "../../../../../../../server/src/freebuff/models"
 import type { FreebuffRateLimit } from "../../../../../../../server/src/api-types"
+import { formatQuotaCount } from "../../../../../lib/format-quota"
 
 interface FreebuffTabProps {
   t: (key: string, vars?: Record<string, any>) => string
@@ -354,7 +355,7 @@ function freebuffAccountEmail(): string | null {
 function quotaUsedText(limit: number, recentCount: number): string {
   const used = Math.min(recentCount, limit)
   const remaining = Math.max(0, limit - used)
-  return `${remaining} / ${limit}`
+  return `${formatQuotaCount(remaining)} / ${formatQuotaCount(limit)}`
 }
 
 interface FreebuffThreadRowProps {

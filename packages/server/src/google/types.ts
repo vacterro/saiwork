@@ -74,12 +74,12 @@ export interface GoogleModelInfo {
 export interface GoogleExecutionResolution {
   providerId: GoogleProviderId
   modelId: string
-  /** The OpenCode provider this maps to (always the built-in `google`). */
-  opencodeProvider: "google"
+  /** The OpenCode provider this maps to: the built-in `google` or the local Antigravity shim. */
+  opencodeProvider: "google" | "saiwork-antigravity"
   /** OpenCode model id inside that provider (unprefixed). */
   opencodeModelId: string
   /** Which auth mode OpenCode must use for this provider. */
-  authMode: "api" | "oauth"
+  authMode: "api" | "oauth" | "shim"
   /** Extra env vars to inject into the spawned OpenCode process, if any. */
   env: Record<string, string>
 }

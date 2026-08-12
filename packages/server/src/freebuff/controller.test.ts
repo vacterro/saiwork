@@ -106,4 +106,122 @@ describe("FreebuffController thread registry", () => {
       globalThis.fetch = originalFetch
     }
   })
+
+  it("freeSlotFor closes sibling slot holders but never the target", async () => {
+    const originalFetch = globalThis.fetch
+    const closed: string[] = []
+    const stateEvent = {
+      type: "state",
+      snapshot: {
+        sessions: {
+          activeSessionsByThread: {
+            t1: { model: "deepseek/deepseek-v4-flash" },
+            t2: { model: "mimo/mimo-v2.5" },
+            t3: { model: "deepseek/deepseek-v4-flash" },
+          },
+        },
+      },
+    }
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) return sseResponse([stateEvent])
+      if (url.includes("/api/thread/") && init?.method === "POST") {
+        const match = /\/api\/thread\/([^/]+)\/close/.exec(url)
+        if (match) closed.push(match[1])
+        return new Response("{}", { status: 200 })
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({
+        engineManager: fakeEngineManager(19_003),
+        logger: logger as never,
+      })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      await controller.freeSlotFor("t2", { waitMs: 0 })
+      assert.deepEqual(closed.sort(), ["t1", "t3"])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("freeSlotFor never closes a holder that is currently running a turn", async () => {
+    const originalFetch = globalThis.fetch
+    const closed: string[] = []
+    const stateEvent = {
+      type: "state",
+      snapshot: {
+        sessions: {
+          activeSessionsByThread: {
+            t1: { model: "deepseek/deepseek-v4-flash" },
+            t2: { model: "mimo/mimo-v2.5" },
+          },
+        },
+      },
+    }
+    const runningHolder = threadEvent("t1", "open", { turnState: "running", updatedAt: 1 })
+    const idleHolder = threadEvent("t2", "open", { updatedAt: 1 })
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) return sseResponse([stateEvent, runningHolder, idleHolder])
+      if (url.includes("/api/thread/") && init?.method === "POST") {
+        const match = /\/api\/thread\/([^/]+)\/close/.exec(url)
+        if (match) closed.push(match[1])
+        return new Response("{}", { status: 200 })
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({
+        engineManager: fakeEngineManager(19_005),
+        logger: logger as never,
+      })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Free the slot for a third thread; the running t1 must survive so its
+      // long turn is not destroyed, while the idle t2 slot is released.
+      await controller.freeSlotFor("t3", { waitMs: 0 })
+      assert.deepEqual(closed, ["t2"])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("closes only open threads idle past the threshold", async () => {
+    const originalFetch = globalThis.fetch
+    const closed: string[] = []
+    const now = 1_800_000_000_000
+    const oldThread = threadEvent("idle-old", "open", { updatedAt: now - 10 * 60_000 })
+    const freshThread = threadEvent("fresh", "open", { updatedAt: now - 60_000 })
+    const runningThread = threadEvent("running", "open", { updatedAt: now - 20 * 60_000, turnState: "running" })
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) return sseResponse([oldThread, freshThread, runningThread])
+      if (url.includes("/api/thread/") && init?.method === "POST") {
+        const match = /\/api\/thread\/([^/]+)\/close/.exec(url)
+        if (match) closed.push(match[1])
+        return new Response("{}", { status: 200 })
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({
+        engineManager: fakeEngineManager(19_004),
+        logger: logger as never,
+        idleCloseMs: 6 * 60_000,
+        now: () => now,
+      })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      await controller.sweepIdleThreadsNow()
+      // Only the old idle thread is closed; the fresh and running ones survive.
+      assert.deepEqual(closed, ["idle-old"])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
 })

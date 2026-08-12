@@ -1,5 +1,6 @@
 import { Component, createSignal, For, Show, createEffect, createMemo } from "solid-js"
 import { Dialog } from "@kobalte/core/dialog"
+import { Search } from "lucide-solid"
 import { resolveResolvable, type Command } from "../lib/commands"
 import Kbd from "./kbd"
 import { useI18n } from "../lib/i18n"
@@ -231,14 +232,7 @@ const CommandPalette: Component<CommandPaletteProps> = (props) => {
 
             <div class="modal-search-container">
               <div class="flex items-center gap-3">
-                <svg class="w-5 h-5 modal-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
+                <Search class="w-5 h-5 modal-search-icon" />
                 <input
                   ref={inputRef}
                   type="text"

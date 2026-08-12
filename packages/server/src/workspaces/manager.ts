@@ -20,6 +20,8 @@ import {
   resolveExistingOpencodeConfigContent,
 } from "../opencode-plugin.js"
 import { googleSpawnEnv } from "../google/adapter"
+import { resolveAntigravityAccessToken } from "../google/providers"
+import { locateFreebuffInstall } from "../freebuff/install"
 import {
   OPENCODE_SERVER_BASE_URL_ENV,
   buildOpencodeBasicAuthHeader,
@@ -449,13 +451,23 @@ export class WorkspaceManager {
         launchedAt: Date.now(),
       })
 
+      const serverBaseUrl = this.options.getServerBaseUrl()
+      const normalizedServerBaseUrl = serverBaseUrl.replace(/\/+$/, "")
+
+      // Only register providers whose backend is actually present on this
+      // machine: an Antigravity session or a FreeBuff install. Without this a
+      // fresh user would see model entries in the picker that cannot run.
+      const includeAntigravity = resolveAntigravityAccessToken() !== null
+      const includeFreebuff = locateFreebuffInstall() !== null
+
       const opencodeConfigContent = buildOpencodeConfigContent(
         resolveExistingOpencodeConfigContent(userEnvironment),
         this.saiWorkPluginUrl,
         saipen.instructions,
+        normalizedServerBaseUrl,
+        workspacePath,
+        { includeAntigravity, includeFreebuff },
       )
-      const serverBaseUrl = this.options.getServerBaseUrl()
-      const normalizedServerBaseUrl = serverBaseUrl.replace(/\/+$/, "")
 
       const { username: opencodeUsername, password: opencodePassword } = resolveOpencodeServerAuth({
         userEnvironment,

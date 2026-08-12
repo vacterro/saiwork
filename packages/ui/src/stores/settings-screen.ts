@@ -2,6 +2,7 @@ import { createSignal } from "solid-js"
 
 export type SettingsSectionId =
   | "general"
+  | "appearance"
   | "chat"
   | "notifications"
   | "speech"

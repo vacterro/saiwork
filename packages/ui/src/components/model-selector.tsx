@@ -1,7 +1,7 @@
 import { Combobox } from "@kobalte/core/combobox"
 import { createEffect, createMemo, createSignal } from "solid-js"
 import { providers, fetchProviders } from "../stores/sessions"
-import { ChevronDown, PlugZap, Star } from "lucide-solid"
+import { Check, ChevronDown, PlugZap, Star } from "lucide-solid"
 import type { Model } from "../types/session"
 import { useI18n } from "../lib/i18n"
 import { getLogger } from "../lib/logger"
@@ -310,9 +310,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
                   </Combobox.ItemDescription>
                 </div>
                 <Combobox.ItemIndicator class="selector-option-indicator">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
+                  <Check class="w-4 h-4" />
                 </Combobox.ItemIndicator>
                 <button
                   type="button"

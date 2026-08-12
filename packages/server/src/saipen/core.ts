@@ -328,10 +328,13 @@ export function readSaipenProjectState(workspaceFolder?: string): SaipenProjectS
     const board = readFileSync(boardPath, "utf8")
     const counts = { todoCount: 0, doingCount: 0, blockedCount: 0 }
 
-    // Section-aware, via the one canonical BOARD parser: a ticket counts
-    // toward the section it sits under, never toward its checkbox state.
+    // Section-aware, via the one canonical BOARD parser: a ticket counts toward
+    // the section it sits under, never toward its checkbox state. For the
+    // Goal-Mode counts an already-checked `[x]` ticket under TODO is NOT open
+    // work: the agent finished it but did not move it to DONE, so it must not
+    // keep auto-continuing against a board with nothing actionable left.
     for (const section of parseBoardSections(board)) {
-      if (section.title === "TODO") counts.todoCount += section.tickets.length
+      if (section.title === "TODO") counts.todoCount += section.tickets.filter((ticket) => !ticket.checked).length
       if (section.title === "DOING") counts.doingCount += section.tickets.length
       if (section.title === "BLOCKED") counts.blockedCount += section.tickets.length
     }

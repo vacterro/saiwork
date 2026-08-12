@@ -1,5 +1,5 @@
 import { For, Index, Match, Show, Suspense, Switch, createEffect, createMemo, createSignal, lazy, onCleanup, untrack, type Accessor } from "solid-js"
-import { CheckSquare2, Copy, ExternalLink, FoldVertical, ListStart, Square, Trash, Volume2 } from "lucide-solid"
+import { CheckSquare2, ChevronDown, ChevronRight, Copy, ExternalLink, FoldVertical, ListStart, Square, Trash, Volume2 } from "lucide-solid"
 import MessageItem from "./message-item"
 import type { InstanceMessageStore } from "../stores/message-v2/instance-store"
 import type { ClientPart, MessageInfo } from "../types/message"
@@ -1404,7 +1404,9 @@ function StepCard(props: StepCardProps) {
               aria-label={`${t(usageExpanded() ? "messageBlock.usage.collapseAriaLabel" : "messageBlock.usage.expandAriaLabel")}. ${usageEntries(usage()).map((entry) => `${entry.label}: ${entry.formatter(entry.value)}`).join(", ")}`}
               onClick={() => setUsageExpandedOverride((current) => !(current ?? props.usageVisibility === "expanded"))}
             >
-              <span class="message-step-usage-disclosure" aria-hidden="true">{usageExpanded() ? "▼" : "▶"}</span>
+              <span class="message-step-usage-disclosure" aria-hidden="true">
+                {usageExpanded() ? <ChevronDown class="w-3 h-3" /> : <ChevronRight class="w-3 h-3" />}
+              </span>
               {renderUsageChips(usage())}
             </button>
           </div>
@@ -1807,7 +1809,9 @@ function ReasoningCard(props: ReasoningCardProps) {
           aria-expanded={expanded()}
           aria-label={expanded() ? t("messageBlock.reasoning.collapseAriaLabel") : t("messageBlock.reasoning.expandAriaLabel")}
         >
-          <span class="message-reasoning-disclosure" aria-hidden="true">{expanded() ? "▼" : "▶"}</span>
+          <span class="message-reasoning-disclosure" aria-hidden="true">
+            {expanded() ? <ChevronDown class="w-3 h-3" /> : <ChevronRight class="w-3 h-3" />}
+          </span>
           <span class="message-reasoning-label">
             <span class="message-reasoning-type">{t("messageBlock.reasoning.thinkingLabel")}</span>
             <span class="message-reasoning-title" title={reasoningMetaTooltip() || undefined}>

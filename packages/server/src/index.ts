@@ -42,6 +42,8 @@ import { createOpencodeYoloPersistence } from "./permissions/opencode-yolo-metad
 import { startSaipenAutoUpdate } from "./saipen/auto-update"
 import { SaipenFileWatcher } from "./saipen/file-watcher"
 import { QueueManager } from "./queue/manager"
+import { createOrphanCleanupController } from "./workspaces/orphan-wiring"
+import { orphanRegistryPath } from "./workspaces/orphan-cleanup"
 import type { SaipenSettings } from "./saipen/core"
 
 const require = createRequire(import.meta.url)
@@ -436,6 +438,14 @@ async function main() {
     logger: logger.child({ component: "instance-events" }),
   })
 
+  // Orphaned-workspace process cleanup: records every spawned opencode pid so a
+  // hard-killed server can terminate the survivors it abandoned on the next run.
+  const orphanCleanup = createOrphanCleanupController({
+    registryPath: orphanRegistryPath(configLocation.baseDir),
+    eventBus,
+    logger: logger.child({ component: "orphan-cleanup" }),
+  })
+
   // Live SAIPEN change stream: watches registered workspaces' `.saipen/` and
   // publishes workspace-scoped `saipen.changed` events so mounted SAIPENVIEW
   // panels refresh instead of poll. Stopped on shutdown.
@@ -584,6 +594,11 @@ async function main() {
   if (httpServer) servers.push(httpServer)
   if (httpsServer) servers.push(httpsServer)
 
+  // Terminate opencode processes a previous, hard-killed run left behind before
+  // any new workspace can spawn. Best-effort: a probe or signal failure only
+  // keeps the stale entries for the next start.
+  orphanCleanup.sweep()
+
   const [httpStart, httpsStart] = await Promise.all([
     httpServer ? httpServer.start() : Promise.resolve(null),
     httpsServer ? httpsServer.start() : Promise.resolve(null),
@@ -689,6 +704,7 @@ async function main() {
           stopSaipenWatcher: () => saipenWatcher.stop(),
           stopQueueManager: () => queueManager.flush(),
           stopFreebuffEngine: () => freebuff.stop(),
+          stopOrphanCleanup: () => orphanCleanup.stop(),
         },
         logger,
       ),

@@ -21,13 +21,15 @@ describe("google adapter (execution boundary)", () => {
     assert.equal(resolution.authMode, "api")
   })
 
-  it("maps antigravity to opencode google with oauth auth", () => {
+  it("maps antigravity to the local shim provider", () => {
     const resolution = resolveGoogleExecution(ANTIGRAVITY_PROVIDER_ID, "gemini-3.1-pro-preview", {
       allowProviderFallback: false,
     })
-    assert.equal(resolution.opencodeProvider, "google")
+    assert.equal(resolution.opencodeProvider, "saiwork-antigravity")
     assert.equal(resolution.opencodeModelId, "gemini-3.1-pro-preview")
-    assert.equal(resolution.authMode, "oauth")
+    assert.equal(resolution.authMode, "shim")
+    // The OAuth session stays server-side; no credential in the workspace env.
+    assert.deepEqual(resolution.env, {})
   })
 
   it("strips the provider prefix from scoped model ids", () => {

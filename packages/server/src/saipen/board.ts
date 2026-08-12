@@ -13,6 +13,8 @@ export interface BoardTicket {
   id: string
   status: "todo" | "doing" | "done" | "blocked"
   text: string
+  /** True when the checkbox is `[x]` (the agent finished it). */
+  checked: boolean
 }
 
 export interface BoardSection {
@@ -52,7 +54,7 @@ export function parseBoardSections(boardText: string | null): BoardSection[] {
     const status: BoardTicket["status"] = sectionStatus ?? (
       ticket[1] === "x" ? "done" : ticket[1] === "/" ? "doing" : "todo"
     )
-    current.tickets.push({ id: ticket[2], status, text: ticket[3] })
+    current.tickets.push({ id: ticket[2], status, text: ticket[3], checked: ticket[1] === "x" })
   }
   return sections
 }

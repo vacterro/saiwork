@@ -35,7 +35,9 @@ import { registerSideCarRoutes } from "./routes/sidecars"
 import { registerPreviewRoutes } from "./routes/previews"
 import { registerUsageRoutes } from "./routes/usage"
 import { registerFreebuffRoutes } from "./routes/freebuff"
+import { registerFreebuffGatewayRoutes } from "./routes/freebuff-gateway"
 import { registerGoogleRoutes } from "./routes/google"
+import { registerGoogleShimRoutes } from "./routes/google-shim"
 import type { FreebuffController } from "../freebuff/controller"
 import { ServerMeta } from "../api-types"
 import { InstanceStore } from "../storage/instance-store"
@@ -335,10 +337,12 @@ export function createHttpServer(deps: HttpServerDeps) {
     freebuff: deps.freebuff,
     logger: apiLogger,
   })
+  registerFreebuffGatewayRoutes(app, { freebuff: deps.freebuff })
   registerGoogleRoutes(app, {
     settings: deps.settings,
     logger: apiLogger,
   })
+  registerGoogleShimRoutes(app)
   registerSideCarProxyRoutes(app, { sidecarManager: deps.sidecarManager, logger: proxyLogger })
   registerPreviewProxyRoutes(app, { previewManager: deps.previewManager, logger: proxyLogger })
   setupSideCarWebSocketProxy(app, {

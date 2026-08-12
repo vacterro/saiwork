@@ -12,6 +12,8 @@ import { clearQueue, dequeuePrompt, enqueuePrompt, enqueuePromptFanOut, getQueue
 import { getAttachments, removeAttachment } from "../../stores/attachments"
 import { instances, updateInstance, waitForInstanceWorkspaceMetadataHydration } from "../../stores/instances"
 import { activeSessionId, loadMessages, sendMessage, forkSession, renameSession, isSessionMessagesLoading, getSessionMessagesLoadError, markSessionIdleSeen, ensureSessionAncestorsExpanded, setActiveSessionFromList, runShellCommand, abortSession, sessions } from "../../stores/sessions"
+import { clearResponseStartedAt, responseStartedAtSignal, setResponseStartedAt } from "../../stores/response-timer"
+import { confirmFreebuffTabSwitch } from "../../lib/freebuff-send-guard"
 import { clearSessionIdleFade, IDLE_STATUS_VISIBILITY_MS, getSessionStatus, isSessionBusy as getSessionBusyStatus, markSessionIdleFadeStarted } from "../../stores/session-status"
 import { deleteMessage, didSessionPromptReachServer } from "../../stores/session-actions"
 import { showAlertDialog } from "../../stores/alerts"
@@ -107,41 +109,47 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   const attachments = createMemo(() => getAttachments(props.instanceId, props.sessionId))
   const preview = createMemo(() => getSessionPreview(props.sessionId))
 
-  // Response elapsed timer: ticks every second while the agent is working.
+  // Response elapsed timer: ticks every second while the agent is working. The
+  // start time lives in a per-session store so switching tabs (which remounts
+  // this component) never resets the clock to zero -- each session counts its
+  // own elapsed time independently.
   const [responseElapsed, setResponseElapsed] = createSignal(0)
   let responseTimerInterval: ReturnType<typeof setInterval> | undefined
-  let responseStartedAt: number | null = null
+  const responseStartedAt = responseStartedAtSignal(props.instanceId, props.sessionId)
 
   createEffect(
     on(sessionBusy, (busy) => {
       if (busy) {
-        const currentSession = session()
-        let realStartedAt = Date.now()
-        const messageIds = currentSession ? (messageStore()?.getSessionMessageIds(currentSession.id) ?? []) : []
-        if (currentSession && messageIds.length > 0) {
-          const storeState = messageStore()?.state
-          if (storeState?.messages) {
-            const lastId = messageIds[messageIds.length - 1]
-            const msg = storeState.messages[lastId]
-            if (msg && msg.createdAt) {
-              realStartedAt = msg.createdAt
+        if (responseStartedAt() == null) {
+          const currentSession = session()
+          let realStartedAt = Date.now()
+          const messageIds = currentSession ? (messageStore()?.getSessionMessageIds(currentSession.id) ?? []) : []
+          if (currentSession && messageIds.length > 0) {
+            const storeState = messageStore()?.state
+            if (storeState?.messages) {
+              const lastId = messageIds[messageIds.length - 1]
+              const msg = storeState.messages[lastId]
+              if (msg && msg.createdAt) {
+                realStartedAt = msg.createdAt
+              }
             }
           }
+          setResponseStartedAt(props.instanceId, props.sessionId, realStartedAt)
         }
-        
-        responseStartedAt = realStartedAt
-        setResponseElapsed(Math.max(0, Date.now() - responseStartedAt))
+
+        setResponseElapsed(Math.max(0, Date.now() - (responseStartedAt() ?? Date.now())))
         clearInterval(responseTimerInterval)
         responseTimerInterval = setInterval(() => {
-          if (responseStartedAt != null) {
-            setResponseElapsed(Math.max(0, Date.now() - responseStartedAt))
+          const startedAt = responseStartedAt()
+          if (startedAt != null) {
+            setResponseElapsed(Math.max(0, Date.now() - startedAt))
           }
         }, 1000)
       } else {
         clearInterval(responseTimerInterval)
         responseTimerInterval = undefined
-        responseStartedAt = null
         setResponseElapsed(0)
+        clearResponseStartedAt(props.instanceId, props.sessionId)
       }
     }),
   )
@@ -499,6 +507,10 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   }
 
   async function handleDispatchMessage(prompt: string, attachments: Attachment[]) {
+    // FreeBuff one-tab rule: starting a NEW FreeBuff conversation while another
+    // tab is open steals that tab's slot. Ask before it happens; declining keeps
+    // the draft text without enqueuing anything.
+    if (!(await confirmFreebuffTabSwitch(props.instanceId, props.sessionId))) return
     const outcome = await dispatchOrdinaryPrompt({
       queueEnabled: preferences().queueEnabled,
       instanceId: props.instanceId,
@@ -946,6 +958,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
             <Show when={showSaipenBar()}>
               <SaipenBar
                 folder={props.instanceFolder}
+                instanceId={props.instanceId}
                 onRunShortcut={handleRunShortcut}
                 onInsertShortcut={(text) => promptInputApi?.setPromptText(text, { focus: true })}
                 goalAutoEnabled={isSaipenGoalAutoEnabled(props.instanceFolder)}

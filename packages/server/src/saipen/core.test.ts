@@ -72,6 +72,24 @@ describe("readSaipenProjectState", () => {
     })
   })
 
+  it("does not count checked-off tickets under TODO as open work", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-"))
+    roots.push(root)
+    const memory = path.join(root, ".saipen")
+    mkdirSync(memory)
+    writeFileSync(path.join(memory, "STATE.md"), "---\nphase: BUILD\nnext_action: \"PHASE BUILD\"\n---\n")
+    writeFileSync(
+      path.join(memory, "BOARD.md"),
+      "## TODO\n- [ ] T-002 Real next\n- [x] T-003 Finished but not moved\n## DONE\n- [x] T-004 Done\n",
+    )
+
+    // The checked `[x]` under TODO is not actionable: Goal Auto must not keep
+    // sending continue against it.
+    const state = readSaipenProjectState(root)!
+    assert.equal(state.todoCount, 1)
+    assert.equal(state.doingCount, 0)
+  })
+
   it("returns null without complete project memory", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "saiwork-saipen-"))
     roots.push(root)

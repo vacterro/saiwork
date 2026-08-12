@@ -1,6 +1,6 @@
 import { Dialog } from "@kobalte/core/dialog"
 import { Select } from "@kobalte/core/select"
-import { Settings, Bell, ChevronDown, FileCog, Globe, Info, MessageSquare, Monitor, MonitorUp, PlugZap, SlidersHorizontal, Terminal, Volume2, X, Zap } from "lucide-solid"
+import { Settings, Bell, ChevronDown, FileCog, Globe, Info, MessageSquare, Monitor, MonitorUp, Palette, PlugZap, SlidersHorizontal, Terminal, Volume2, X, Zap } from "lucide-solid"
 import { createMemo, For, type Component } from "solid-js"
 import { useI18n } from "../lib/i18n"
 import {
@@ -24,6 +24,7 @@ import { SavedRemoteServersCard } from "./settings/saved-remote-servers-card"
 import { SideCarsSettingsSection } from "./settings/sidecars-settings-section"
 import { SaipenSettingsSection } from "./settings/saipen-settings-section"
 import { WindowSettingsSection } from "./settings/window-settings-section"
+import { AppearanceSettingsSection } from "./settings/appearance-settings-section"
 import { canOpenRemoteWindows } from "../lib/runtime-env"
 import { confirmSettingsDiscard } from "../stores/settings-dirty-guard"
 
@@ -39,6 +40,7 @@ export const SettingsScreen: Component = () => {
   const sections = createMemo(() => {
     const items: SettingsSectionOption[] = [
       { id: "general", icon: SlidersHorizontal, label: t("settings.nav.general") },
+      { id: "appearance", icon: Palette, label: t("settings.nav.appearance") },
       { id: "chat", icon: MessageSquare, label: t("settings.nav.chat") },
       { id: "notifications", icon: Bell, label: t("settings.nav.notifications") },
       { id: "speech", icon: Volume2, label: t("settings.nav.speech") },
@@ -61,6 +63,8 @@ export const SettingsScreen: Component = () => {
 
   const renderSection = () => {
     switch (activeSettingsSection()) {
+      case "appearance":
+        return <AppearanceSettingsSection />
       case "chat":
         return <ChatSettingsSection />
       case "notifications":

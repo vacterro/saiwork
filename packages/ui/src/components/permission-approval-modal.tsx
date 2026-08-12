@@ -1,4 +1,5 @@
 import { For, Show, Suspense, createMemo, createSignal, createEffect, lazy, onCleanup, type Component } from "solid-js"
+import { X } from "lucide-solid"
 import type { PermissionRequest } from "../types/permission"
 import { getPermissionCallId, getPermissionDisplayTitle, getPermissionKind, getPermissionMessageId, getPermissionSessionId } from "../types/permission"
 import { getQuestionCallId, getQuestionMessageId, getQuestionSessionId, type QuestionRequest } from "../types/question"
@@ -289,7 +290,7 @@ const PermissionApprovalModal: Component<PermissionApprovalModalProps> = (props)
               onClick={props.onClose}
               aria-label={t("permissionApproval.actions.closeAriaLabel")}
             >
-              ✕
+              <X class="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
 

@@ -20,6 +20,7 @@ import type { Instance } from "../../types/instance"
 import type { Command } from "../../lib/commands"
 import type { BackgroundProcess } from "../../../../server/src/api-types"
 import { keyboardRegistry, type KeyboardShortcut } from "../../lib/keyboard-registry"
+import { confirmFreebuffTabSwitch } from "../../lib/freebuff-send-guard"
 
 import { isOpen as isCommandPaletteOpen, hideCommandPalette, showCommandPalette } from "../../stores/command-palette"
 import InstanceWelcomeView from "../instance-welcome-view"
@@ -66,7 +67,7 @@ import ThinkingSelector from "../thinking-selector"
 import RightPanel from "./shell/right-panel/RightPanel"
 import { useDrawerChrome } from "./shell/useDrawerChrome"
 import { getRetrySeconds, getSessionIdleFadeClass, getSessionRetry, getSessionStatus, shouldShowSessionStatus } from "../../stores/session-status"
-import { Eye, Maximize2, MessageSquareText, PlusSquare, Search, ShieldAlert } from "lucide-solid"
+import { Eye, Maximize2, MessageSquareText, PlusSquare, Search, ShieldAlert, X } from "lucide-solid"
 import type { PromptInputApi } from "../prompt-input/types"
 import type { Attachment } from "../../types/attachment"
 import { setAgentModelPreference, useConfig } from "../../stores/preferences"
@@ -1199,6 +1200,9 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   }
 
   async function handleFirstPromptSend(prompt: string, attachments: Attachment[]) {
+    // FreeBuff one-tab rule: this draft is a brand-new FreeBuff conversation;
+    // confirm switching away from any currently open FreeBuff tab first.
+    if (!(await confirmFreebuffTabSwitch(props.instance.id, NO_SESSION_DRAFT_SESSION_ID, draftModel()))) return
     await runFirstPromptSubmission((sessionId) => sendMessage(props.instance.id, sessionId, prompt, attachments))
   }
 
@@ -1525,6 +1529,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
                     <Show when={showSaipenBar()}>
                       <SaipenBar
                         folder={props.instance.folder}
+                        instanceId={props.instance.id}
                         onRunShortcut={(shortcut) => void handleFirstPromptSend(shortcut, [])}
                         onInsertShortcut={(text) => draftPromptInputApi()?.setPromptText(text, { focus: true })}
                         onSplitPane={handleSplitPaneClick}
@@ -1624,7 +1629,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
                                 aria-label={t("saipenView.closeHint")}
                                 onClick={() => handleClosePane(pane.id)}
                               >
-                                ×
+                                <X class="h-3 w-3" aria-hidden="true" />
                               </button>
                             </div>
                             <SessionView

@@ -7,12 +7,15 @@ import { getSaipenSubLifecycleKey, getSaipenSubPackageCounts, getSaipenSubPackag
 import type { SaipenStatusResponse } from "../../../server/src/api-types"
 import { formatElapsedClock } from "../lib/message-timing"
 import SaipenViewPanel, { type SaipenViewTab } from "./saipen-view-panel"
+import FreebuffBarStatus from "./freebuff-bar-status"
 
 const log = getLogger("actions")
 
 interface SaipenBarProps {
   /** Workspace folder, used to resolve the project's own .saipen state. */
   folder: string
+  /** Instance id, used to read the active session's model for the FreeBuff chip. */
+  instanceId?: string
   /** Sends the shortcut as the entire message, which is what the protocol expects. */
   onRunShortcut: (shortcut: string) => void
   /** Puts the shortcut in the prompt for the user to complete. */
@@ -244,6 +247,9 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
         onWheel={handleWheel}
       >
         <div class="saipen-bar-group saipen-bar-left">
+          <Show when={props.instanceId}>
+            <FreebuffBarStatus instanceId={props.instanceId!} />
+          </Show>
           <Show when={props.onToggleGoalAuto}>
             <button
               type="button"

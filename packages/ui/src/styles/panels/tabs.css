@@ -13,36 +13,73 @@
 }
 
 .tab-container {
-  @apply flex items-center justify-between gap-1 px-2 py-1;
+  @apply flex items-center gap-1 px-2 py-1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tab-scroll {
-  @apply w-full;
-  overflow-x: auto;
-  touch-action: pan-x;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Scroll arrows: only rendered while the tab strip actually overflows. */
-.tab-arrow {
-  flex-shrink: 0;
-  min-width: 20px;
-  min-height: 20px;
-  font-size: 14px;
-  padding: 0;
-  border: 2px solid;
-  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
-  background: var(--surfaceRaised);
-  color: var(--textPrimary);
-}
-
-.tab-strip {
-  @apply flex items-center gap-2 px-1;
-  min-width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .tab-strip-tabs {
-  @apply flex items-center gap-1 flex-shrink-0;
+  @apply flex items-center gap-1;
+  width: max-content;
+  min-width: 100%;
+}
+
+.tab-overflow-unit {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.tab-overflow-unit[data-overflow-hidden="true"] {
+  display: none;
+}
+
+.tab-overflow-unit:not([data-overflow-hidden="true"]) {
+  max-width: 100%;
+}
+
+.tab-overflow-unit:not([data-overflow-hidden="true"]) .tab-base,
+.tab-overflow-unit:not([data-overflow-hidden="true"]) .tab-pill {
+  max-width: 100%;
+}
+
+.tab-container > .tab-overflow-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tab-container > .tab-overflow-trigger svg {
+  display: none;
+}
+
+.tab-container > .tab-overflow-trigger::before {
+  content: "...";
+}
+
+.tab-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 480px) {
+  .tab-bar-actions .tab-shortcuts {
+    display: none;
+  }
 }
 
 .tab-draggable {
@@ -69,11 +106,6 @@
 .tab-draggable .tab-pill:active,
 .tab-draggable .tab-pill-button:active {
   cursor: grabbing;
-}
-
-.tab-strip-spacer {
-  @apply flex-1;
-  min-width: 1px;
 }
 
 .tab-shortcuts {

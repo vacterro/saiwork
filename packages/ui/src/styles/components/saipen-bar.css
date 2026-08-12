@@ -288,3 +288,133 @@
 .saipen-sub-verdict[data-verdict="reviewed"] {
   color: var(--textMuted);
 }
+
+/* FreeBuff status chip in the bar. Only rendered while the active session
+   uses a freebuff/* model. The dot is a plain square -- state by colour, no
+   animation. The detail panel opens upward because the bar sits at the bottom. */
+.saipen-freebuff {
+  position: relative;
+}
+
+.saipen-freebuff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  min-height: 16px;
+  padding: 0 4px;
+  white-space: nowrap;
+  border: 1px solid var(--borderMuted);
+  background: transparent;
+  color: var(--textSecondary);
+  max-width: 320px;
+}
+
+.saipen-freebuff-chip[data-state="ready"] {
+  color: var(--success);
+}
+
+.saipen-freebuff-chip[data-state="busy"] {
+  color: var(--warning);
+}
+
+.saipen-freebuff-chip[data-state="off"] {
+  color: var(--textMuted);
+}
+
+.saipen-freebuff-chip[aria-expanded="true"] {
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background: var(--surface);
+}
+
+.saipen-freebuff-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border: 1px solid var(--borderDark);
+  background: var(--textMuted);
+}
+
+.saipen-freebuff-chip[data-state="ready"] .saipen-freebuff-dot {
+  background: var(--success);
+}
+
+.saipen-freebuff-chip[data-state="busy"] .saipen-freebuff-dot {
+  background: var(--warning);
+}
+
+.saipen-freebuff-model {
+  color: var(--textPrimary);
+}
+
+.saipen-freebuff-meta {
+  color: var(--textSecondary);
+  font-weight: 400;
+}
+
+.saipen-freebuff-chevron {
+  color: var(--textMuted);
+}
+
+.saipen-freebuff-panel {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  width: 340px;
+  max-width: 90vw;
+  max-height: 60vh;
+  overflow-y: auto;
+  z-index: 1000;
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surface);
+  padding: 4px;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.saipen-freebuff-error {
+  font-size: 10px;
+  color: var(--danger);
+  margin-bottom: 4px;
+}
+
+.saipen-freebuff-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--textSecondary);
+  padding: 1px 0;
+}
+
+.saipen-freebuff-label {
+  flex: 0 0 auto;
+  color: var(--textMuted);
+}
+
+.saipen-freebuff-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saipen-freebuff-sub {
+  border-top: 1px solid var(--borderDark);
+  margin-top: 3px;
+  padding-top: 3px;
+}
+
+.saipen-freebuff-subtitle {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--textPrimary);
+  margin-bottom: 2px;
+}
+
+.saipen-freebuff-empty {
+  font-size: 10px;
+  color: var(--textMuted);
+}

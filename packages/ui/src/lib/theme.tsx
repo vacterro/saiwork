@@ -1,4 +1,4 @@
-import { createContext, createEffect, createMemo, createSignal, onMount, useContext, type JSX } from "solid-js"
+import { createContext, createEffect, createMemo, createSignal, useContext, type JSX } from "solid-js"
 import { createTheme, ThemeProvider as MuiThemeProvider } from "@suid/material/styles"
 import CssBaseline from "@suid/material/CssBaseline"
 import { useConfig } from "../stores/preferences"
@@ -75,28 +75,26 @@ const resolvePaletteColors = (dark: boolean): ResolvedPaletteColors => {
 }
 
 export function ThemeProvider(props: { children: JSX.Element }) {
-  const mediaQuery = typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)") : null
   const { themePreference, setThemePreference } = useConfig()
   const [isDark, setIsDarkSignal] = createSignal(true)
   const [themeRevision, setThemeRevision] = createSignal(0)
 
-  const themeMode = () => themePreference() as ThemeMode
+  const themeMode = (): ThemeMode => {
+    const configured = themePreference()
+    return wintageThemes.some((theme) => theme.slug === configured) ? configured : "goldendefault"
+  }
 
   const resolveDarkTheme = () => {
     const mode = themeMode()
-    if (mode === "dark") return true
-    if (mode === "light") return false
-    return mediaQuery?.matches ?? false
+    const wintageTheme = wintageThemes.find((theme) => theme.slug === mode)
+    return wintageTheme?.isDark ?? true
   }
 
   const applyResolvedTheme = () => {
     const mode = themeMode()
     const dark = resolveDarkTheme()
-    if (mode === "system") {
-      applyThemeMode("system")
-    } else {
-      applyThemeMode(mode)
-    }
+    applyThemeMode(mode)
+    if (typeof document !== "undefined") document.documentElement.style.colorScheme = dark ? "dark" : "light"
     setIsDarkSignal(dark)
     if (typeof window !== "undefined") {
       requestAnimationFrame(() => setThemeRevision((v) => v + 1))
@@ -109,29 +107,12 @@ export function ThemeProvider(props: { children: JSX.Element }) {
     applyResolvedTheme()
   })
 
-  onMount(() => {
-    if (!mediaQuery) return
-    const handleSystemThemeChange = () => {
-      applyResolvedTheme()
-    }
-
-    mediaQuery.addEventListener("change", handleSystemThemeChange)
-
-    return () => {
-      mediaQuery.removeEventListener("change", handleSystemThemeChange)
-    }
-  })
-
   const setThemeMode = (mode: ThemeMode) => {
     setThemePreference(mode)
   }
 
   const cycleThemeMode = () => {
     const current = themeMode()
-    if (current === "system") {
-      setThemeMode(wintageThemes[0]?.slug ?? "goldendefault")
-      return
-    }
     const currentIndex = wintageThemes.findIndex(t => t.slug === current)
     const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % wintageThemes.length
     setThemeMode(wintageThemes[nextIndex]?.slug ?? "goldendefault")

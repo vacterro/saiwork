@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
+import { antigravityStateDbPath, extractTokensFromStateValue, readStateDbValue } from "./antigravity-session"
 import { getString } from "../usage/shared"
 import {
   ANTIGRAVITY_PROVIDER_ID,
@@ -36,6 +37,8 @@ export interface GoogleDetectionOverrides {
   /** OpenCode data dir (auth.json / plugins) lookup root. */
   opencodeDataHome?: string
   opencodeConfigHome?: string
+  /** SQLite state-DB reader override (for tests); defaults to the real one. */
+  readStateDb?: (dbPath: string, key: string) => string | null
 }
 
 interface DetectionDeps {
@@ -45,6 +48,7 @@ interface DetectionDeps {
   home: string
   opencodeDataHome: string
   opencodeConfigHome: string
+  readStateDb: (dbPath: string, key: string) => string | null
 }
 
 function resolveDeps(overrides: GoogleDetectionOverrides = {}): DetectionDeps {
@@ -62,6 +66,7 @@ function resolveDeps(overrides: GoogleDetectionOverrides = {}): DetectionDeps {
     home,
     opencodeDataHome: dataHome,
     opencodeConfigHome: configHome,
+    readStateDb: overrides.readStateDb ?? readStateDbValue,
   }
 }
 
@@ -171,6 +176,17 @@ export function readAntigravityAccessToken(deps: DetectionDeps): string | null {
         const token = getString(entry.accessToken) ?? getString(entry.access) ?? getString(entry.token)
         if (token) return token
       }
+    }
+  } catch {
+    // fall through
+  }
+  // The Antigravity app's own state DB: the sign-in it performs persists an
+  // OAuth session there even when the gemini-style JSON stores are empty.
+  try {
+    const stateValue = deps.readStateDb(antigravityStateDbPath(deps.home), "jetskiStateSync.agentManagerInitState")
+    if (stateValue) {
+      const token = extractTokensFromStateValue(stateValue).accessToken
+      if (token) return token
     }
   } catch {
     // fall through

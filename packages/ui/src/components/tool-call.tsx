@@ -1,5 +1,5 @@
 import { createSignal, Show, createEffect, createMemo, onCleanup, type Accessor, type JSXElement } from "solid-js"
-import { ArrowRightSquare, Check, Copy, Hourglass, Loader2, Volume2, WrapText, XCircle } from "lucide-solid"
+import { ArrowRightSquare, Check, ChevronDown, ChevronRight, Copy, Hourglass, Loader2, Volume2, WrapText, XCircle } from "lucide-solid"
 import { stringify as stringifyYaml } from "yaml"
 import { messageStoreBus } from "../stores/message-v2/bus"
 import { useTheme } from "../lib/theme"
@@ -541,7 +541,9 @@ function ToolCallDetails(props: {
   }) => (
     <div class="tool-call-io-header">
       <button type="button" class="tool-call-io-toggle" aria-expanded={options.expanded()} onClick={options.onToggle}>
-        <span class="tool-call-io-disclosure" aria-hidden="true">{options.expanded() ? "▼" : "▶"}</span>
+        <span class="tool-call-io-disclosure" aria-hidden="true">
+          {options.expanded() ? <ChevronDown class="w-3 h-3" /> : <ChevronRight class="w-3 h-3" />}
+        </span>
         <span class="tool-call-io-title">{options.title()}</span>
         <Show when={options.language?.()}>
           {(language) => <span class="tool-call-io-language">{language()}</span>}
@@ -1072,7 +1074,9 @@ export default function ToolCall(props: ToolCallProps) {
           onClick={toggle}
           aria-expanded={expanded()}
         >
-          <span class="tool-call-disclosure" aria-hidden="true">{expanded() ? "▼" : "▶"}</span>
+          <span class="tool-call-disclosure" aria-hidden="true">
+            {expanded() ? <ChevronDown class="w-3 h-3" /> : <ChevronRight class="w-3 h-3" />}
+          </span>
           <span class="tool-call-summary">
             <span class="tool-call-summary-type">{toolTypeLabel()}</span>
             <Show when={headerTitleDetail()}>

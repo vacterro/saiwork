@@ -1196,7 +1196,7 @@ async function cleanupBlankSessions(instanceId: string, excludeSessionId?: strin
   }
 
   const cleanupPromises = Array.from(instanceSessions)
-    .filter(([sessionId]) => sessionId !== excludeSessionId)
+    .filter(([sessionId]) => sessionId !== excludeSessionId && !isSessionBusy(instanceId, sessionId))
     .map(async ([sessionId, session]) => {
       const isBlank = await isBlankSession(session, instanceId, fetchIfNeeded)
       if (!isBlank) return false

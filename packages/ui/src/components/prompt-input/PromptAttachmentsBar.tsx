@@ -1,5 +1,5 @@
 import { For, Show, type Component } from "solid-js"
-import { Expand } from "lucide-solid"
+import { Expand, X } from "lucide-solid"
 import type { Attachment } from "../../types/attachment"
 import { useI18n } from "../../lib/i18n"
 
@@ -37,7 +37,7 @@ const PromptAttachmentsBar: Component<PromptAttachmentsBarProps> = (props) => {
                 onClick={() => props.onRemoveAttachment(attachment.id)}
                 aria-label={t("sessionView.attachments.removeAriaLabel")}
               >
-                ×
+                <X class="h-3 w-3" aria-hidden="true" />
               </button>
             </div>
           )

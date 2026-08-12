@@ -53,4 +53,52 @@ describe("buildOpencodeConfigContent", () => {
     assert.ok(parsed.provider.google_antigravity)
     assert.equal(Object.keys(parsed.provider).length, 2)
   })
+
+  it("adds the freebuff provider with the workspace header when scoped", () => {
+    const content = buildOpencodeConfigContent(undefined, "file:///plugin.tgz", [], "http://127.0.0.1:4000", "C:/work/proj")
+    const parsed = JSON.parse(content)
+    assert.ok(parsed.provider.freebuff)
+    assert.equal(parsed.provider.freebuff.npm, "@ai-sdk/openai-compatible")
+    assert.equal(parsed.provider.freebuff.options.baseURL, "http://127.0.0.1:4000/fb/v1")
+    assert.equal(parsed.provider.freebuff.options.headers["x-saiwork-workspace"], "C:/work/proj")
+    assert.ok(parsed.provider.freebuff.models["deepseek/deepseek-v4-flash"])
+  })
+
+  it("omits the freebuff provider without a workspace path", () => {
+    const content = buildOpencodeConfigContent(undefined, "file:///plugin.tgz")
+    const parsed = JSON.parse(content)
+    assert.equal(parsed.provider.freebuff, undefined)
+  })
+
+  it("hides Antigravity and FreeBuff when their backends are absent", () => {
+    const content = buildOpencodeConfigContent(
+      undefined, "file:///plugin.tgz", [], "http://127.0.0.1:4000", "C:/work/proj",
+      { includeAntigravity: false, includeFreebuff: false },
+    )
+    const parsed = JSON.parse(content)
+    assert.equal(parsed.provider.google_antigravity, undefined)
+    assert.equal(parsed.provider.freebuff, undefined)
+    // The always-available Gemini API provider survives.
+    assert.ok(parsed.provider.google_gemini_api)
+  })
+
+  it("every model limit carries both context and output (opencode schema)", () => {
+    const content = buildOpencodeConfigContent(undefined, "file:///plugin.tgz")
+    const parsed = JSON.parse(content)
+    const providers = Object.values(parsed.provider) as Array<{ models?: Record<string, { limit?: unknown }> }>
+    for (const provider of providers) {
+      for (const [modelId, model] of Object.entries(provider.models ?? {})) {
+        if (model.limit === undefined) continue
+        const limit = model.limit as { context?: unknown; output?: unknown }
+        assert.ok(
+          typeof limit.context === "number" && limit.context > 0,
+          `${modelId} limit.context missing`,
+        )
+        assert.ok(
+          typeof limit.output === "number" && limit.output > 0,
+          `${modelId} limit.output missing`,
+        )
+      }
+    }
+  })
 })

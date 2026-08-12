@@ -25,6 +25,48 @@
   the dev loop (vite + esbuild HMR) is fragile on Windows and can SIGABRT
   mid-session, which looks like a UI hang.
 
+## External integrations knowledge
+
+- The full reverse-engineered contract for Antigravity (OAuth session in
+  `state.vscdb`, daily-cloudcode-pa endpoint, model-id quirks, tool-schema
+  keep-list, thoughtSignature) and FreeBuff (engine API, session-slot model,
+  close-to-release) lives in `docs/features/antigravity-and-freebuff.md`.
+  When either vendor ships an update, re-verify against that checklist
+  (no-quota probes with a fake model id; `closeThread` slot release; catalog
+  model availability) instead of re-deriving it.
+
+## FreeBuff session-slot constraint (MANDATORY)
+
+- FreeBuff allows **one hosted-model session/tab per network at a time**
+  (limited tier: "Freebuff is limited to one tab at a time on your network").
+  A thread holds a slot from admission until the thread is closed or the
+  session expires; `stop` does NOT release it.
+- The only HTTP way to release a slot is `closeThread` (POST
+  `/api/thread/:id/close`); sending a message later reopens a closed thread
+  without losing history.
+- SAIWORK's FreebuffController tracks slot holders from engine `state` events
+  (`snapshot.sessions.activeSessionsByThread`) and exposes `freeSlotFor()`,
+  which closes every OTHER holder before a turn is dispatched. Both the
+  gateway (`/fb/v1`) and the UI tab message route call it; the gateway closes
+  its own thread after each turn so an idle conversation never blocks another.
+- Keep this contract when touching FreeBuff: never rely on `stop` to free a
+  slot, and always call `freeSlotFor` before dispatching a hosted-model turn.
+
+## Generated OpenCode config validation (MANDATORY)
+- Any provider config written into `OPENCODE_CONFIG_CONTENT` must satisfy
+  OpenCode's config schema or workspace launch fails hard (reproduced
+  2026-08-12: model `limit` with only `context` and no `output` produced
+  "provider.google_antigravity.models.*.limit.output: Missing key" and the
+  Electron app could not start the workspace). Rules:
+  - `limit` must carry BOTH `context` and `output` numbers when present.
+  - After changing `buildGoogleProviderConfig` / `buildFreebuffProviderConfig`
+    or the model catalogs, assert the generated config structurally: every
+    provider model with a `limit` has both keys, baseURL/apiKey are present,
+    and the opencode-plugin test suite passes.
+  - Prefer validating generated config against the real OpenCode binary when
+    possible (it validates at `opencode serve` launch); otherwise rely on the
+    structural regression test in `opencode-plugin.test.ts`.
+
 ## Plugin hygiene (MANDATORY)
 
 - NEVER add named exports to `packages/opencode-plugin/plugin/saiwork.ts`

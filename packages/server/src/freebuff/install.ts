@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -46,6 +46,38 @@ const DESKTOP_INSTALL_CANDIDATES = (): string[] => {
       )
   }
   return candidates
+}
+
+/**
+ * FreeBuff updates may rename the app directory (the scoped npm-style folder
+ * has changed before). Fall back to scanning common app roots for any folder
+ * that carries the `resources/orchestrator/orchestrator.js` layout, so a
+ * renamed install is still found.
+ */
+function scanDesktopInstallRoots(): string[] {
+  const home = os.homedir()
+  const roots: string[] = []
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA ?? path.join(home, "AppData", "Local")
+    roots.push(path.join(localAppData, "Programs"), localAppData)
+  } else if (process.platform === "darwin") {
+    roots.push("/Applications")
+  } else {
+    roots.push("/opt", "/usr/lib")
+  }
+  const found: string[] = []
+  for (const root of roots) {
+    try {
+      for (const entry of readdirSync(root, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        if (!/codebuff|freebuff/i.test(entry.name)) continue
+        found.push(path.join(root, entry.name))
+      }
+    } catch {
+      // A missing root is not fatal; other roots are still scanned.
+    }
+  }
+  return found
 }
 
 const STATE_FILE_CANDIDATES = (): string[] => {
@@ -127,7 +159,7 @@ export function locateFreebuffInstall(
   const exists = overrides.exists ?? existsSync
   const candidates = overrides.home
     ? [overrides.home]
-    : [...DESKTOP_INSTALL_CANDIDATES()]
+    : [...DESKTOP_INSTALL_CANDIDATES(), ...scanDesktopInstallRoots()]
 
   for (const root of candidates) {
     // Windows/macOS/Linux share the `resources/{bun,orchestrator}` layout of

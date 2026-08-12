@@ -34,6 +34,7 @@ function createApp(overrides: Partial<{ client: FreebuffClient | null; status: R
     auth: () => null,
     quota: async () => ({ configured: true, snapshot: null, error: null }),
     stop: async () => {},
+    freeSlotFor: async () => {},
   } as unknown as FreebuffController
   registerFreebuffRoutes(app, { freebuff: controller, logger: logger as never })
   return app

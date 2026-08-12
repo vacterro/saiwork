@@ -13,6 +13,7 @@ import "./styles/wintage-themes.css"
 // Vintage Golden loads last on purpose: it has to win over Tailwind preflight
 // and the diff-view stylesheet, both of which re-round corners otherwise.
 import "./styles/vintage-golden.css"
+import { wintageThemes } from "./lib/wintage-themes"
 
 const root = document.getElementById("root")
 
@@ -41,11 +42,8 @@ async function bootstrap() {
       const theme = (uiConfig as any)?.theme
       const locale = typeof (uiConfig as any)?.settings?.locale === "string" ? (uiConfig as any).settings.locale : undefined
 
-      if (theme === "light" || theme === "dark") {
-        document.documentElement.setAttribute("data-theme", theme)
-      } else {
-        document.documentElement.removeAttribute("data-theme")
-      }
+      const configuredTheme = wintageThemes.some((entry) => entry.slug === theme) ? theme : "goldendefault"
+      document.documentElement.setAttribute("data-theme", configuredTheme)
 
       await preloadLocaleMessages(locale)
     } catch {

@@ -1,7 +1,7 @@
 import { Combobox } from "@kobalte/core/combobox"
 import { createEffect, createMemo } from "solid-js"
 import { providers, fetchProviders } from "../stores/sessions"
-import { ChevronDown } from "lucide-solid"
+import { Check, ChevronDown } from "lucide-solid"
 import { getLogger } from "../lib/logger"
 import { getModelThinkingSelection, setModelThinkingSelection } from "../stores/preferences"
 import { useI18n } from "../lib/i18n"
@@ -79,9 +79,7 @@ export default function ThinkingSelector(props: ThinkingSelectorProps) {
               <Combobox.ItemLabel class="selector-option-label">{itemProps.item.rawValue.label}</Combobox.ItemLabel>
             </div>
             <Combobox.ItemIndicator class="selector-option-indicator">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-              </svg>
+              <Check class="w-4 h-4" />
             </Combobox.ItemIndicator>
           </Combobox.Item>
         )}

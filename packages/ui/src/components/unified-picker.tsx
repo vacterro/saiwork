@@ -2,6 +2,7 @@ import { Component, createSignal, createEffect, createMemo, For, Show, onCleanup
 import type { Agent } from "../types/session"
 import type { Command as SDKCommand } from "@opencode-ai/sdk/v2"
 import type { OpencodeClient } from "@opencode-ai/sdk/v2/client"
+import { File, Folder, List, User } from "lucide-solid"
 import { serverApi } from "../lib/api-client"
 import { useI18n } from "../lib/i18n"
 import { getLogger } from "../lib/logger"
@@ -475,9 +476,7 @@ const UnifiedPicker: Component<UnifiedPickerProps> = (props) => {
                     onClick={() => props.onSelect({ type: "command", command }, "click")}
                   >
                     <div class="flex items-start gap-2">
-                      <svg class="dropdown-icon-accent h-4 w-4 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                      </svg>
+                      <List class="dropdown-icon-accent h-4 w-4 mt-0.5" />
                       <div class="flex-1">
                         <div class="text-sm font-medium">/{command.name}</div>
                         <Show when={command.description}>
@@ -511,19 +510,7 @@ const UnifiedPicker: Component<UnifiedPickerProps> = (props) => {
                     onClick={() => props.onSelect({ type: "agent", agent }, "click")}
                   >
                     <div class="flex items-start gap-2">
-                      <svg
-                        class="dropdown-icon-accent h-4 w-4 mt-0.5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                        />
-                      </svg>
+                      <User class="dropdown-icon-accent h-4 w-4 mt-0.5" />
                       <div class="flex-1">
                         <div class="flex items-center gap-2">
                           <span class="text-sm font-medium">{agent.name}</span>
@@ -569,14 +556,7 @@ const UnifiedPicker: Component<UnifiedPickerProps> = (props) => {
                 }}
               >
                 <div class="flex items-center gap-2 text-sm">
-                  <svg class="dropdown-icon h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                    />
-                  </svg>
+                  <Folder class="dropdown-icon h-4 w-4 text-blue-500" />
                   <span class="font-mono">. {t("unifiedPicker.sections.workspaceRoot")}</span>
                 </div>
               </div>
@@ -600,24 +580,10 @@ const UnifiedPicker: Component<UnifiedPickerProps> = (props) => {
                       <Show
                         when={isFolder}
                         fallback={
-                          <svg class="dropdown-icon h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
+                          <File class="dropdown-icon h-4 w-4" />
                         }
                       >
-                        <svg class="dropdown-icon-accent h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                          />
-                        </svg>
+                        <Folder class="dropdown-icon-accent h-4 w-4" />
                       </Show>
                       <span class="min-w-0 flex-1" title={file.path}>
                         <span class="sr-only">{file.path}</span>

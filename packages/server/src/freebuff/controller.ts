@@ -10,6 +10,17 @@ export interface FreebuffControllerOptions {
   logger: Logger
   /** Resolve the account token for quota reads; defaults to the install auth. */
   getToken?: () => string | null
+  /**
+   * Close an open thread after this much time with no engine activity. FreeBuff
+   * holds a hosted-session slot while a thread is open; idle tabs waste that
+   * slot and count against the network limit. Sending a message later reopens
+   * the thread, so closing idle tabs is lossless.
+   */
+  idleCloseMs?: number
+  /** How often the idle sweep runs. */
+  idleSweepIntervalMs?: number
+  /** Injectable clock for tests. */
+  now?: () => number
 }
 
 /**
@@ -32,6 +43,9 @@ export class FreebuffController {
   private listenerStarted = false
   private unsubscribeListener: (() => void) | null = null
   private stopped = true
+  private idleSweepTimer: ReturnType<typeof setInterval> | null = null
+  /** Threads currently holding a hosted-model session slot. */
+  private activeSessionThreads = new Set<string>()
 
   constructor(options: FreebuffControllerOptions) {
     this.options = options
@@ -89,9 +103,48 @@ export class FreebuffController {
   async stop(): Promise<void> {
     this.stopped = true
     this.stopListening()
+    this.stopIdleSweep()
     this.clientCache = null
     this.threadsByProject.clear()
+    this.activeSessionThreads.clear()
     await this.options.engineManager.stop()
+  }
+
+  /**
+   * Free the hosted-model session slot for `targetThreadId` by closing every
+   * OTHER thread SAIWORK knows is holding one. FreeBuff allows one hosted tab
+   * per network; a new turn can only be admitted once the stale holders
+   * release their slots. Closing a thread releases the slot and later messages
+   * reopen it, so no conversation is lost.
+   *
+   * A holder that is currently RUNNING a turn is never closed: killing it would
+   * destroy minutes/hours of agent work (long FreeBuff turns are expected).
+   * The caller then surfaces the honest "another tab is using the slot" error;
+   * the running turn finishes and its thread closes, after which the slot is
+   * free for a retry.
+   */
+  async freeSlotFor(targetThreadId: string, options: { waitMs?: number } = {}): Promise<void> {
+    const client = this.client()
+    if (!client) return
+    const holders = [...this.activeSessionThreads].filter((threadId) => {
+      if (threadId === targetThreadId) return false
+      const thread = this.findThread(threadId)
+      return thread === null || thread.turnState !== "running"
+    })
+    if (holders.length === 0) return
+    await Promise.all(holders.map((threadId) => client.closeThread(threadId).catch(() => undefined)))
+    // Give the engine time to observe the release and drop the server-side
+    // usage count before the next admission is attempted.
+    const waitMs = options.waitMs ?? 400
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs))
+  }
+
+  private findThread(threadId: string): FreebuffThread | null {
+    for (const byId of this.threadsByProject.values()) {
+      const thread = byId.get(threadId)
+      if (thread) return thread
+    }
+    return null
   }
 
   private startListening(): void {
@@ -102,6 +155,14 @@ export class FreebuffController {
     this.listenerStarted = true
     const onEvent = (event: FreebuffBusEvent) => {
       if (event.type === "thread") this.recordThreadEvent(event)
+      if (event.type === "state" && "snapshot" in event && typeof event.snapshot === "object" && event.snapshot !== null) {
+        const snapshot = event.snapshot as {
+          sessions?: { activeSessionsByThread?: Record<string, unknown> }
+          activeSessionsByThread?: Record<string, unknown>
+        }
+        const byThread = snapshot.sessions?.activeSessionsByThread ?? snapshot.activeSessionsByThread
+        this.activeSessionThreads = new Set(Object.keys(byThread ?? {}))
+      }
     }
     void client.subscribeEvents(onEvent, () => {
       this.listenerStarted = false
@@ -110,6 +171,62 @@ export class FreebuffController {
       this.unsubscribeListener = unsubscribe
       if (!this.listenerStarted) unsubscribe()
     })
+
+    this.startIdleSweep()
+  }
+
+  private startIdleSweep(): void {
+    if (this.idleSweepTimer) return
+    const intervalMs = this.options.idleSweepIntervalMs ?? 60_000
+    const idleCloseMs = this.options.idleCloseMs ?? 6 * 60 * 1000
+    if (intervalMs <= 0 || idleCloseMs <= 0) return
+    this.idleSweepTimer = setInterval(() => {
+      void this.closeIdleThreads(idleCloseMs)
+    }, intervalMs)
+    if (this.idleSweepTimer.unref) this.idleSweepTimer.unref()
+  }
+
+  private stopIdleSweep(): void {
+    if (this.idleSweepTimer) {
+      clearInterval(this.idleSweepTimer)
+      this.idleSweepTimer = null
+    }
+  }
+
+  /**
+   * Manually trigger the idle sweep. Also runs automatically on its interval;
+   * exposed for tests and for a caller that just joined and wants a pass now.
+   */
+  async sweepIdleThreadsNow(): Promise<void> {
+    const idleCloseMs = this.options.idleCloseMs ?? 6 * 60 * 1000
+    await this.closeIdleThreads(idleCloseMs)
+  }
+
+  /**
+   * Close open threads that have been idle (no engine activity) for longer than
+   * `idleMs`. Running threads are never touched; a closed thread reopens on its
+   * next message, so no conversation is lost. Releases the hosted-session slot
+   * so it is not burned on an abandoned tab.
+   */
+  private async closeIdleThreads(idleMs: number): Promise<void> {
+    const client = this.client()
+    if (!client) return
+    const now = (this.options.now ?? Date.now)()
+    const candidates: string[] = []
+    for (const byId of this.threadsByProject.values()) {
+      for (const thread of byId.values()) {
+        if (thread.status !== "open") continue
+        if (thread.turnState === "running") continue
+        const lastActivity = thread.updatedAt ?? thread.createdAt ?? 0
+        if (lastActivity > 0 && now - lastActivity >= idleMs) candidates.push(thread.id)
+      }
+    }
+    if (candidates.length === 0) return
+    const closed = await Promise.all(candidates.map((threadId) => client.closeThread(threadId).catch(() => undefined)))
+    const closedCount = closed.filter(Boolean).length
+    if (closedCount > 0) {
+      this.options.logger.info({ threads: candidates.length, closed: closedCount, idleMs }, "Closed idle FreeBuff threads to release hosted-session slots")
+    }
   }
 
   private stopListening(): void {

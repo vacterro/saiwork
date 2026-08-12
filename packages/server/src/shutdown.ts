@@ -7,7 +7,8 @@ export const SERVER_SHUTDOWN_INCOMPLETE = "SAIWORK_SHUTDOWN_STATUS:incomplete"
 
 export type ServerShutdownOperations = Record<
   "stopInstanceEventBridge" | "stopSidecars" | "stopClientConnections" | "stopRemoteProxySessions" | "stopWorkspaces" |
-  "stopHttpServers" | "stopReleaseMonitor" | "stopSaipenWatcher" | "stopQueueManager" | "stopFreebuffEngine",
+  "stopHttpServers" | "stopReleaseMonitor" | "stopSaipenWatcher" | "stopQueueManager" | "stopFreebuffEngine" |
+  "stopOrphanCleanup",
   ShutdownOperation
 >
 
@@ -101,5 +102,6 @@ export async function orchestrateServerShutdown(
   await settle([["stopHttpServers", operations.stopHttpServers]])
   await settle([["stopQueueManager", operations.stopQueueManager], ["stopReleaseMonitor", operations.stopReleaseMonitor]])
   await settle([["stopFreebuffEngine", operations.stopFreebuffEngine]])
+  await settle([["stopOrphanCleanup", operations.stopOrphanCleanup]])
   if (errors.length) throw new AggregateError(errors, "Server shutdown failed")
 }

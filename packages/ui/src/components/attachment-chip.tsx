@@ -1,4 +1,5 @@
 import { Component } from "solid-js"
+import { X } from "lucide-solid"
 import type { Attachment } from "../types/attachment"
 import { useI18n } from "../lib/i18n"
 
@@ -20,7 +21,7 @@ const AttachmentChip: Component<AttachmentChipProps> = (props) => {
         class="attachment-remove"
         aria-label={t("attachmentChip.removeAriaLabel")}
       >
-        ×
+        <X class="h-3 w-3" aria-hidden="true" />
       </button>
     </div>
   )

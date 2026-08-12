@@ -21,8 +21,9 @@ function overrides(extra: Record<string, unknown> = {}) {
     opencodeConfigHome: "C:/users/test/opencode-config",
     exists: (filePath: string) => files.has(norm(filePath)),
     readFile: (filePath: string) => files.get(norm(filePath)) ?? "",
+    readStateDb: () => null,
     files,
-  } as { env: NodeJS.ProcessEnv; home: string; opencodeDataHome: string; opencodeConfigHome: string; exists: (f: string) => boolean; readFile: (f: string) => string; files: Map<string, string> }
+  } as { env: NodeJS.ProcessEnv; home: string; opencodeDataHome: string; opencodeConfigHome: string; exists: (f: string) => boolean; readFile: (f: string) => string; readStateDb: (p: string, k: string) => string | null; files: Map<string, string> }
 }
 
 const geminiAuth = JSON.stringify({ google: { type: "api", key: "AIzaTEST1234567890abcdefghijklmno" } })
@@ -98,5 +99,18 @@ describe("google provider separation", () => {
     o.files.set("C:/users/test/opencode-data/auth.json", geminiAuth)
     const key = resolveGeminiApiKey(o)
     assert.equal(key, "AIzaTEST1234567890abcdefghijklmno")
+  })
+
+  it("detects an antigravity session from the app state db", () => {
+    const o = overrides()
+    const blob = Buffer.from(`session{access:"ya29.FAKETOKEN" refresh:"1//FAKEREFRESH"}`).toString("base64")
+    o.readStateDb = () => blob
+    o.env.PATH = "C:/bin"
+    o.files.set("C:/bin/opencode.exe", "x")
+    o.files.set(`${o.opencodeConfigHome}/plugins/opencode-antigravity-auth`, "x")
+    const detection = detectAntigravity(o)
+    assert.equal(detection.sessionAvailable, true)
+    const providers = googleProviderStatus(o)
+    assert.equal(providers.find((p) => p.id === ANTIGRAVITY_PROVIDER_ID)!.status, "ready")
   })
 })

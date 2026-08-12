@@ -4,7 +4,6 @@ import { getBehaviorSettings, type BehaviorSetting } from "../../lib/settings/be
 import { useConfig } from "../../stores/preferences"
 import { LocaleSelector } from "../locale-selector"
 import { BehaviorSettingRows } from "./behavior-setting-rows"
-import { StartupStateSettingsCard } from "./startup-state-settings-card"
 import { ShortcutSettingsCard } from "./shortcut-settings-card"
 
 export const GeneralSettingsSection: Component = () => {
@@ -43,8 +42,6 @@ export const GeneralSettingsSection: Component = () => {
         </div>
         <LocaleSelector />
       </div>
-
-      <StartupStateSettingsCard />
 
       <ShortcutSettingsCard />
 

@@ -8,10 +8,10 @@ import {
   createSortable,
   type DragEvent as SolidDndDragEvent,
 } from "@thisbeyond/solid-dnd"
-import InstanceTab from "./instance-tab"
+import InstanceTab, { getInstanceTabLabel } from "./instance-tab"
 import KeyboardHint from "./keyboard-hint"
 import ToastHistoryPanel from "./toast-history-panel"
-import { Plus, MonitorUp, Bell, BellOff, Settings } from "lucide-solid"
+import { Plus, MonitorUp, Bell, BellOff, Settings, X } from "lucide-solid"
 import { keyboardRegistry } from "../lib/keyboard-registry"
 import { useI18n } from "../lib/i18n"
 import { isOsNotificationSupportedSync } from "../lib/os-notifications"
@@ -20,6 +20,8 @@ import { getUnreadToastCountSignal } from "../lib/notifications"
 import { useConfig } from "../stores/preferences"
 import { openSettings } from "../stores/settings-screen"
 import type { AppTabRecord } from "../stores/app-tabs"
+import ActionOverflowMenu, { type ActionOverflowMenuItem } from "./action-overflow-menu"
+import { getOverflowTabIds } from "./instance-tabs-overflow"
 
 interface InstanceTabsProps {
   tabs: AppTabRecord[]
@@ -35,6 +37,7 @@ interface SortableAppTabProps {
   activeTabId: string | null
   onSelect: (tabId: string) => void
   onClose: (tabId: string) => void
+  hidden?: boolean
 }
 
 const AppTabContent: Component<SortableAppTabProps> = (props) => {
@@ -46,12 +49,13 @@ const AppTabContent: Component<SortableAppTabProps> = (props) => {
           active={props.tab.id === props.activeTabId}
           onSelect={() => props.onSelect(props.tab.id)}
           onClose={() => props.onClose(props.tab.id)}
+          hidden={props.hidden}
         />
       ) : (
         <div
           class={`tab-pill ${props.tab.id === props.activeTabId ? "tab-pill-active" : ""}`}
           role="tab"
-          tabIndex={0}
+          tabIndex={props.hidden ? -1 : 0}
           aria-selected={props.tab.id === props.activeTabId}
           onClick={() => props.onSelect(props.tab.id)}
           onKeyDown={(event) => {
@@ -71,8 +75,9 @@ const AppTabContent: Component<SortableAppTabProps> = (props) => {
               props.onClose(props.tab.id)
             }}
             aria-label={props.tab.sidecarTab.name}
+            tabIndex={props.hidden ? -1 : undefined}
           >
-            ×
+            <X class="h-3 w-3" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -133,24 +138,93 @@ const InstanceTabs: Component<InstanceTabsProps> = (props) => {
   /** Whether to show toast history panel */
   const [showToastHistory, setShowToastHistory] = createSignal(false)
 
-  // Scroll arrows for the tab strip: shown only while it actually overflows,
-  // so a short strip stays clean.
   let tabScrollRef: HTMLDivElement | undefined
-  const [canScrollLeft, setCanScrollLeft] = createSignal(false)
-  const [canScrollRight, setCanScrollRight] = createSignal(false)
+  let tabStripRef: HTMLDivElement | undefined
+  const tabUnitRefs = new Map<string, HTMLDivElement>()
+  const tabUnitWidths = new Map<string, number>()
+  const [overflowTabIds, setOverflowTabIds] = createSignal<ReadonlySet<string>>(new Set())
+  let tabResizeObserver: ResizeObserver | undefined
+  let measureFrame = 0
 
-  function updateScrollArrows() {
-    const el = tabScrollRef
-    if (!el) return
-    setCanScrollLeft(el.scrollLeft > 2)
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
+  const isOverflowed = (tabId: string) => overflowTabIds().has(tabId)
+  const registerTabUnit = (tabId: string) => (element: HTMLDivElement) => {
+    const previous = tabUnitRefs.get(tabId)
+    if (previous && previous !== element) tabResizeObserver?.unobserve(previous)
+    tabUnitRefs.set(tabId, element)
+    tabResizeObserver?.observe(element)
+  }
+
+  const measureOverflow = () => {
+    measureFrame = 0
+    if (!tabScrollRef) return
+    const container = tabScrollRef.parentElement
+    const trigger = container?.querySelector<HTMLElement>(".tab-overflow-trigger")
+    const containerGap = container ? Number.parseFloat(getComputedStyle(container).columnGap) || 0 : 0
+    const availableWidth = tabScrollRef.clientWidth
+    const fullWidth = availableWidth + (trigger ? trigger.getBoundingClientRect().width + containerGap : 0)
+    const gap = tabStripRef ? Number.parseFloat(getComputedStyle(tabStripRef).columnGap) || 0 : 0
+    const measurements = props.tabs.flatMap((tab) => {
+      const element = tabUnitRefs.get(tab.id)
+      if (!element) return []
+      const measuredWidth = element.getBoundingClientRect().width
+      if (measuredWidth > 0) tabUnitWidths.set(tab.id, measuredWidth)
+      const width = tabUnitWidths.get(tab.id)
+      return width ? [{ id: tab.id, width }] : []
+    })
+    const overflowWithoutTrigger = getOverflowTabIds(measurements, fullWidth, props.activeTabId, gap)
+    const next = new Set(
+      overflowWithoutTrigger.length === 0
+        ? []
+        : getOverflowTabIds(measurements, availableWidth, props.activeTabId, gap),
+    )
+    setOverflowTabIds((current) => {
+      if (current.size === next.size && Array.from(current).every((id) => next.has(id))) return current
+      return next
+    })
+  }
+
+  const scheduleOverflowMeasure = () => {
+    cancelAnimationFrame(measureFrame)
+    measureFrame = requestAnimationFrame(measureOverflow)
   }
 
   createEffect(() => {
-    props.tabs.length
-    requestAnimationFrame(updateScrollArrows)
+    const liveIds = new Set(props.tabs.map((tab) => tab.id))
+    for (const [tabId, element] of tabUnitRefs) {
+      if (liveIds.has(tabId)) continue
+      tabResizeObserver?.unobserve(element)
+      tabUnitRefs.delete(tabId)
+      tabUnitWidths.delete(tabId)
+    }
+    props.activeTabId
+    scheduleOverflowMeasure()
   })
-  onMount(() => requestAnimationFrame(updateScrollArrows))
+
+  onMount(() => {
+    tabResizeObserver = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(scheduleOverflowMeasure)
+    if (tabScrollRef) tabResizeObserver?.observe(tabScrollRef)
+    for (const element of tabUnitRefs.values()) tabResizeObserver?.observe(element)
+    window.addEventListener("resize", scheduleOverflowMeasure)
+    scheduleOverflowMeasure()
+
+    onCleanup(() => {
+      cancelAnimationFrame(measureFrame)
+      tabResizeObserver?.disconnect()
+      window.removeEventListener("resize", scheduleOverflowMeasure)
+    })
+  })
+
+  const overflowMenuItems = createMemo<ActionOverflowMenuItem[]>(() => {
+    const hidden = overflowTabIds()
+    return props.tabs
+      .filter((tab) => hidden.has(tab.id))
+      .map((tab) => ({
+        key: tab.id,
+        label: tab.kind === "instance" ? getInstanceTabLabel(tab.instance) : tab.sidecarTab.name,
+        checked: tab.id === props.activeTabId,
+        onSelect: () => props.onSelect(tab.id),
+      }))
+  })
 
   const notificationsSupported = createMemo(() => isOsNotificationSupportedSync())
   const notificationsEnabled = createMemo(() => Boolean(preferences().osNotificationsEnabled))
@@ -186,32 +260,28 @@ const InstanceTabs: Component<InstanceTabsProps> = (props) => {
   return (
     <>
       <div class="tab-bar tab-bar-instance">
-        <div class="tab-container" role="tablist">
-          <Show when={canScrollLeft()}>
-            <button
-              type="button"
-              class="tab-arrow"
-              onClick={() => tabScrollRef?.scrollBy({ left: -160, behavior: "smooth" })}
-              aria-label={t("instanceTabs.scrollLeft.ariaLabel")}
-              title={t("instanceTabs.scrollLeft.ariaLabel")}
-            >
-              ‹
-            </button>
-          </Show>
-          <div class="tab-scroll" ref={tabScrollRef} onScroll={updateScrollArrows}>
-            <div class="tab-strip">
-              <div class="tab-strip-tabs">
+        <div class="tab-container">
+          <div class="tab-scroll" ref={tabScrollRef} role="tablist">
+            <div class="tab-strip-tabs" ref={tabStripRef}>
                 <Show
                   when={dragReorderEnabled()}
                   fallback={
                     <For each={props.tabs}>
                       {(tab) => (
-                        <StaticAppTab
-                          tab={tab}
-                          activeTabId={props.activeTabId}
-                          onSelect={props.onSelect}
-                          onClose={props.onClose}
-                        />
+                        <div
+                          class="tab-overflow-unit"
+                          ref={registerTabUnit(tab.id)}
+                          data-overflow-hidden={isOverflowed(tab.id) ? "true" : undefined}
+                          aria-hidden={isOverflowed(tab.id)}
+                        >
+                          <StaticAppTab
+                            tab={tab}
+                            activeTabId={props.activeTabId}
+                            onSelect={props.onSelect}
+                            onClose={props.onClose}
+                            hidden={isOverflowed(tab.id)}
+                          />
+                        </div>
                       )}
                     </For>
                   }
@@ -221,50 +291,66 @@ const InstanceTabs: Component<InstanceTabsProps> = (props) => {
                       <SortableProvider ids={tabIds()}>
                         <For each={props.tabs}>
                           {(tab) => (
-                            <SortableAppTab
-                              tab={tab}
-                              activeTabId={props.activeTabId}
-                              onSelect={props.onSelect}
-                              onClose={props.onClose}
-                            />
+                            <div
+                              class="tab-overflow-unit"
+                              ref={registerTabUnit(tab.id)}
+                              data-overflow-hidden={isOverflowed(tab.id) ? "true" : undefined}
+                              aria-hidden={isOverflowed(tab.id)}
+                            >
+                              <SortableAppTab
+                                tab={tab}
+                                activeTabId={props.activeTabId}
+                                onSelect={props.onSelect}
+                                onClose={props.onClose}
+                                hidden={isOverflowed(tab.id)}
+                              />
+                            </div>
                           )}
                         </For>
                       </SortableProvider>
                     </DragDropSensors>
                   </DragDropProvider>
                 </Show>
-              </div>
-              <div class="tab-strip-spacer" />
-              <Show when={props.tabs.length > 1}>
-                <div class="tab-shortcuts">
-                  <KeyboardHint
-                    shortcuts={[keyboardRegistry.get("instance-prev")!, keyboardRegistry.get("instance-next")!].filter(
-                      Boolean,
-                    )}
-                  />
-                </div>
-              </Show>
+            </div>
+          </div>
 
-              <button
+          <ActionOverflowMenu
+            items={overflowMenuItems()}
+            label={t("instanceTabs.more.ariaLabel")}
+            triggerClass="tab-overflow-trigger"
+          />
+
+          <div class="tab-bar-actions">
+            <Show when={props.tabs.length > 1}>
+              <div class="tab-shortcuts">
+                <KeyboardHint
+                  shortcuts={[keyboardRegistry.get("instance-prev")!, keyboardRegistry.get("instance-next")!].filter(
+                    Boolean,
+                  )}
+                />
+              </div>
+            </Show>
+
+            <button
                 class="new-tab-button"
                 onClick={props.onNew}
                 title={t("instanceTabs.new.title")}
                 aria-label={t("instanceTabs.new.ariaLabel")}
               >
                 <Plus class="w-4 h-4" />
-              </button>
+            </button>
 
-              <button
+            <button
                 class="new-tab-button"
                 onClick={() => openSettings("general")}
                 title={t("settings.open.title")}
                 aria-label={t("settings.open.ariaLabel")}
               >
                 <Settings class="w-4 h-4" />
-              </button>
+            </button>
 
               {/* Notification Button */}
-              <div class="relative">
+            <div class="relative">
                 <button
                   class={`new-tab-button ${!notificationsSupported() ? "opacity-50" : ""}`}
                   onClick={() => setShowToastHistory(true)}
@@ -282,31 +368,19 @@ const InstanceTabs: Component<InstanceTabsProps> = (props) => {
                     {unreadCount() > 9 ? "9+" : unreadCount()}
                   </span>
                 </Show>
-              </div>
+            </div>
 
-              <Show when={canOpenRemoteWindows()}>
-                <button
+            <Show when={canOpenRemoteWindows()}>
+              <button
                   class="new-tab-button tab-remote-button"
                   onClick={() => openSettings("remote")}
                   title={t("instanceTabs.remote.title")}
                   aria-label={t("instanceTabs.remote.ariaLabel")}
                 >
                   <MonitorUp class="w-4 h-4" />
-                </button>
-              </Show>
-            </div>
+              </button>
+            </Show>
           </div>
-          <Show when={canScrollRight()}>
-            <button
-              type="button"
-              class="tab-arrow"
-              onClick={() => tabScrollRef?.scrollBy({ left: 160, behavior: "smooth" })}
-              aria-label={t("instanceTabs.scrollRight.ariaLabel")}
-              title={t("instanceTabs.scrollRight.ariaLabel")}
-            >
-              ›
-            </button>
-          </Show>
         </div>
       </div>
 

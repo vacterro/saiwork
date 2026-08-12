@@ -1,4 +1,5 @@
-import { resolveAntigravityAccessToken, resolveGeminiApiKey } from "./providers"
+import { antigravityCatalog } from "./models"
+import { resolveGeminiApiKey } from "./providers"
 import {
   ANTIGRAVITY_PROVIDER_ID,
   GEMINI_API_PROVIDER_ID,
@@ -10,8 +11,8 @@ import {
  * Execution-boundary adapter.
  *
  * SAIWORK's Google concept (provider id + scoped model) is converted to the
- * OpenCode execution layer (the built-in `google` provider + model id + auth
- * mode) ONLY here. No OpenCode-specific strings leak into the rest of SAIWORK.
+ * OpenCode execution layer (a provider id + model id + auth mode) ONLY here.
+ * No OpenCode-specific strings leak into the rest of SAIWORK.
  *
  * Provider switching is never implicit: resolving a model to a different
  * provider requires the caller to pass `allowFallback = true`; otherwise a
@@ -31,6 +32,11 @@ export interface ResolveExecutionOptions {
   /** Override the Gemini API key source for spawn env injection. */
   resolveGeminiKey?: () => string | null
 }
+
+/** The OpenCode provider id that fronts the local Antigravity shim. */
+export const ANTIGRAVITY_OPENCODE_PROVIDER = "saiwork-antigravity"
+/** Shared secret the shim requires from the OpenCode AI SDK client. */
+export const ANTIGRAVITY_SHIM_API_KEY = "saiwork-antigravity-shim"
 
 export function resolveGoogleExecution(
   providerId: GoogleProviderId,
@@ -54,12 +60,14 @@ export function resolveGoogleExecution(
   }
 
   if (providerId === ANTIGRAVITY_PROVIDER_ID) {
+    // Antigravity runs through the local SAIWORK shim: the OAuth session lives
+    // server-side, so the workspace gets no credential and no env var.
     return {
       providerId,
       modelId,
-      opencodeProvider: "google",
+      opencodeProvider: ANTIGRAVITY_OPENCODE_PROVIDER,
       opencodeModelId: modelId,
-      authMode: "oauth",
+      authMode: "shim",
       env: {},
     }
   }
@@ -95,59 +103,72 @@ export function geminiSpawnEnv(
 /**
  * Env vars for a spawned OpenCode process covering both Google pools.
  *
- * GEMINI_API_KEY feeds the google_gemini_api provider; the Antigravity OAuth
- * token feeds google_antigravity via GOOGLE_GENERATIVE_AI_API_KEY. The two
- * standard env vars are split across the providers, so both pools can be
- * configured at once without a custom env name or a secret in config.
+ * GEMINI_API_KEY feeds the google_gemini_api provider. Antigravity needs no
+ * env var: its OAuth session lives server-side in SAIWORK and is served to the
+ * workspace through the local shim, so the Google account credential never
+ * crosses into a child process.
  */
 export function googleSpawnEnv(
   resolveGeminiKey: () => string | null = resolveGeminiApiKey,
-  resolveAntigravityToken: () => string | null = resolveAntigravityAccessToken,
 ): Record<string, string> {
-  const env: Record<string, string> = {}
   const geminiKey = resolveGeminiKey()
-  if (geminiKey) env.GEMINI_API_KEY = geminiKey
-  const antigravityToken = resolveAntigravityToken()
-  if (antigravityToken) env.GOOGLE_GENERATIVE_AI_API_KEY = antigravityToken
-  return env
+  return geminiKey ? { GEMINI_API_KEY: geminiKey } : {}
 }
 
 /**
  * OpenCode config fragment registering the two Google providers as distinct
  * entries. Model ids stay provider-scoped so the picker can never confuse a
  * Gemini API model with an Antigravity one.
+ *
+ * `google_antigravity` is fronted by the local SAIWORK shim: OpenCode talks an
+ * OpenAI-compatible protocol to `${baseUrl}/v1`, and SAIWORK translates to the
+ * Antigravity subscription backend (cloudcode-pa.googleapis.com) with the
+ * OAuth session it manages. The shim token is a constant local gate, not a
+ * real secret.
  */
-export function buildGoogleProviderConfig(): { provider: Record<string, unknown> } {
-  return {
-    provider: {
-      [GEMINI_API_PROVIDER_ID]: {
-        npm: "@ai-sdk/google",
-        name: "Gemini API",
-        // Split the two standard Google env vars across the providers so each
-        // pool gets its own credential without a custom env name (which
-        // OpenCode rejects for npm providers). SAIWORK injects GEMINI_API_KEY
-        // (Developer API key) and GOOGLE_GENERATIVE_AI_API_KEY (Antigravity
-        // OAuth token) at workspace spawn; nothing is stored in config.
-        env: ["GEMINI_API_KEY"],
-        options: { baseURL: "https://generativelanguage.googleapis.com/v1beta" },
-        models: {
-          "gemini-3.1-pro-preview": { name: "Gemini 3.1 Pro Preview", reasoning: true },
-          "gemini-3.5-flash": { name: "Gemini 3.5 Flash", reasoning: true },
-          "gemini-3.5-flash-lite": { name: "Gemini 3.5 Flash Lite", reasoning: true },
-          "gemini-3.1-flash-lite": { name: "Gemini 3.1 Flash Lite", reasoning: true },
-        },
-      },
-      [ANTIGRAVITY_PROVIDER_ID]: {
-        npm: "@ai-sdk/google",
-        name: "Antigravity",
-        env: ["GOOGLE_GENERATIVE_AI_API_KEY"],
-        options: { baseURL: "https://generativelanguage.googleapis.com/v1beta" },
-        models: {
-          "gemini-3.1-pro-preview": { name: "Gemini 3.1 Pro Preview (AI Pro)", reasoning: true },
-          "gemini-3.5-flash": { name: "Gemini 3.5 Flash (AI Pro)", reasoning: true },
-          "gemini-3.5-flash-lite": { name: "Gemini 3.5 Flash Lite (AI Pro)", reasoning: true },
-        },
+export function buildGoogleProviderConfig(options: { baseUrl?: string; includeAntigravity?: boolean } = {}): {
+  provider: Record<string, unknown>
+} {
+  const shimBaseUrl = options.baseUrl?.replace(/\/+$/, "") ?? "http://127.0.0.1:4000"
+  const antigravityModels: Record<string, unknown> = {}
+  for (const model of antigravityCatalog()) {
+    antigravityModels[model.id] = {
+      name: model.displayName,
+      reasoning: model.reasoning,
+      // OpenCode's config schema requires BOTH context and output when a limit
+      // is present; a missing key fails workspace launch.
+      limit: { context: model.context, output: model.output },
+    }
+  }
+
+  const provider: Record<string, unknown> = {
+    [GEMINI_API_PROVIDER_ID]: {
+      npm: "@ai-sdk/google",
+      name: "Gemini API",
+      // Split the two standard Google env vars across the providers so each
+      // pool gets its own credential without a custom env name (which
+      // OpenCode rejects for npm providers). SAIWORK injects GEMINI_API_KEY
+      // (Developer API key) at workspace spawn; nothing is stored in config.
+      env: ["GEMINI_API_KEY"],
+      options: { baseURL: "https://generativelanguage.googleapis.com/v1beta" },
+      models: {
+        "gemini-3.1-pro-preview": { name: "Gemini 3.1 Pro Preview", reasoning: true },
+        "gemini-3.5-flash": { name: "Gemini 3.5 Flash", reasoning: true },
+        "gemini-3.5-flash-lite": { name: "Gemini 3.5 Flash Lite", reasoning: true },
+        "gemini-3.1-flash-lite": { name: "Gemini 3.1 Flash Lite", reasoning: true },
       },
     },
   }
+  if (options.includeAntigravity !== false) {
+    provider[ANTIGRAVITY_PROVIDER_ID] = {
+      npm: "@ai-sdk/openai-compatible",
+      name: "Antigravity",
+      options: {
+        baseURL: `${shimBaseUrl}/v1`,
+        apiKey: ANTIGRAVITY_SHIM_API_KEY,
+      },
+      models: antigravityModels,
+    }
+  }
+  return { provider }
 }

@@ -1,4 +1,5 @@
 import { For, Show } from "solid-js"
+import { ChevronDown, ChevronRight } from "lucide-solid"
 import type { DiagnosticEntry } from "./diagnostics"
 
 export function renderDiagnosticsSection(
@@ -18,7 +19,7 @@ export function renderDiagnosticsSection(
         onClick={toggle}
       >
         <span class="tool-call-icon" aria-hidden="true">
-          {expanded ? "▼" : "▶"}
+          {expanded ? <ChevronDown class="w-3 h-3" /> : <ChevronRight class="w-3 h-3" />}
         </span>
         <span class="tool-call-tag" aria-hidden="true">
           LSP

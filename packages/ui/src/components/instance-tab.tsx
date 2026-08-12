@@ -11,6 +11,7 @@ interface InstanceTabProps {
   active: boolean
   onSelect: () => void
   onClose: () => void
+  hidden?: boolean
 }
 
 function getPathBasename(path: string): string {
@@ -18,6 +19,10 @@ function getPathBasename(path: string): string {
   // Normalize by trimming trailing separators and then splitting on both '/' and '\\'.
   const normalized = path.replace(/[\\/]+$/, "")
   return normalized.split(/[\\/]/).pop() || path
+}
+
+export function getInstanceTabLabel(instance: Instance): string {
+  return instance.projectName?.trim() || getPathBasename(instance.folder)
 }
 
 const InstanceTab: Component<InstanceTabProps> = (props) => {
@@ -51,7 +56,7 @@ const InstanceTab: Component<InstanceTabProps> = (props) => {
         return null
     }
   })
-  const tabLabel = createMemo(() => props.instance.projectName?.trim() || getPathBasename(props.instance.folder))
+  const tabLabel = createMemo(() => getInstanceTabLabel(props.instance))
 
   return (
     <div class="group">
@@ -61,6 +66,7 @@ const InstanceTab: Component<InstanceTabProps> = (props) => {
         title={props.instance.folder}
         role="tab"
         aria-selected={props.active}
+        tabIndex={props.hidden ? -1 : undefined}
       >
         <FolderOpen class="w-4 h-4 flex-shrink-0" />
         <span class="tab-label">
@@ -95,7 +101,7 @@ const InstanceTab: Component<InstanceTabProps> = (props) => {
           }}
           onPointerDown={(e) => e.stopPropagation()}
           role="button"
-          tabIndex={0}
+          tabIndex={props.hidden ? -1 : 0}
           aria-label={t("instanceTab.actions.close.ariaLabel")}
         >
           <X class="w-3 h-3" />

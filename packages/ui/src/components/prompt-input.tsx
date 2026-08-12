@@ -1,5 +1,5 @@
 import { Suspense, createEffect, createSignal, lazy, on, onCleanup, onMount, Show } from "solid-js"
-import { ArrowBigUp, ArrowBigDown, Loader2, Mic, Paperclip, Volume2, X } from "lucide-solid"
+import { ArrowBigUp, ArrowBigDown, Loader2, Mic, Paperclip, Play, Square, Terminal, Volume2, X } from "lucide-solid"
 import ExpandButton from "./expand-button"
 import { clearAttachments, removeAttachment } from "../stores/attachments"
 import { createPastedPlaceholderRegex, pastedDisplayCounterRegex } from "./prompt-input/attachmentPlaceholders"
@@ -1158,9 +1158,7 @@ export default function PromptInput(props: PromptInputProps) {
             aria-label={t("promptInput.stopSession.ariaLabel")}
             title={t("promptInput.stopSession.title")}
           >
-            <svg class="stop-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <rect x="4" y="4" width="12" height="12" rx="2" />
-            </svg>
+            <Square class="stop-icon" aria-hidden="true" />
           </button>
           <Show when={props.onNewConversation}>
             <button
@@ -1222,12 +1220,9 @@ export default function PromptInput(props: PromptInputProps) {
           >
             <Show
               when={mode() === "shell"}
-              fallback={<span class="send-icon">▶</span>}
+              fallback={<Play class="send-icon h-4 w-4" aria-hidden="true" />}
             >
-              <svg class="shell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 8l5 4-5 4" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h6" />
-              </svg>
+              <Terminal class="shell-icon" />
             </Show>
           </button>
         </div>

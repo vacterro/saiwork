@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js"
 import { Portal } from "solid-js/web"
-import { CheckSquare2, Copy, ListStart, Split, Square, Trash, Undo, Volume2 } from "lucide-solid"
+import { CheckSquare2, Clipboard, Copy, Download, ListStart, Split, Square, Trash, Undo, Volume2 } from "lucide-solid"
 import type { MessageInfo, ClientPart, SDKAssistantMessageV2 } from "../types/message"
 import { getRawMessageText, isHiddenSyntheticTextPart, partHasRenderableText } from "../types/message"
 import type { MessageRecord } from "../stores/message-v2/types"
@@ -711,16 +711,7 @@ export default function MessageItem(props: MessageItemProps) {
                     }}
                     onMouseLeave={() => setImagePreview(null)}
                   >
-                    <Show when={isImage} fallback={
-                      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                        />
-                      </svg>
-                    }>
+                    <Show when={isImage} fallback={<Clipboard class="h-3 w-3" />}>
                       <img src={attachment.url} alt={name} class="h-5 w-5 rounded object-cover" />
                     </Show>
                     <span class="truncate max-w-[180px]">{name}</span>
@@ -732,10 +723,7 @@ export default function MessageItem(props: MessageItemProps) {
                         aria-label={t("messageItem.attachment.downloadAriaLabel", { name })}
                         title={t("messageItem.attachment.downloadAriaLabel", { name })}
                       >
-                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l4 4 4-4m-4-8v12" />
-                        </svg>
+                        <Download class="h-3 w-3" />
                       </button>
                     </Show>
                   </div>

@@ -103,6 +103,9 @@ export function registerFreebuffRoutes(app: FastifyInstance, deps: RouteDeps) {
     if (!parsed.success) return reply.code(400).send({ error: "invalid body" })
     const client = deps.freebuff.client()
     if (!client) return reply.code(503).send({ error: "FreeBuff engine not running" })
+    // FreeBuff allows one hosted tab per network; close the other threads that
+    // hold a slot so this thread's turn can be admitted.
+    await deps.freebuff.freeSlotFor(request.params.id)
     return await client.postMessage(request.params.id, parsed.data.text, parsed.data.attachments)
   })
 

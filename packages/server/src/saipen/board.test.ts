@@ -8,7 +8,7 @@ describe("saipen board parser", () => {
     const sections = parseBoardSections(board)
     assert.equal(sections.length, 4)
     assert.equal(sections[0].title, "DOING")
-    assert.deepEqual(sections[0].tickets, [{ id: "T-048", status: "doing", text: "Something in progress | verify: x" }])
+    assert.deepEqual(sections[0].tickets, [{ id: "T-048", status: "doing", text: "Something in progress | verify: x", checked: false }])
     assert.equal(sections[1].tickets[0].status, "todo")
     assert.equal(sections[2].tickets[0].status, "done")
     assert.deepEqual(sections[3].tickets, [])

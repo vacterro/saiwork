@@ -9,10 +9,7 @@ import {
   type DragEvent as SolidDndDragEvent,
 } from "@thisbeyond/solid-dnd"
 import IconButton from "@suid/material/IconButton"
-import MenuOpenIcon from "@suid/icons-material/MenuOpen"
-import PushPinIcon from "@suid/icons-material/PushPin"
-import PushPinOutlinedIcon from "@suid/icons-material/PushPinOutlined"
-import { Settings2 } from "lucide-solid"
+import { PanelLeftClose, Pin, PinOff, Settings2 } from "lucide-solid"
 
 import type { Instance } from "../../../../types/instance"
 import type { BackgroundProcess } from "../../../../../../server/src/api-types"
@@ -255,7 +252,7 @@ const RightPanel: Component<RightPanelProps> = (props) => {
                 title={props.t("instanceShell.rightDrawer.toggle.close")}
                 onClick={props.onCloseRightDrawer}
               >
-                <MenuOpenIcon fontSize="small" sx={{ transform: "scaleX(-1)" }} />
+                <PanelLeftClose class="h-5 w-5" style={{ transform: "scaleX(-1)" }} />
               </IconButton>
             </Show>
             <Show when={!props.isPhoneLayout()}>
@@ -265,7 +262,7 @@ const RightPanel: Component<RightPanelProps> = (props) => {
                 aria-label={props.rightPinned() ? props.t("instanceShell.rightDrawer.unpin") : props.t("instanceShell.rightDrawer.pin")}
                 onClick={() => (props.rightPinned() ? props.onUnpinRightDrawer() : props.onPinRightDrawer())}
               >
-                {props.rightPinned() ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
+                {props.rightPinned() ? <Pin class="h-5 w-5" /> : <PinOff class="h-5 w-5" />}
               </IconButton>
             </Show>
             <IconButton

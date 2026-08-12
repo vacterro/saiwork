@@ -124,6 +124,20 @@ export function createFreebuffClient(options: FreebuffClientOptions) {
       return request(`/api/thread/${encodeURIComponent(threadId)}/resume`, { method: "POST" })
     },
 
+    /**
+     * Close a thread. FreeBuff releases the thread's hosted-model session slot
+     * on close (the platform allows one hosted tab per network at a time), so
+     * closing idle sibling threads is how SAIWORK keeps a slot available for
+     * the thread the user is actively writing to. Sending a message later
+     * reopens a closed thread without losing its history.
+     */
+    async closeThread(threadId: string): Promise<{ id?: string }> {
+      return request(`/api/thread/${encodeURIComponent(threadId)}/close`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      })
+    },
+
     async listProjects(): Promise<ProjectListEntry[]> {
       const response = await request<{ projects?: ProjectListEntry[] }>("/api/projects")
       return response.projects ?? []
