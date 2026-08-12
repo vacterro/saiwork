@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.21] - 2026-08-12
+
+References such as `T-083` and `E-557` below are internal `.saipen` work-log
+identifiers, not Git commits or release history.
+
+### Streaming + dead-code hardening (T-714)
+
+- **SSE parsers hardened against CRLF**: the `\n\n`-only frame splitter (the
+  bug that truncated Antigravity answers) existed in three more consumers —
+  the opencode-plugin `/event` stream, the server instance event stream, and
+  the FreeBuff engine stream. Each now normalizes CRLF/CR line endings before
+  splitting and flushes a trailing unterminated frame, so a transport/proxy
+  that rewrites line endings can no longer collapse a stream to its first
+  frame or grow the buffer without bound.
+- **Dead code removed**: `frameHasFinishReason` (google/shim.ts) had zero
+  importers and was deleted.
+
 ## [0.1.2] - 2026-08-12
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log

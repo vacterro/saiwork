@@ -124,9 +124,17 @@ export class InstanceEventBridge {
       if (done || !value) {
         break
       }
+      // Normalize CRLF/CR to LF before frame splitting: a `\n\n`-only splitter
+      // never fires on CRLF-delimited frames, so a transport/proxy that
+      // rewrites line endings would silently collapse the stream (and the
+      // un-split buffer would grow without bound).
       buffer += decoder.decode(value, { stream: true })
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
       buffer = this.flushEvents(buffer, workspaceId)
     }
+    // Flush a trailing frame that arrived without its `\n\n` terminator.
+    if (buffer.trim()) this.flushEvents(buffer, workspaceId)
   }
 
   private flushEvents(buffer: string, workspaceId: string) {

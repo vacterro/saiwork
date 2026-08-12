@@ -146,7 +146,12 @@ async function consumeSseBody(body: ReadableStream<Uint8Array>, onEvent: (event:
       break
     }
 
+    // Normalize CRLF/CR to LF before frame splitting: a `\n\n`-only splitter
+    // never fires on CRLF-delimited frames, so a transport/proxy that rewrites
+    // line endings would silently collapse the stream to its first frame.
     buffer += decoder.decode(value, { stream: true })
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
 
     let separatorIndex = buffer.indexOf("\n\n")
     while (separatorIndex >= 0) {
@@ -159,6 +164,13 @@ async function consumeSseBody(body: ReadableStream<Uint8Array>, onEvent: (event:
         onEvent(event)
       }
     }
+  }
+
+  // Flush a trailing frame that arrived without its `\n\n` terminator instead
+  // of dropping it.
+  if (buffer.trim()) {
+    const event = parseSseChunk(buffer)
+    if (event) onEvent(event)
   }
 
   throw new Error("SSE stream ended")

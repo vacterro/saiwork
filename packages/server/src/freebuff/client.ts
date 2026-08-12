@@ -169,7 +169,13 @@ export function createFreebuffClient(options: FreebuffClientOptions) {
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
+            // Normalize CRLF/CR to LF before frame splitting: the engine may
+            // switch its SSE to CRLF (or a proxy may rewrite line endings), and
+            // a `\n\n`-only splitter would collapse the whole stream to its
+            // first frame.
             buffer += decoder.decode(value, { stream: true })
+              .replace(/\r\n/g, "\n")
+              .replace(/\r/g, "\n")
             const frames = buffer.split("\n\n")
             buffer = frames.pop() ?? ""
             for (const frame of frames) {

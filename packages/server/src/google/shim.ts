@@ -362,16 +362,3 @@ export function translateCloudCodeFrame(
 
   return chunks
 }
-
-/** True when a frame signals the model stopped (used for finish_reason). */
-export function frameHasFinishReason(frame: Record<string, unknown>): boolean {
-  const response = frame.response
-  if (!response || typeof response !== "object") return false
-  const candidates = (response as Record<string, unknown>).candidates
-  if (!Array.isArray(candidates) || candidates.length === 0) return false
-  const candidate = candidates[0] as Record<string, unknown>
-  const content = candidate.content as Record<string, unknown> | undefined
-  const parts = Array.isArray(content?.parts) ? (content.parts as Array<Record<string, unknown>>) : []
-  if (parts.some((part) => part.functionCall)) return true
-  return Boolean(candidate.finishReason && candidate.finishReason !== "FINISH_REASON_UNSPECIFIED")
-}
