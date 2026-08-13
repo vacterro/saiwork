@@ -1,7 +1,8 @@
-import { createMemo, createSignal } from "solid-js"
+import { createEffect, createMemo, createSignal } from "solid-js"
 import type { Instance } from "../types/instance"
 import { activeInstanceId, claimRestoreCreatedInstanceForUser, instances, setActiveInstanceId } from "./instances"
 import { activeSidecarToken, setActiveSidecarToken, sidecarTabs, type SideCarTabRecord } from "./sidecars"
+import { sessions } from "./session-state"
 import { appSessionRestoreGateActive } from "./app-session-restore-gate"
 
 export interface InstanceAppTab {
@@ -52,8 +53,66 @@ const [tabOrder, setTabOrder] = createSignal<string[]>([])
 const [appTabSelectionRevision, setAppTabSelectionRevision] = createSignal(0)
 const [appTabOrderRevision, setAppTabOrderRevision] = createSignal(0)
 
+/**
+ * Per-instance "is work happening and when did it stop" derived from session
+ * statuses. A session is working/compacting while a turn runs; `idleSince` is
+ * the wall-clock moment it finished.
+ */
+function instanceWorkingInfo(instanceId: string): { working: boolean; lastStoppedAt: number | null } {
+  const instanceSessions = sessions().get(instanceId)
+  if (!instanceSessions) return { working: false, lastStoppedAt: null }
+  let working = false
+  let lastStoppedAt: number | null = null
+  for (const session of instanceSessions.values()) {
+    if (session.status === "working" || session.status === "compacting") working = true
+    const stopped = typeof session.idleSince === "number" ? session.idleSince : null
+    if (stopped !== null && (lastStoppedAt === null || stopped > lastStoppedAt)) lastStoppedAt = stopped
+  }
+  return { working, lastStoppedAt }
+}
+
+/** When each tab's work most recently STARTED; drives the working-first order. */
+const becameWorkingAt = new Map<string, number>()
+
+createEffect(() => {
+  const now = Date.now()
+  for (const instanceId of instances().keys()) {
+    const tabId = getInstanceAppTabId(instanceId)
+    if (instanceWorkingInfo(instanceId).working) {
+      if (!becameWorkingAt.has(tabId)) becameWorkingAt.set(tabId, now)
+    } else {
+      becameWorkingAt.delete(tabId)
+    }
+  }
+})
+
 function rememberTabOrder(tabId: string) {
   setTabOrder((prev) => (prev.includes(tabId) ? prev : [...prev, tabId]))
+}
+
+/**
+ * Pure ordering for the working-first tab bar: working tabs to the left (most
+ * recently started working first), then idle tabs by most recently stopped
+ * working; original index breaks ties (stable).
+ */
+export function rankWorkingFirst<T>(
+  ordered: T[],
+  infoOf: (tab: T) => { working: boolean; lastStoppedAt: number | null } | null,
+  becameWorkingAt: (tab: T) => number,
+  idOf: (tab: T) => string,
+): T[] {
+  const index = new Map<T, number>(ordered.map((tab, i) => [tab, i]))
+  return [...ordered].sort((a, b) => {
+    const infoA = infoOf(a)
+    const infoB = infoOf(b)
+    const workingA = Boolean(infoA?.working)
+    const workingB = Boolean(infoB?.working)
+    if (workingA !== workingB) return workingA ? -1 : 1
+    const tsA = workingA ? becameWorkingAt(a) : (infoA?.lastStoppedAt ?? 0)
+    const tsB = workingB ? becameWorkingAt(b) : (infoB?.lastStoppedAt ?? 0)
+    if (tsB !== tsA) return tsB - tsA
+    return (index.get(a) ?? 0) - (index.get(b) ?? 0)
+  })
 }
 
 const appTabs = createMemo<AppTabRecord[]>(() => {
@@ -73,8 +132,17 @@ const appTabs = createMemo<AppTabRecord[]>(() => {
   const tabsById = new Map(currentTabs.map((tab) => [tab.id, tab]))
   const orderedIds = tabOrder().filter((tabId) => tabsById.has(tabId))
   const missingIds = currentTabs.map((tab) => tab.id).filter((tabId) => !orderedIds.includes(tabId))
+  const ordered = [...orderedIds, ...missingIds].map((tabId) => tabsById.get(tabId)!).filter(Boolean)
 
-  return [...orderedIds, ...missingIds].map((tabId) => tabsById.get(tabId)!).filter(Boolean)
+  // Working tabs move LEFT so it is visible which project last started work;
+  // idle tabs follow ordered by most recently stopped (newest-stopped closest
+  // to the front). Drag order breaks ties (stable).
+  return rankWorkingFirst(
+    ordered,
+    (tab) => (tab.kind === "instance" ? instanceWorkingInfo(tab.instance.id) : null),
+    (tab) => becameWorkingAt.get(tab.id) ?? 0,
+    (tab) => tab.id,
+  )
 })
 
 const activeAppTab = createMemo(() => appTabs().find((tab) => tab.id === activeAppTabId()) ?? null)

@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.1.24] - 2026-08-13
+
+References such as `T-083` and `E-557` below are internal `.saipen` work-log
+identifiers, not Git commits or release history.
+
+### Win95 tab strip + session toolbar (T-719)
+
+- Every tab is always visible: the strip divides its width equally
+  (`flex: 1 1 0`) and compresses labels instead of hiding tabs behind an
+  overflow menu, so a window snap (^+!W) re-fits the strip in pure CSS -- no
+  stale JS measurement, no frozen wide tabs. Tabs are bevelled Win95-style
+  (raised/sunken, square corners).
+- The session header is one strict Win95 row: worktree/agent/model/thinking
+  selectors own the start, search/command-palette/status/preview/drawer
+  controls own the end. The floating center "+" and MUI AppBar/Toolbar are
+  gone; selectors are never clipped by the search button or the plus.
+- The unread toast count is a static sunken square, not a floating bubble.
+
+### Working-first tab ordering (T-718)
+
+- Instance tabs whose sessions are working/compacting sort to the left (most
+  recently started first); idle tabs follow by most recently stopped; drag
+  order breaks ties.
+
+### FreeBuff turn indicators (T-717)
+
+- Thread rows show a live activity line (stage / last tool / subagent /
+  writing / reasoning) with a 1s elapsed timer while running, and running
+  elapsed or finished/created relative time otherwise. A Release-slot control
+  lives in the tab.
+
+### Electron UI responsiveness (T-724)
+
+- Process-identity lookups are cached (2s TTL): the Electron main thread no
+  longer spawns a PowerShell/ps child on every `isPrimary` read and every
+  window move/resize save, which previously froze the interface during window
+  drag and snap.
+
 ## [0.1.23] - 2026-08-12
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log

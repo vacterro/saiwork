@@ -133,6 +133,59 @@
   line-height: 1.15;
 }
 
+/* Win95 session toolbar: one strict row, sticky, bevel bottom edge.
+   Nothing floats: selectors own the start, controls own the end. When
+   space runs out the row wraps -- it never clips and never overlaps. */
+.session-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 2px 4px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--surface);
+  border-bottom: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+}
+
+.session-toolbar-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.session-toolbar-group-start {
+  flex: 1 1 auto;
+}
+
+.session-toolbar-group-end {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  margin-inline-start: auto;
+}
+
+/* Plain raised square toolbar button (search, command palette "+"). */
+.session-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+  min-width: 24px;
+  min-height: 20px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.session-toolbar-command {
+  min-width: 28px;
+}
+
 /* Single-session mode: the sessions sidebar is hidden and its selectors move
    into one toolbar row. Everything must fit on a narrow shell, so the row
    wraps and each trigger drops its wide minimum width. */
@@ -157,12 +210,21 @@
   overflow: hidden;
 }
 
+/* The four selectors read as one beveled control group, not floating pills. */
 .session-single-controls .selector-trigger {
   min-width: 0;
   width: auto;
   max-width: 100%;
   white-space: nowrap;
   padding-inline: 6px;
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background: var(--surfaceRaised);
+  color: var(--textPrimary);
+}
+
+.session-single-controls .selector-trigger:hover {
+  background: var(--surfaceAlt);
 }
 
 .session-single-controls .selector-trigger-label--stacked {
@@ -184,17 +246,17 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--border-base);
-  border-radius: 4px;
-  background-color: var(--surface-base);
-  color: var(--text-primary);
+  width: 24px;
+  height: 20px;
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background-color: var(--surfaceRaised);
+  color: var(--textPrimary);
   cursor: pointer;
 }
 
 .session-single-controls-new:hover {
-  background-color: var(--surface-hover);
+  background-color: var(--surfaceAlt);
 }
 
 .session-split-button {

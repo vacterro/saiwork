@@ -68,7 +68,7 @@ const InstanceTab: Component<InstanceTabProps> = (props) => {
         aria-selected={props.active}
         tabIndex={props.hidden ? -1 : undefined}
       >
-        <FolderOpen class="w-4 h-4 flex-shrink-0" />
+        <FolderOpen class="tab-base-icon w-4 h-4" />
         <span class="tab-label">
           {tabLabel()}
         </span>
@@ -87,7 +87,7 @@ const InstanceTab: Component<InstanceTabProps> = (props) => {
         </Show>
         <Show when={props.instance.unreadGoalAuto && !props.active}>
           <span
-            class="text-[9px] font-bold text-[#FFD700] ml-1 bg-black/40 px-1 py-0.5 rounded-sm border border-[#FFD700]/50"
+            class="tab-goal-auto"
             title="Goal Auto queued prompts in background"
           >
             CC

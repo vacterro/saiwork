@@ -123,42 +123,6 @@
   @apply flex items-center justify-center gap-2;
 }
 
-.connection-status-button {
-  @apply inline-flex items-center gap-2 px-3 py-1 text-sm font-medium border rounded-md transition-colors;
-  border-color: var(--border-base);
-  background-color: var(--surface-base);
-  color: var(--text-primary);
-}
-
-/* Make the command palette trigger stand out in the header. */
-.connection-status-button.command-palette-button {
-  border-radius: 0;
-  @apply text-sm border border-base transition-colors;
-  flex: 0 0 24px;
-  width: 24px;
-  min-width: 24px;
-  min-height: 20px;
-  padding: 0;
-  justify-content: center;
-  background-color: var(--surface-base);
-  color: var(--text-primary);
-}
-
-.connection-status-button.command-palette-button:hover {
-  background-color: var(--surface-hover);
-  color: var(--text-primary);
-}
-
-.connection-status-button:hover {
-  background-color: var(--surface-hover);
-}
-
-.connection-status-button:focus-visible {
-  @apply ring-2 ring-offset-1;
-  ring-color: var(--accent-primary);
-  ring-offset-color: var(--surface-secondary);
-}
-
 .connection-status-shortcut-hint {
   @apply inline-flex items-center;
   color: var(--text-secondary);
@@ -167,11 +131,6 @@
 @media (pointer: coarse) {
   .connection-status-shortcut-hint {
     display: none;
-  }
-
-  .connection-status-button {
-    width: 100%;
-    justify-content: center;
   }
 }
 

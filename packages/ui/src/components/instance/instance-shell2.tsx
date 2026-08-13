@@ -10,11 +10,9 @@ import {
   type Accessor,
   type Component,
 } from "solid-js"
-import AppBar from "@suid/material/AppBar"
 import Box from "@suid/material/Box"
 import Drawer from "@suid/material/Drawer"
 import IconButton from "@suid/material/IconButton"
-import Toolbar from "@suid/material/Toolbar"
 import useMediaQuery from "@suid/material/useMediaQuery"
 import type { Instance } from "../../types/instance"
 import type { Command } from "../../lib/commands"
@@ -438,20 +436,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   })
 
   const connectionStatus = () => sseManager.getStatus(props.instance.id)
-  const connectionStatusClass = () => {
-    const status = connectionStatus()
-    if (status === "connecting") return "connecting"
-    if (status === "connected") return "connected"
-    return "disconnected"
-  }
-
-  const connectionStatusLabel = () => {
-    const status = connectionStatus()
-    if (status === "connected") return t("instanceShell.connection.connected")
-    if (status === "connecting") return t("instanceShell.connection.connecting")
-    if (status === "error" || status === "disconnected") return t("instanceShell.connection.disconnected")
-    return t("instanceShell.connection.unknown")
-  }
 
   const hasPendingRequests = createMemo(() => {
     const permissions = getPermissionQueueLength(props.instance.id)
@@ -1272,222 +1256,132 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
         sx={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, minHeight: 0, overflowX: "hidden" }}
       >
         <Show when={!mobileFullscreen()}>
-          <AppBar position="sticky" color="default" elevation={0} class="border-b border-base">
-            <Toolbar variant="dense" class="session-toolbar flex flex-wrap items-center gap-2 py-0 min-h-[40px]">
-              <Show
-                when={!compactHeaderLayout()}
-                fallback={
-                  <div class="flex flex-col w-full gap-1.5">
-                    <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 w-full">
-                      <div class="flex min-w-0 items-center gap-2">
-                        {renderHeaderLeftSlot()}
-                        {renderSessionHeaderIndicators()}
-                      </div>
+          {/* Win95 toolbar: one strict row, nothing floats. Selectors sit
+              first (worktree, agent, model, thinking), controls sit at the
+              far end. When space runs out the row wraps -- it never clips
+              and never overlaps. */}
+          <div class="session-toolbar" role="toolbar">
+            <div class="session-toolbar-group session-toolbar-group-start">
+              {renderHeaderLeftSlot()}
 
-                      <div class="flex flex-wrap items-center justify-center gap-1">
-                        <Show when={!showingInfoView() && !narrowHeaderLayout()}>
-                          <IconButton
-                            color="inherit"
-                            onClick={handleChatSearchClick}
-                            aria-label={t("instanceShell.chatSearch.openAriaLabel")}
-                            title={t("instanceShell.chatSearch.openAriaLabel")}
-                            size="small"
-                          >
-                            <Search class="w-5 h-5" aria-hidden="true" />
-                          </IconButton>
-                        </Show>
-                        <button
-                          type="button"
-                          class="connection-status-button command-palette-button"
-                          onClick={handleCommandPaletteClick}
-                          aria-label={t("instanceShell.commandPalette.openAriaLabel")}
-                          title={t("instanceShell.commandPalette.openAriaLabel")}
-                        >
-                          +
-                        </button>
-                      </div>
+              <Show when={!showingInfoView()}>
+                <ContextMeter
+                  usedTokens={tokenStats().used}
+                  limitTokens={tokenStats().limit}
+                  compactionThresholdTokens={tokenStats().threshold}
+                  formatTokens={formatTokenTotal}
+                  usedLabel={t("instanceShell.metrics.usedLabel")}
+                  remainingLabel={t("instanceShell.metrics.availableLabel")}
+                  compactionLabel={t("instanceShell.metrics.compactionLabel")}
+                  limitLabel={t("instanceShell.metrics.limitLabel")}
+                  centerValue={narrowHeaderLayout() || showCompactFullscreenButton()}
+                />
+              </Show>
+            </div>
 
-                      <div class="flex flex-1 items-center justify-end gap-1 min-w-0">
-                        <span
-                          class={`status-indicator ${connectionStatusClass()}`}
-                          aria-label={t("instanceShell.connection.ariaLabel", { status: connectionStatusLabel() })}
-                        >
-                          <span class="status-dot" />
-                        </span>
-
-                        <Show when={!isPhoneLayout() && !narrowHeaderLayout()}>
-                          {renderPreviewToggleButton()}
-                        </Show>
-
-                        <Show when={showCompactFullscreenButton() && !narrowHeaderLayout()}>
-                          {renderPreviewToggleButton()}
-                        </Show>
-
-                        <Show when={rightDrawerState() === "floating-closed"}>
-                          <IconButton
-                            ref={setRightToggleButtonEl}
-                            color="inherit"
-                            onClick={handleRightAppBarButtonClick}
-                            aria-label={rightAppBarButtonLabel()}
-                            size="small"
-                            aria-expanded={rightDrawerState() !== "floating-closed"}
-                          >
-                            {rightAppBarButtonIcon()}
-                          </IconButton>
-                        </Show>
-                      </div>
-                    </div>
-
-                    <div
-                      class={
-                        narrowHeaderLayout() || showCompactFullscreenButton()
-                          ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 pb-1"
-                          : "flex flex-wrap items-center justify-center gap-2 pb-1"
-                      }
-                    >
-                      <Show when={narrowHeaderLayout() || showCompactFullscreenButton()}>
-                        <div class="flex min-w-0 items-center justify-start">
-                          <Show when={narrowHeaderLayout() && !showingInfoView()}>
-                            <ActionOverflowMenu
-                              items={narrowHeaderMenuItems()}
-                              label={t("messageItem.actions.more")}
-                              triggerClass="message-action-button"
-                              minItems={1}
-                            />
-                          </Show>
-                        </div>
-                      </Show>
-
-                      <div class="flex items-center justify-center">
-                        <Show when={!showingInfoView()}>
-                          <ContextMeter
-                            usedTokens={tokenStats().used}
-                            limitTokens={tokenStats().limit}
-                            compactionThresholdTokens={tokenStats().threshold}
-                            formatTokens={formatTokenTotal}
-                            usedLabel={t("instanceShell.metrics.usedLabel")}
-                            remainingLabel={t("instanceShell.metrics.availableLabel")}
-                            compactionLabel={t("instanceShell.metrics.compactionLabel")}
-                            limitLabel={t("instanceShell.metrics.limitLabel")}
-                            centerValue={narrowHeaderLayout() || showCompactFullscreenButton()}
-                          />
-                        </Show>
-                      </div>
-
-                      <Show when={narrowHeaderLayout() || showCompactFullscreenButton()}>
-                        <div class="flex items-center justify-end gap-1">
-                          <Show when={showCompactFullscreenButton()}>
-                            <IconButton
-                              color="inherit"
-                              onClick={props.onEnterMobileFullscreen}
-                              aria-label={t("instanceShell.fullscreen.enter")}
-                              title={t("instanceShell.fullscreen.enter")}
-                              size="small"
-                              sx={{ width: 30, height: 30 }}
-                            >
-                              <Maximize2 class="w-5 h-5" aria-hidden="true" />
-                            </IconButton>
-                          </Show>
-                        </div>
-                      </Show>
-                    </div>
-                </div>
-              }
-            >
-              <div class="session-toolbar-left flex-1 flex items-center gap-3 min-w-0">
-                {renderHeaderLeftSlot()}
-
-                <Show when={!showingInfoView()}>
-                  <ContextMeter
-                    usedTokens={tokenStats().used}
-                    limitTokens={tokenStats().limit}
-                    compactionThresholdTokens={tokenStats().threshold}
-                    formatTokens={formatTokenTotal}
-                    usedLabel={t("instanceShell.metrics.usedLabel")}
-                    remainingLabel={t("instanceShell.metrics.availableLabel")}
-                    compactionLabel={t("instanceShell.metrics.compactionLabel")}
-                    limitLabel={t("instanceShell.metrics.limitLabel")}
-                  />
-                </Show>
-
-                <div class="ml-auto flex items-center session-header-hints">
-                  {renderSessionHeaderIndicators()}
-                </div>
+            <div class="session-toolbar-group session-toolbar-group-end">
+              <div class="session-header-hints">
+                {renderSessionHeaderIndicators()}
               </div>
 
-              <div class="session-toolbar-center flex items-center justify-center gap-2 min-w-[160px]">
+              <Show when={narrowHeaderLayout() && !showingInfoView()}>
+                <ActionOverflowMenu
+                  items={narrowHeaderMenuItems()}
+                  label={t("messageItem.actions.more")}
+                  triggerClass="session-toolbar-button"
+                  minItems={1}
+                />
+              </Show>
+
+              <Show when={!showingInfoView() && !narrowHeaderLayout()}>
                 <button
                   type="button"
-                  class="connection-status-button command-palette-button"
-                  onClick={handleCommandPaletteClick}
-                  aria-label={t("instanceShell.commandPalette.openAriaLabel")}
-                  title={t("instanceShell.commandPalette.openAriaLabel")}
+                  class="session-toolbar-button"
+                  onClick={handleChatSearchClick}
+                  aria-label={t("instanceShell.chatSearch.openAriaLabel")}
+                  title={t("instanceShell.chatSearch.openAriaLabel")}
                 >
-                  +
+                  <Search class="w-4 h-4" aria-hidden="true" />
                 </button>
-              </div>
-
-              <div class="session-toolbar-right flex-1 flex items-center gap-3">
-                <div class="ms-auto flex items-center gap-3">
-                <div class="connection-status-meta flex items-center gap-3">
-                    <Show when={isSessionPaneWindow()}>
-                      <button
-                        type="button"
-                        class="session-split-pane-action"
-                        title={t("saipenView.reattachHint")}
-                        onClick={handleReattachPane}
-                      >
-                        {t("saipenView.reattach")}
-                      </button>
-                    </Show>
-                    <Show when={!showingInfoView()}>
-                      <IconButton
-                        color="inherit"
-                        onClick={handleChatSearchClick}
-                        aria-label={t("instanceShell.chatSearch.openAriaLabel")}
-                        title={t("instanceShell.chatSearch.openAriaLabel")}
-                        size="small"
-                      >
-                        <Search class="w-5 h-5" aria-hidden="true" />
-                      </IconButton>
-                      {renderPreviewToggleButton()}
-                    </Show>
-                    <Show when={connectionStatus() === "connected"}>
-                      <span class="status-indicator connected">
-                        <span class="status-dot" />
-                        <span class="status-text">{t("instanceShell.connection.connected")}</span>
-                      </span>
-                    </Show>
-                    <Show when={connectionStatus() === "connecting"}>
-                      <span class="status-indicator connecting">
-                        <span class="status-dot" />
-                        <span class="status-text">{t("instanceShell.connection.connecting")}</span>
-                      </span>
-                    </Show>
-                    <Show when={connectionStatus() === "error" || connectionStatus() === "disconnected"}>
-                      <span class="status-indicator disconnected">
-                        <span class="status-dot" />
-                        <span class="status-text">{t("instanceShell.connection.disconnected")}</span>
-                      </span>
-                    </Show>
-                  </div>
-                  <Show when={rightDrawerState() === "floating-closed"}>
-                    <IconButton
-                      ref={setRightToggleButtonEl}
-                      color="inherit"
-                      onClick={handleRightAppBarButtonClick}
-                      aria-label={rightAppBarButtonLabel()}
-                      size="small"
-                      aria-expanded={rightDrawerState() !== "floating-closed"}
-                    >
-                      {rightAppBarButtonIcon()}
-                    </IconButton>
-                  </Show>
-                </div>
-              </div>
               </Show>
-            </Toolbar>
-          </AppBar>
+
+              <button
+                type="button"
+                class="session-toolbar-button session-toolbar-command"
+                onClick={handleCommandPaletteClick}
+                aria-label={t("instanceShell.commandPalette.openAriaLabel")}
+                title={t("instanceShell.commandPalette.openAriaLabel")}
+              >
+                +
+              </button>
+
+              <Show when={isSessionPaneWindow()}>
+                <button
+                  type="button"
+                  class="session-split-pane-action"
+                  title={t("saipenView.reattachHint")}
+                  onClick={handleReattachPane}
+                >
+                  {t("saipenView.reattach")}
+                </button>
+              </Show>
+
+              <Show when={!showingInfoView()}>
+                <Show when={!isPhoneLayout() && !narrowHeaderLayout()}>
+                  {renderPreviewToggleButton()}
+                </Show>
+
+                <Show when={showCompactFullscreenButton() && !narrowHeaderLayout()}>
+                  {renderPreviewToggleButton()}
+                </Show>
+              </Show>
+
+              <Show when={connectionStatus() === "connected"}>
+                <span class="status-indicator connected">
+                  <span class="status-dot" />
+                  <span class="status-text">{t("instanceShell.connection.connected")}</span>
+                </span>
+              </Show>
+              <Show when={connectionStatus() === "connecting"}>
+                <span class="status-indicator connecting">
+                  <span class="status-dot" />
+                  <span class="status-text">{t("instanceShell.connection.connecting")}</span>
+                </span>
+              </Show>
+              <Show when={connectionStatus() === "error" || connectionStatus() === "disconnected"}>
+                <span class="status-indicator disconnected">
+                  <span class="status-dot" />
+                  <span class="status-text">{t("instanceShell.connection.disconnected")}</span>
+                </span>
+              </Show>
+
+              <Show when={showCompactFullscreenButton()}>
+                <IconButton
+                  color="inherit"
+                  onClick={props.onEnterMobileFullscreen}
+                  aria-label={t("instanceShell.fullscreen.enter")}
+                  title={t("instanceShell.fullscreen.enter")}
+                  size="small"
+                  sx={{ width: 30, height: 30 }}
+                >
+                  <Maximize2 class="w-5 h-5" aria-hidden="true" />
+                </IconButton>
+              </Show>
+
+              <Show when={rightDrawerState() === "floating-closed"}>
+                <IconButton
+                  ref={setRightToggleButtonEl}
+                  color="inherit"
+                  onClick={handleRightAppBarButtonClick}
+                  aria-label={rightAppBarButtonLabel()}
+                  size="small"
+                  aria-expanded={rightDrawerState() !== "floating-closed"}
+                >
+                  {rightAppBarButtonIcon()}
+                </IconButton>
+              </Show>
+            </div>
+          </div>
         </Show>
 
         <Box

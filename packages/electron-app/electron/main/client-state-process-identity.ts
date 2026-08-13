@@ -46,7 +46,7 @@ function readCommandIdentityAsync(command: string, args: string[], prefix: strin
   })
 }
 
-export function getProcessStartIdentity(pid: number): string | undefined {
+function lookupProcessStartIdentity(pid: number): string | undefined {
   if (!Number.isInteger(pid) || pid <= 0) return undefined
 
   try {
@@ -74,6 +74,42 @@ export function getProcessStartIdentity(pid: number): string | undefined {
 
   return undefined
 }
+
+/*
+ * The sync lookups below spawn a child process on Windows (PowerShell) and
+ * macOS (ps). They sit on the Electron main thread and used to run on EVERY
+ * `isPrimary` read and every window-state save, which froze the UI during
+ * window drag/snap. A process start identity is immutable for a live PID, so
+ * lookups are cached per PID for a short TTL; a cold miss still falls back to
+ * the real lookup, and PID reuse stays covered because the cached value
+ * expires.
+ */
+const IDENTITY_CACHE_TTL_MS = 2000
+
+export interface CachedLookupOptions {
+  /** Cache `undefined` results too, so a failing process never respawns the
+   *  child per read within the TTL. Defaults to false. */
+  cacheEmpty?: boolean
+}
+
+export function createCachedLookup<T>(
+  lookup: (pid: number) => T | undefined,
+  ttlMs: number,
+  options?: CachedLookupOptions,
+): (pid: number) => T | undefined {
+  const cache = new Map<number, { value: T | undefined; at: number }>()
+  const cacheEmpty = options?.cacheEmpty ?? false
+  return (pid) => {
+    if (!Number.isInteger(pid) || pid <= 0) return undefined
+    const entry = cache.get(pid)
+    if (entry && Date.now() - entry.at < ttlMs) return entry.value
+    const value = lookup(pid)
+    if (cacheEmpty || value !== undefined) cache.set(pid, { value, at: Date.now() })
+    return value
+  }
+}
+
+export const getProcessStartIdentity = createCachedLookup(lookupProcessStartIdentity, IDENTITY_CACHE_TTL_MS)
 
 export async function getProcessStartIdentityAsync(
   pid: number,
@@ -108,7 +144,7 @@ export async function getProcessStartIdentityAsync(
   return undefined
 }
 
-export function isExpectedTauriProcess(pid: number): boolean | undefined {
+function lookupExpectedTauriProcess(pid: number): boolean | undefined {
   try {
     const executable = process.platform === "linux"
       ? readlinkSync(`/proc/${pid}/exe`)
@@ -127,3 +163,5 @@ export function isExpectedTauriProcess(pid: number): boolean | undefined {
     return undefined
   }
 }
+
+export const isExpectedTauriProcess = createCachedLookup(lookupExpectedTauriProcess, IDENTITY_CACHE_TTL_MS, { cacheEmpty: true })

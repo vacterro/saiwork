@@ -19,6 +19,7 @@ import {
   freebuffStopTurn,
   selectFreebuffThread,
   clearFreebuffEvents,
+  releaseFreebuffSlot,
   startFreebuffStatusPolling,
   ensureFreebuffEngine,
 } from "../../../../../stores/freebuff"
@@ -42,6 +43,28 @@ function formatResetAt(resetAt: string | undefined): string {
   const date = new Date(resetAt)
   if (Number.isNaN(date.getTime())) return resetAt
   return date.toLocaleString()
+}
+
+/** mm:ss, or h:mm:ss once a turn passes an hour. */
+function formatElapsed(totalMs: number): string {
+  const seconds = Math.max(0, Math.floor(totalMs / 1000))
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+  }
+  return `${minutes}:${String(secs).padStart(2, "0")}`
+}
+
+/** Compact relative age: "just now", "5m", "3h", "2d". */
+function formatRelative(agoMs: number): string {
+  if (!Number.isFinite(agoMs) || agoMs < 60_000) return "just now"
+  const minutes = Math.floor(agoMs / 60_000)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 48) return `${hours}h`
+  return `${Math.floor(hours / 24)}d`
 }
 
 interface ModelOption {
@@ -81,6 +104,11 @@ const FreebuffTab: Component<FreebuffTabProps> = (props) => {
   const [sending, setSending] = createSignal(false)
   const [starting, setStarting] = createSignal(false)
   const [autoStartTried, setAutoStartTried] = createSignal(false)
+  // Live timing: a 1s clock that runs while any thread is mid-turn, plus the
+  // wall-clock moment the active turn started (fallback: the thread's last
+  // activity) so the UI can answer "what is it doing" and "for how long".
+  const [nowTick, setNowTick] = createSignal(Date.now())
+  const [turnStartedAt, setTurnStartedAt] = createSignal<number | null>(null)
 
   const status = freebuffStatus
   const quota = createMemo(() => freebuffQuota())
@@ -105,6 +133,36 @@ const FreebuffTab: Component<FreebuffTabProps> = (props) => {
   const running = createMemo(() => activeThread()?.turnState === "running")
   const sendDisabled = createMemo(() => sending() || running() || !composer().trim())
 
+  /** What the running turn is doing RIGHT NOW: last status stage, tool call or subagent. */
+  const liveActivity = createMemo<string | null>(() => {
+    if (!running()) return null
+    const events = activeThreadEvents()
+    const last = events[events.length - 1]
+    if (!last) return null
+    switch (last.type) {
+      case "status":
+        return last.stage ?? null
+      case "tool_call":
+        return `tool: ${last.toolName ?? "…"}`
+      case "subagent_start":
+        return `subagent: ${last.stage ?? last.agentType ?? ""}`
+      case "text":
+        return "writing"
+      case "reasoning":
+      case "reasoning_delta":
+        return "reasoning"
+      default:
+        return null
+    }
+  })
+
+  /** Seconds the current turn has been running (fallback: last engine activity). */
+  const turnElapsedMs = createMemo(() => {
+    if (!running()) return 0
+    const started = turnStartedAt() ?? activeThread()?.updatedAt ?? null
+    return started ? nowTick() - started : 0
+  })
+
   const stopPolling = startFreebuffStatusPolling()
   onCleanup(stopPolling)
 
@@ -113,6 +171,19 @@ const FreebuffTab: Component<FreebuffTabProps> = (props) => {
   })
   createEffect(() => {
     if (status()?.ready) void refreshFreebuffThreads()
+  })
+  createEffect(() => {
+    const anyRunning = threadsForFolder().some((thread) => thread.turnState === "running")
+    if (!anyRunning) return
+    const timer = setInterval(() => setNowTick(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+  createEffect(() => {
+    if (!running()) {
+      setTurnStartedAt(null)
+      return
+    }
+    setTurnStartedAt((previous) => previous ?? nowTick())
   })
   createEffect(() => {
     // Auto-start the engine once when the surface opens and an install exists.
@@ -273,7 +344,15 @@ const FreebuffTab: Component<FreebuffTabProps> = (props) => {
           <Show when={threadsForFolder().length > 0}>
             <div class="flex max-h-48 flex-col gap-1 overflow-y-auto">
               <For each={threadsForFolder()}>
-                {(thread) => <FreebuffThreadRow t={props.t} thread={thread} active={freebuffActiveThreadId() === thread.id} onSelect={() => selectFreebuffThread(thread.id)} />}
+                {(thread) => (
+                  <FreebuffThreadRow
+                    t={props.t}
+                    thread={thread}
+                    now={nowTick()}
+                    active={freebuffActiveThreadId() === thread.id}
+                    onSelect={() => selectFreebuffThread(thread.id)}
+                  />
+                )}
               </For>
             </div>
           </Show>
@@ -292,7 +371,9 @@ const FreebuffTab: Component<FreebuffTabProps> = (props) => {
           <div class="flex items-center justify-between gap-2">
             <span class="min-w-0 truncate text-xs text-secondary">
               {activeThread()?.title ?? activeThread()?.id}
-              <Show when={running()}> - {props.t("freebuff.turn.running")}</Show>
+              <Show when={running()}>
+                <span class="text-primary"> - {props.t("freebuff.turn.running")}</span>
+              </Show>
             </span>
             <Show when={running()}>
               <button type="button" onClick={handleStopTurn}>
@@ -300,6 +381,19 @@ const FreebuffTab: Component<FreebuffTabProps> = (props) => {
               </button>
             </Show>
           </div>
+          <Show when={running()}>
+            <div class="flex items-center justify-between gap-2 text-[10px]">
+              <span class="min-w-0 truncate text-secondary">
+                <span class="text-tertiary">{props.t("freebuff.turn.thinking")}:</span>
+                <Show when={liveActivity()} keyed>
+                  {(activity) => <span class="text-primary"> {activity}</span>}
+                </Show>
+              </span>
+              <span class="shrink-0 tabular-nums text-secondary">
+                {formatElapsed(turnElapsedMs())}
+              </span>
+            </div>
+          </Show>
           <div class="max-h-64 overflow-y-auto border border-base bg-compare-back px-2 py-1">
             <Show
               when={activeThreadEvents().length > 0}
@@ -344,6 +438,12 @@ const FreebuffTab: Component<FreebuffTabProps> = (props) => {
           {props.t("freebuff.turn.clear")}
         </button>
       </Show>
+
+      <Show when={status()?.ready}>
+        <button type="button" disabled={freebuffBusy()} onClick={() => void releaseFreebuffSlot()}>
+          {props.t("freebuff.slot.release")}
+        </button>
+      </Show>
     </div>
   )
 }
@@ -361,12 +461,29 @@ function quotaUsedText(limit: number, recentCount: number): string {
 interface FreebuffThreadRowProps {
   t: (key: string, vars?: Record<string, any>) => string
   thread: FreebuffThreadView
+  now: number
   active: boolean
   onSelect: () => void
 }
 
 const FreebuffThreadRow: Component<FreebuffThreadRowProps> = (props) => {
   const running = () => props.thread.turnState === "running"
+  const timeLabel = createMemo(() => {
+    const thread = props.thread
+    if (running()) {
+      const start = thread.updatedAt ?? thread.createdAt
+      if (!start) return ""
+      const elapsed = Math.max(0, props.now - start)
+      return elapsed > 1000 ? `${props.t("freebuff.turn.elapsed")} ${formatElapsed(elapsed)}` : props.t("freebuff.turn.running")
+    }
+    if (thread.lastTurnFinishedAt) {
+      return props.t("freebuff.turn.finishedAgo", { time: formatRelative(props.now - thread.lastTurnFinishedAt) })
+    }
+    if (thread.createdAt) {
+      return props.t("freebuff.turn.createdAgo", { time: formatRelative(props.now - thread.createdAt) })
+    }
+    return ""
+  })
   return (
     <button
       type="button"
@@ -377,6 +494,7 @@ const FreebuffThreadRow: Component<FreebuffThreadRowProps> = (props) => {
       <span class="block text-[10px] text-tertiary">
         {modelDisplayName(props.thread.model ?? DEFAULT_MODEL)}
         <Show when={running()}> - {props.t("freebuff.turn.running")}</Show>
+        <Show when={timeLabel() && !running()} keyed>{(label) => <span> - {label}</span>}</Show>
       </span>
     </button>
   )

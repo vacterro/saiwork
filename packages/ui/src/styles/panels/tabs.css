@@ -1,19 +1,29 @@
-/* Primary tab strip */
+/* Primary tab strip -- Win95 rules (saipen UI.md):
+   - Active tab is sunken, inactive tab is raised.
+   - Tabs nearly touch; no gap that breaks the strip.
+   - All tabs are ALWAYS visible: the strip never hides a tab behind a menu.
+     Every tab shares the strip equally (`flex: 1 1 0`) and compresses its
+     label instead, so a window resize (snap, tiling, manual) re-fits the
+     strip in pure CSS -- no JS measurement to go stale. */
+
 .tab-bar {
-  @apply border-b;
-  border-color: var(--border-base);
+  border-bottom: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
 }
 
 .tab-bar-instance {
-  background-color: var(--surface-secondary);
+  background-color: var(--surface);
 }
 
 .tab-bar-session {
-  background-color: var(--surface-base);
+  background-color: var(--surface);
 }
 
 .tab-container {
-  @apply flex items-center gap-1 px-2 py-1;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
   min-width: 0;
   overflow: hidden;
 }
@@ -25,67 +35,29 @@
 }
 
 .tab-strip-tabs {
-  @apply flex items-center gap-1;
-  width: max-content;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
   min-width: 100%;
 }
 
-.tab-overflow-unit {
+/* One slot per tab. `flex-basis: 0` splits the strip evenly; the slot shrinks
+   without limit so every tab stays visible no matter how many are open or how
+   narrow the window is. `max-width` only caps how fat a tab may grow when the
+   strip has spare room. */
+.tab-slot {
+  flex: 1 1 0px;
+  min-width: 0;
+  max-width: var(--tab-slot-max, 220px);
   display: flex;
-  flex: 0 0 auto;
-}
-
-.tab-overflow-unit[data-overflow-hidden="true"] {
-  display: none;
-}
-
-.tab-overflow-unit:not([data-overflow-hidden="true"]) {
-  max-width: 100%;
-}
-
-.tab-overflow-unit:not([data-overflow-hidden="true"]) .tab-base,
-.tab-overflow-unit:not([data-overflow-hidden="true"]) .tab-pill {
-  max-width: 100%;
-}
-
-.tab-container > .tab-overflow-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 24px;
-  min-width: 24px;
-  min-height: 24px;
-  padding: 0 2px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.tab-container > .tab-overflow-trigger svg {
-  display: none;
-}
-
-.tab-container > .tab-overflow-trigger::before {
-  content: "...";
-}
-
-.tab-bar-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 0 0 auto;
-}
-
-@media (max-width: 480px) {
-  .tab-bar-actions .tab-shortcuts {
-    display: none;
-  }
+  container-type: inline-size;
 }
 
 .tab-draggable {
-  @apply flex-shrink-0;
+  width: 100%;
+  min-width: 0;
   user-select: none;
-  transition: transform 140ms ease, opacity 140ms ease;
   will-change: transform;
 }
 
@@ -93,7 +65,6 @@
   opacity: 0.72;
   position: relative;
   z-index: 20;
-  transition: none;
 }
 
 .tab-draggable .tab-base,
@@ -108,58 +79,180 @@
   cursor: grabbing;
 }
 
+.tab-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding-inline-start: 2px;
+}
+
 .tab-shortcuts {
-  @apply flex items-center gap-2 flex-shrink-0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .tab-bar-actions .tab-shortcuts {
+    display: none;
+  }
 }
 
 .tab-remote-button {
-  @apply flex-shrink-0;
+  flex-shrink: 0;
 }
 
-.tab-base {
-  @apply inline-flex items-center gap-2 px-3 py-2 rounded-t-md max-w-[200px] transition-colors text-sm font-medium;
-  font-family: var(--font-family-sans);
+/* Instance + sidecar tabs. Raised when inactive, sunken when active. */
+.tab-base,
+.tab-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
   outline: none;
-}
-
-.tab-base:focus-visible {
-  @apply ring-2 ring-offset-1;
-  ring-color: var(--accent-primary);
-  ring-offset-color: var(--surface-base);
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background-color: var(--surfaceRaised);
+  color: var(--textSecondary);
+  font-family: var(--font-family-sans);
+  font-size: 11px;
 }
 
 .tab-active {
-  background-color: var(--tab-active-bg);
-  color: var(--tab-active-text);
-  border-bottom: 2px solid var(--accent-primary);
-}
-
-.tab-inactive {
-  background-color: var(--tab-inactive-bg);
-  color: var(--tab-inactive-text);
-  border-bottom: 2px solid var(--tab-active-bg);
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background-color: var(--surface);
+  color: var(--textPrimary);
 }
 
 .tab-inactive:hover {
-  background-color: var(--tab-inactive-hover-bg);
+  background-color: var(--surfaceAlt);
 }
 
 .tab-active:hover {
-  background-color: var(--tab-active-hover-bg);
+  background-color: var(--surfaceAlt);
 }
 
 .tab-label {
-  @apply truncate;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-base-icon {
+  flex-shrink: 0;
 }
 
 .tab-close {
-  @apply opacity-100 hover:bg-red-500 hover:text-white rounded p-0.5 transition-all cursor-pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border: 1px solid transparent;
+  color: var(--textSecondary);
+  cursor: pointer;
 }
 
-.tab-close:focus-visible {
-  @apply ring-2 ring-offset-1;
-  ring-color: var(--accent-primary);
-  ring-offset-color: inherit;
+.tab-close:hover {
+  border-color: var(--borderDark);
+  background: var(--surfaceAlt);
+  color: var(--dangerText);
+}
+
+.tab-pill-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border: 1px solid transparent;
+  color: var(--textSecondary);
+  cursor: pointer;
+}
+
+.tab-pill-close:hover {
+  border-color: var(--borderDark);
+  background: var(--surfaceAlt);
+}
+
+.tab-pill-button {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Deep compression: drop ornament first, keep the close button always. */
+@container (max-width: 110px) {
+  .tab-base-icon {
+    display: none;
+  }
+}
+
+@container (max-width: 80px) {
+  .tab-base .status-indicator.session-status {
+    display: none;
+  }
+}
+
+/* Goal Auto "CC" marker: flat text, no rounded chip. */
+.tab-goal-auto {
+  flex-shrink: 0;
+  margin-inline-start: 2px;
+  padding: 0 2px;
+  border: 1px solid var(--borderDark);
+  background: var(--compareBack);
+  color: var(--borderHighlight);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* Toolbar buttons on the right of the strip: plain raised squares. */
+.new-tab-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  background-color: var(--surfaceRaised);
+  color: var(--textSecondary);
+}
+
+.new-tab-button:hover {
+  background-color: var(--surfaceAlt);
+  color: var(--textPrimary);
+}
+
+.new-tab-button-disabled,
+.new-tab-button-disabled:hover {
+  color: var(--textMuted);
+}
+
+/* Unread toast count: a static sunken square, never a floating bubble. */
+.tab-bar-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 2px;
+  border: 2px solid;
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background: var(--compareBack);
+  color: var(--textPrimary);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 /* Instance tabs: session-status dots should be lighter/softer than list/status pills. */
@@ -211,83 +304,41 @@
   --session-status-dot: var(--session-status-permission-fg);
 }
 
-.new-tab-button {
-  @apply inline-flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-md transition-colors;
-  background-color: var(--new-tab-bg);
-  color: var(--new-tab-text);
-}
-
-.new-tab-button:hover {
-  background-color: var(--new-tab-hover-bg);
-}
-
-.new-tab-button:focus-visible {
-  @apply ring-2 ring-offset-1;
-  ring-color: var(--accent-primary);
-  ring-offset-color: var(--surface-base);
-}
-
-.tab-pill {
-  @apply inline-flex items-center gap-1 px-3 py-2 rounded-t-md max-w-[220px] text-sm;
-  background-color: var(--tab-inactive-bg);
-  color: var(--tab-inactive-text);
-  border-bottom: 2px solid var(--tab-active-bg);
-  outline: none;
-}
-
-.tab-pill:focus-visible {
-  @apply ring-2 ring-offset-1;
-  ring-color: var(--accent-primary);
-  ring-offset-color: var(--surface-base);
-}
-
-.tab-pill-active {
-  background-color: var(--tab-active-bg);
-  color: var(--tab-active-text);
-  border-bottom-color: var(--accent-primary);
-}
-
-.tab-pill-button {
-  @apply truncate;
-}
-
-.tab-pill-close {
-  @apply inline-flex items-center justify-center rounded w-5 h-5 text-xs;
-}
-
-.tab-pill-close:hover {
-  background-color: var(--new-tab-hover-bg);
-}
-
 /* Session tabs */
 .session-tab-base {
-  @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-t-md max-w-[150px] transition-colors text-sm;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  max-width: 150px;
   font-family: var(--font-family-sans);
   outline: none;
-  border-bottom: 2px solid transparent;
-}
-
-.session-tab-base:focus-visible {
-  @apply ring-2 ring-offset-1;
-  ring-color: var(--accent-primary);
-  ring-offset-color: var(--surface-base);
+  border: 2px solid;
+  border-color: var(--bevelLight) var(--borderDark) var(--borderDark) var(--bevelLight);
+  background-color: var(--surfaceRaised);
 }
 
 .session-tab-active {
-  background-color: var(--session-tab-active-bg);
-  border-bottom-color: var(--accent-primary);
-  color: var(--session-tab-active-text);
+  border-color: var(--borderDark) var(--bevelLight) var(--bevelLight) var(--borderDark);
+  background-color: var(--surface);
+  color: var(--textPrimary);
   font-weight: var(--font-weight-medium);
 }
 
 .session-tab-inactive {
-  color: var(--session-tab-inactive-text);
+  color: var(--textMuted);
 }
 
 .session-tab-inactive:hover {
-  background-color: var(--session-tab-hover-bg);
+  background-color: var(--surfaceAlt);
 }
 
 .session-tab-special {
-  color: var(--session-tab-inactive-text);
+  color: var(--textMuted);
+}
+
+/* Smallest acceptable tab width is zero: with many tabs the strip keeps
+   compressing. Override per install if a floor is wanted. */
+:root {
+  --tab-min-width: 0px;
 }
