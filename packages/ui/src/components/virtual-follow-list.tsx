@@ -114,6 +114,25 @@ export default function VirtualFollowList<T>(props: VirtualFollowListProps<T>) {
   const autoScroll = createMemo(() => isAutoFollowing(followMode()))
   const scrollButtonsCount = createMemo(() => (showScrollTopButton() ? 1 : 0) + (showScrollBottomButton() ? 1 : 0))
 
+  /**
+   * Memoized key -> index lookup. Restoration and scroll-to-key used repeated
+   * O(N) findIndex/some over the item list during multi-frame retries; one
+   * pass per item-set change turns those into O(1) map lookups.
+   */
+  const keyIndexMap = createMemo<Map<string, number>>(() => {
+    const items = props.items()
+    const map = new Map<string, number>()
+    for (let index = 0; index < items.length; index += 1) {
+      const key = props.getKey(items[index], index)
+      if (key !== undefined && key !== null && !map.has(key)) {
+        map.set(key, index)
+      }
+    }
+    return map
+  })
+  const keyIndex = (key: string): number => keyIndexMap().get(key) ?? -1
+  const hasKey = (key: string): boolean => keyIndexMap().has(key)
+
   const scrollController = new VirtualScrollController(initialAutoScroll())
   const itemElements = new Map<string, HTMLDivElement>()
   const state: VirtualFollowListState = { autoScroll, showScrollTopButton, showScrollBottomButton, scrollButtonsCount, activeKey }
@@ -274,7 +293,7 @@ export default function VirtualFollowList<T>(props: VirtualFollowListProps<T>) {
   }
 
   function performScrollToKey(key: string, opts: { block: ScrollLogicalPosition; smooth: boolean }) {
-    const index = props.items().findIndex((item, i) => props.getKey(item, i) === key)
+    const index = keyIndex(key)
     if (index === -1) return
     markProgrammaticScroll()
     virtuaHandle()?.scrollToIndex(index, { align: opts.block, smooth: opts.smooth })
@@ -498,7 +517,7 @@ export default function VirtualFollowList<T>(props: VirtualFollowListProps<T>) {
     }
 
     if (snapshot.anchorKey) {
-      const index = props.items().findIndex((item, i) => props.getKey(item, i) === snapshot.anchorKey)
+      const index = keyIndex(snapshot.anchorKey)
       if (index !== -1) {
         markProgrammaticScroll()
         virtuaHandle()?.scrollToIndex(index, { align: "start", smooth: opts?.behavior === "smooth" })
@@ -518,7 +537,7 @@ export default function VirtualFollowList<T>(props: VirtualFollowListProps<T>) {
   }
 
   function scrollToAnchorIndex(key: string) {
-    const index = props.items().findIndex((item, i) => props.getKey(item, i) === key)
+    const index = keyIndex(key)
     if (index === -1) return false
     markProgrammaticScroll()
     virtuaHandle()?.scrollToIndex(index, { align: "start", smooth: false })
@@ -530,7 +549,7 @@ export default function VirtualFollowList<T>(props: VirtualFollowListProps<T>) {
       if (!isCurrent()) return
       const element = scrollElement()
       const key = snapshot.anchorKey!
-      const targetExists = props.items().some((item, index) => props.getKey(item, index) === key)
+      const targetExists = hasKey(key)
       const itemWrapper = itemElements.get(key)
       const anchorOffset = snapshot.anchorOffset
       const mounted = Boolean(element && itemWrapper?.isConnected)
