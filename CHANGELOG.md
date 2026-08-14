@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.1.37] - 2026-08-14
+
+References such as `T-743` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Performance audit
+
+- **Workspace cold start**: the fixed 1500 ms stability sleep no longer holds
+  the first interaction hostage; readiness publishes as soon as health and
+  config are valid, and a post-ready crash is still observed in the
+  background and transitions through the normal exit path.
+- **Queue persistence is async**: every mutation's durable write moved off
+  Node's main thread (fs.promises/FileHandle) while CAS, fsync, atomic
+  replace and serialization stay identical; the rollback snapshot is cached
+  in memory instead of being re-read from disk per mutation. A slow disk no
+  longer blocks SSE, health, proxy or UI work.
+- **SSE serialization-once**: one JSON.stringify per event fanned out as an
+  immutable frame to every client, instead of N stringifies for N detached
+  windows; per-client backpressure and trace redaction are unchanged.
+- **Renderer hot paths**: the virtual follow list gets a memoized key→index
+  map (O(1) restore lookups instead of repeated O(N) scans), and app-tab
+  sorting precomputes per-instance working state in one reactive pass instead
+  of rescanning sessions inside every comparator call.
+
+Details and baseline/after numbers: `docs/perf-audit-0.1.37.md`.
+
 ## [0.1.36] - 2026-08-14
 
 References such as `T-742` below are internal `.saipen` work-log identifiers,
