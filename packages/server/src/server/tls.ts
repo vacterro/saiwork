@@ -3,6 +3,7 @@ import fs from "fs"
 import path from "path"
 import { createRequire } from "module"
 import type { Logger } from "../logger"
+import { atomicWriteFileSync } from "../atomic-write"
 
 const require = createRequire(import.meta.url)
 
@@ -134,7 +135,7 @@ function ensureGeneratedTls(args: ResolveHttpsOptionsArgs): ResolvedHttpsOptions
 }
 
 function writePemFile(filePath: string, content: string, mode: number) {
-  fs.writeFileSync(filePath, content, { encoding: "utf-8", mode })
+  atomicWriteFileSync(filePath, content, { mode })
   try {
     fs.chmodSync(filePath, mode)
   } catch {

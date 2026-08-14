@@ -1,6 +1,6 @@
 import fs from "fs"
-import path from "path"
 import type { Logger } from "../logger"
+import { atomicWriteFileSync } from "../atomic-write"
 import { hashPassword, type PasswordHashRecord, verifyPassword } from "./password-hash"
 
 export interface AuthFile {
@@ -163,8 +163,7 @@ export class AuthStore {
 
   private persist(auth: AuthFile) {
     try {
-      fs.mkdirSync(path.dirname(this.authFilePath), { recursive: true })
-      fs.writeFileSync(this.authFilePath, JSON.stringify(auth, null, 2), "utf-8")
+      atomicWriteFileSync(this.authFilePath, JSON.stringify(auth, null, 2))
       this.cachedFile = auth
       this.logger.debug({ authFilePath: this.authFilePath }, "Persisted auth file")
     } catch (error) {

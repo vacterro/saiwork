@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.34] - 2026-08-14
+
+References such as `T-740` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Crash-atomic remaining sync writers (T-740)
+
+- The auth store, the orphan-process registry, and the TLS certificate writer
+  no longer write in place: they route through the shared atomic
+  `atomicWriteFileSync` (same-directory temp, fsync, rename, temp cleanup on
+  failure), so a crash mid-write can never tear `auth.json`, the orphan
+  registry, or a generated certificate into authoritative state. File mode
+  handling is preserved.
+
 ## [0.1.33] - 2026-08-14
 
 References such as `T-739` below are internal `.saipen` work-log identifiers,

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { atomicWriteFileSync } from "../atomic-write"
 
 import {
   probePosixProcesses,
@@ -54,8 +55,7 @@ export function readOrphanRegistry(registryPath: string): OrphanEntry[] {
 }
 
 export function writeOrphanRegistry(registryPath: string, entries: OrphanEntry[]): void {
-  fs.mkdirSync(path.dirname(registryPath), { recursive: true })
-  fs.writeFileSync(registryPath, JSON.stringify(entries, null, 2))
+  atomicWriteFileSync(registryPath, JSON.stringify(entries, null, 2))
 }
 
 function isOrphanEntry(value: unknown): value is OrphanEntry {
