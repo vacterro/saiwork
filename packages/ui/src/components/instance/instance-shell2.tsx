@@ -16,7 +16,6 @@ import IconButton from "@suid/material/IconButton"
 import useMediaQuery from "@suid/material/useMediaQuery"
 import type { Instance } from "../../types/instance"
 import type { Command } from "../../lib/commands"
-import type { BackgroundProcess } from "../../../../server/src/api-types"
 import { keyboardRegistry, type KeyboardShortcut } from "../../lib/keyboard-registry"
 import { confirmModelSend } from "../../lib/freebuff-send-guard"
 import { normalizeShortcutMessage } from "../../lib/saipen-commands"
@@ -51,8 +50,6 @@ import { formatTokenTotal } from "../../lib/formatters"
 import ContextMeter from "../context-meter"
 import { sseManager } from "../../lib/sse-manager"
 import { getLogger } from "../../lib/logger"
-import { serverApi } from "../../lib/api-client"
-import { loadBackgroundProcesses } from "../../stores/background-processes"
 import { BackgroundProcessOutputDialog } from "../background-process-output-dialog"
 import PromptInput from "../prompt-input"
 import { useI18n } from "../../lib/i18n"
@@ -94,6 +91,7 @@ import { useDrawerHostMeasure } from "./shell/useDrawerHostMeasure"
 import { useDrawerResize } from "./shell/useDrawerResize"
 import { useSessionCache } from "./shell/useSessionCache"
 import { useInstanceSessionContext } from "./shell/useInstanceSessionContext"
+import { useBackgroundProcesses } from "./shell/useBackgroundProcesses"
 import { isPermissionAutoAcceptEnabled } from "../../stores/permission-auto-accept"
 import { readClientLayoutValue, writeClientLayoutValue } from "../../stores/client-state"
 import { useNow } from "../../lib/hooks/use-now"
@@ -146,8 +144,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   const [sessionCenterEl, setSessionCenterEl] = createSignal<HTMLElement | null>(null)
   const [sessionCenterWidthStep, setSessionCenterWidthStep] = createSignal<SessionCenterWidthStep>("wide")
 
-  const [selectedBackgroundProcess, setSelectedBackgroundProcess] = createSignal<BackgroundProcess | null>(null)
-  const [showBackgroundOutput, setShowBackgroundOutput] = createSignal(false)
   const [permissionModalOpen, setPermissionModalOpen] = createSignal(false)
   const now = useNow()
   const [sessionPromptApis, setSessionPromptApis] = createSignal<Record<string, PromptInputApi | null>>({})
@@ -173,6 +169,15 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   } = useInstanceSessionContext({
     instanceId: () => props.instance.id,
   })
+
+  const {
+    selectedBackgroundProcess,
+    showBackgroundOutput,
+    openBackgroundOutput,
+    closeBackgroundOutput,
+    stopBackgroundProcess,
+    terminateBackgroundProcess,
+  } = useBackgroundProcesses({ instanceId: () => props.instance.id })
 
   const showingInfoView = createMemo(() => activeSessionIdForInstance() === "info")
   /** Exactly one real session (the "info" pseudo-view is not a session). */
@@ -359,13 +364,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
 
     document.addEventListener("pointerdown", handleFloatingDrawerPointerDown, true)
     onCleanup(() => document.removeEventListener("pointerdown", handleFloatingDrawerPointerDown, true))
-  })
-
-  createEffect(() => {
-    const instanceId = props.instance.id
-    loadBackgroundProcesses(instanceId).catch((error) => {
-      log.warn("Failed to load background processes", error)
-    })
   })
 
   onMount(() => {
@@ -654,32 +652,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
       },
     ]
   })
-
-  const openBackgroundOutput = (process: BackgroundProcess) => {
-    setSelectedBackgroundProcess(process)
-    setShowBackgroundOutput(true)
-  }
-
-  const closeBackgroundOutput = () => {
-    setShowBackgroundOutput(false)
-    setSelectedBackgroundProcess(null)
-  }
-
-  const stopBackgroundProcess = async (processId: string) => {
-    try {
-      await serverApi.stopBackgroundProcess(props.instance.id, processId)
-    } catch (error) {
-      log.warn("Failed to stop background process", error)
-    }
-  }
-
-  const terminateBackgroundProcess = async (processId: string) => {
-    try {
-      await serverApi.terminateBackgroundProcess(props.instance.id, processId)
-    } catch (error) {
-      log.warn("Failed to terminate background process", error)
-    }
-  }
 
   const instancePaletteCommands = createMemo(() => props.paletteCommands())
   const paletteOpen = createMemo(() => isCommandPaletteOpen(props.instance.id))

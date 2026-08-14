@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.31] - 2026-08-14
+
+References such as `T-093` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Shell extraction (T-093)
+
+- Background-process dialog state and lifecycle moved out of
+  `instance-shell2.tsx` into a focused `useBackgroundProcesses` hook: list
+  loading on instance change plus open/close/stop/terminate, with unit tests
+  covering the reload, the dialog state transitions, the server operations
+  (including swallowed failures) and a structural assertion that the shell no
+  longer orchestrates this concern.
+
 ## [0.1.30] - 2026-08-14
 
 References such as `T-738` below are internal `.saipen` work-log identifiers,
