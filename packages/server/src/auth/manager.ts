@@ -3,7 +3,7 @@ import path from "path"
 import type { Logger } from "../logger"
 import { AuthStore } from "./auth-store"
 import { TokenManager } from "./token-manager"
-import { SessionManager } from "./session-manager"
+import { SessionManager, type SessionManagerOptions } from "./session-manager"
 import { isLoopbackAddress, parseCookies } from "./http-auth"
 
 export const BOOTSTRAP_TOKEN_STDOUT_PREFIX = "SAIWORK_BOOTSTRAP_TOKEN:" as const
@@ -17,18 +17,20 @@ export interface AuthManagerInit {
   generateToken: boolean
   dangerouslySkipAuth?: boolean
   cookieName?: string
+  sessionOptions?: SessionManagerOptions
 }
 
 export class AuthManager {
   private readonly authStore: AuthStore | null
   private readonly tokenManager: TokenManager | null
-  private readonly sessionManager = new SessionManager()
+  private readonly sessionManager: SessionManager
   private readonly cookieName: string
   private readonly authEnabled: boolean
 
   constructor(private readonly init: AuthManagerInit, private readonly logger: Logger) {
     this.cookieName = sanitizeCookieName(init.cookieName)
     this.authEnabled = !Boolean(init.dangerouslySkipAuth)
+    this.sessionManager = new SessionManager(init.sessionOptions)
 
     if (!this.authEnabled) {
       this.authStore = null
@@ -80,7 +82,8 @@ export class AuthManager {
 
   createSession(username: string) {
     if (!this.authEnabled) {
-      return { id: "auth-disabled", createdAt: Date.now(), username: this.init.username }
+      const now = Date.now()
+      return { id: "auth-disabled", createdAt: now, lastAccessAt: now, username: this.init.username }
     }
     return this.sessionManager.createSession(username)
   }
@@ -92,11 +95,19 @@ export class AuthManager {
     return this.requireAuthStore().getStatus()
   }
 
-  setPassword(password: string) {
+  setPasswordAndRotateSession(password: string) {
     if (!this.authEnabled) {
       throw new Error("Internal authentication is disabled")
     }
-    return this.requireAuthStore().setPassword({ password, markUserProvided: true })
+    const status = this.requireAuthStore().setPassword({ password, markUserProvided: true })
+    this.sessionManager.revokeAllSessions()
+    const session = this.sessionManager.createSession(status.username)
+    return { status, session }
+  }
+
+  revokeSession(sessionId: string): boolean {
+    if (!this.authEnabled) return false
+    return this.sessionManager.revokeSession(sessionId)
   }
 
   isLoopbackRequest(request: FastifyRequest): boolean {

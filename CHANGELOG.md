@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.27] - 2026-08-14
+
+References such as `T-736` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Auth session lifecycle (T-736)
+
+- Server-side sessions are bounded and expiring: idle sessions lapse after
+  24 hours, absolute age after 30 days, and a deterministic LRU cap keeps
+  the registry at most 128 sessions so repeated logins cannot grow it
+  without bound or push out the newest valid session.
+- Logout revokes the presented server-side session, so a copied cookie
+  fails after logout or expiry rather than surviving in another browser.
+- Password rotation revokes every existing session and replaces only the
+  caller's session with a fresh cookie: the caller stays signed in while
+  every other device is signed out.
+
 ## [0.1.26] - 2026-08-14
 
 References such as `T-734` below are internal `.saipen` work-log identifiers,

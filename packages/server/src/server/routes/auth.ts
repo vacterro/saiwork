@@ -134,6 +134,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps) {
   })
 
   app.post("/api/auth/logout", async (request, reply) => {
+    const session = deps.authManager.getSessionFromRequest(request)
+    if (session) {
+      deps.authManager.revokeSession(session.sessionId)
+    }
     deps.authManager.clearSessionCookieWithOptions(reply, { secure: isSecureRequest(request) })
     reply.send({ ok: true })
   })
@@ -147,7 +151,8 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps) {
 
     const body = PasswordSchema.parse(request.body ?? {})
     try {
-      const status = deps.authManager.setPassword(body.password)
+      const { status, session: replacementSession } = deps.authManager.setPasswordAndRotateSession(body.password)
+      deps.authManager.setSessionCookieWithOptions(reply, replacementSession.id, { secure: isSecureRequest(request) })
       reply.send({ ok: true, ...status })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
