@@ -13,7 +13,7 @@ const operations = (overrides: Partial<ServerShutdownOperations> = {}): ServerSh
   stopInstanceEventBridge() {}, stopSidecars() {}, stopClientConnections() {},
   stopRemoteProxySessions() {}, stopWorkspaces() {}, stopHttpServers() {}, stopReleaseMonitor() {},
   stopSaipenWatcher() {}, stopQueueManager() {}, stopFreebuffEngine() {}, stopOrphanCleanup() {},
-  stopBackgroundProcesses() {},
+  stopBackgroundProcesses() {}, stopSaipenAutoUpdate() {},
   ...overrides,
 })
 
@@ -80,6 +80,18 @@ describe("server shutdown orchestration", () => {
     assert.equal(workspaceStarted, true)
     releasePreliminary()
     await shutdown
+  })
+
+  it("stops the SAIPEN auto-update timer even when another operation fails", async () => {
+    const stopped: string[] = []
+    await assert.rejects(orchestrateServerShutdown(operations({
+      stopSaipenAutoUpdate: () => { stopped.push("auto-update") },
+      stopWorkspaces: () => { throw new Error("workspace shutdown failed") },
+    }), logger), (error: unknown) => {
+      assert.ok(error instanceof AggregateError)
+      return true
+    })
+    assert.deepEqual(stopped, ["auto-update"], "auto-update must stop during shutdown despite the workspace failure")
   })
 })
 

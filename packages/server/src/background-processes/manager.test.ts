@@ -67,7 +67,7 @@ function createFakeChild(): ChildProcess {
   child.stdout = new PassThrough()
   child.stderr = new PassThrough()
   child.stdin = null
-  child.pid = undefined
+  child.pid = 42000
   child.killed = false
   child.kill = () => {
     child.killed = true
@@ -466,6 +466,124 @@ describe("BackgroundProcessManager failure containment", () => {
   })
 })
 
+describe("BackgroundProcessManager structural index validation", () => {
+  const validRecord = (overrides: Record<string, unknown> = {}) => ({
+    id: "proc_20260814_test",
+    workspaceId: WORKSPACE_ID,
+    title: "test",
+    command: "echo hi",
+    cwd: "/work",
+    status: "stopped",
+    startedAt: "2026-08-14T00:00:00.000Z",
+    outputSizeBytes: 0,
+    ...overrides,
+  })
+
+  async function seedIndex(workspacePath: string, records: unknown[]) {
+    const indexDir = path.join(workspacePath, ".saiwork", "background_processes", WORKSPACE_ID)
+    await fs.mkdir(indexDir, { recursive: true })
+    const indexPath = path.join(indexDir, "index.json")
+    const content = JSON.stringify(records)
+    await fs.writeFile(indexPath, content)
+    return { indexPath, content }
+  }
+
+  async function assertFailsClosed(records: unknown[], problem: RegExp) {
+    const harness = await createFailureHarness({ onSpawn: () => {} })
+    const { indexPath, content } = await seedIndex(harness.workspacePath, records)
+    try {
+      await assert.rejects(
+        harness.manager.start(WORKSPACE_ID, "invalid-index", "ignored"),
+        (error: unknown) => {
+          assert.ok(error instanceof BackgroundProcessIndexError, `expected BackgroundProcessIndexError, got ${String(error)}`)
+          assert.match(error.message, problem)
+          return true
+        },
+      )
+      assert.equal(await fs.readFile(indexPath, "utf-8"), content, "invalid index bytes must never be rewritten")
+    } finally {
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    }
+  }
+
+  it("accepts an empty index", async () => {
+    const harness = await createFailureHarness({ onSpawn: () => {} })
+    try {
+      await seedIndex(harness.workspacePath, [])
+      const records = await harness.manager.list(WORKSPACE_ID)
+      assert.deepEqual(records, [])
+    } finally {
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  it("rejects [{}] as structurally corrupt", async () => {
+    await assertFailsClosed([{}], /id is not a safe identifier/)
+  })
+
+  it("rejects a non-object id", async () => {
+    await assertFailsClosed([validRecord({ id: 123 })], /id is not a safe identifier/)
+  })
+
+  it("rejects a path-like hostile id", async () => {
+    await assertFailsClosed([validRecord({ id: "../../etc/passwd" })], /id is not a safe identifier/)
+  })
+
+  it("rejects duplicate ids", async () => {
+    await assertFailsClosed([validRecord(), validRecord()], /duplicate process id/)
+  })
+
+  it("rejects a workspace mismatch", async () => {
+    await assertFailsClosed([validRecord({ workspaceId: "other-ws" })], /does not match/)
+  })
+
+  it("rejects invalid status and invalid pid", async () => {
+    await assertFailsClosed([validRecord({ status: "banana" })], /invalid status/)
+    await assertFailsClosed([validRecord({ status: "running" })], /running process requires a positive integer pid/)
+    await assertFailsClosed([validRecord({ status: "running", pid: -4 })], /running process requires a positive integer pid/)
+  })
+
+  it("accepts a historical record with optional fields intact", async () => {
+    const harness = await createFailureHarness({ onSpawn: () => {} })
+    try {
+      await seedIndex(harness.workspacePath, [
+        validRecord({
+          status: "running",
+          pid: 1234,
+          outputDroppedBytes: 512,
+          notify: { sessionID: "sess-1", directory: "/work/.saiwork" },
+          terminalReason: "user_stopped",
+        }),
+      ])
+      const records = await harness.manager.list(WORKSPACE_ID)
+      assert.equal(records.length, 1)
+      assert.equal(records[0].id, "proc_20260814_test")
+    } finally {
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  it("preserves the existing index and rejects when the index write fails", async () => {
+    const harness = await createFailureHarness({
+      onSpawn: () => {},
+      writeIndex: async () => {
+        throw new Error("injected atomic index write failure")
+      },
+    })
+    try {
+      const { indexPath, content } = await seedIndex(harness.workspacePath, [validRecord()])
+      await assert.rejects(
+        harness.manager.start(WORKSPACE_ID, "write-fails", "ignored"),
+        /injected atomic index write failure/,
+      )
+      assert.equal(await fs.readFile(indexPath, "utf-8"), content, "old index must stay authoritative on a failed write")
+      assert.equal(harness.child.killed, true, "the child must not be left running when persistence fails")
+    } finally {
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    }
+  })
+})
+
 describe("BackgroundProcessManager ownership and shutdown", () => {
   it("shares exact child ownership across listener-facing references", async (t) => {
     const harness = await createOwnershipHarness()
@@ -632,9 +750,43 @@ describe("BackgroundProcessManager ownership and shutdown", () => {
     assert.deepEqual(harness.children[0]?.killCalls, ["SIGTERM"])
     assert.ok(harness.warnings.includes("Windows taskkill failed; falling back to the direct child"))
   })
+
+  it("bounds a hanging Windows taskkill and falls back to the exact child", async (t) => {
+    const taskkillCalls: any[][] = []
+    const harness = await createOwnershipHarness({
+      platform: "win32",
+      useInjectedKill: false,
+      spawnSyncProcess: (...args: any[]) => {
+        taskkillCalls.push(args)
+        const timeoutOption = (args[2] as Record<string, unknown> | undefined)?.timeout
+        assert.ok(typeof timeoutOption === "number" && timeoutOption > 0, "taskkill must carry a bounded timeout")
+        return {
+          status: null,
+          signal: null,
+          output: [],
+          pid: 1,
+          stdout: null,
+          stderr: null,
+          error: { code: "ETIMEDOUT", message: "spawn taskkill ETIMEDOUT", errno: -2, syscall: "spawn", path: "taskkill", spawnargs: [] },
+        }
+      },
+    })
+    t.after(async () => {
+      await harness.manager.shutdown()
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    })
+    const processRecord = await harness.manager.start(WORKSPACE_ID, "hanging-taskkill", "ignored")
+
+    await harness.manager.stop(WORKSPACE_ID, processRecord.id)
+
+    assert.equal(taskkillCalls.length, 1)
+    assert.ok(harness.warnings.some((message) => message.includes("taskkill timed out")))
+    assert.deepEqual(harness.children[0]?.killCalls, ["SIGTERM"], "the exact owned child is signalled after the timeout")
+  })
 })
 
 const OUTPUT_CAP_BYTES = 512 * 1024
+const OUTPUT_READ_HARD_CAP = 4 * 1024 * 1024
 
 async function createOutputHarness(options: { outputStreamIntervalMs?: number } = {}) {
   const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "bp-output-test-"))
@@ -771,5 +923,79 @@ describe("BackgroundProcessManager bounded output", () => {
     await waitFor(() => chunks.some((value) => value.includes('"type":"truncate"')), 8000)
 
     assert.ok(chunks.some((value) => value.includes('"type":"truncate"')))
+  })
+})
+
+describe("BackgroundProcessManager output read bounds", () => {
+  async function seedOutputFile(harness: Awaited<ReturnType<typeof createOutputHarness>>, content: Buffer) {
+    const outputPath = path.join(
+      harness.workspacePath,
+      ".saiwork",
+      "background_processes",
+      WORKSPACE_ID,
+      "proc_fixed",
+      "output.txt",
+    )
+    await fs.mkdir(path.dirname(outputPath), { recursive: true })
+    await fs.writeFile(outputPath, content)
+    return outputPath
+  }
+
+  it("honors maxBytes=1 and clamps an attacker maxBytes to the hard cap", async () => {
+    const harness = await createOutputHarness()
+    try {
+      const content = Buffer.alloc(OUTPUT_READ_HARD_CAP + 1024, 0x61)
+      await seedOutputFile(harness, content)
+
+      const tiny = await harness.manager.readOutput(WORKSPACE_ID, "proc_fixed", { maxBytes: 1 })
+      assert.ok(tiny.content.length <= 1, `maxBytes=1 read must stay bounded, got ${tiny.content.length}`)
+      assert.equal(tiny.truncated, true)
+
+      const attacker = await harness.manager.readOutput(WORKSPACE_ID, "proc_fixed", { maxBytes: OUTPUT_READ_HARD_CAP + 1 })
+      assert.ok(attacker.content.length <= OUTPUT_READ_HARD_CAP, "hard cap must win over client input")
+      assert.equal(attacker.truncated, true)
+
+      const atCap = await harness.manager.readOutput(WORKSPACE_ID, "proc_fixed", { maxBytes: OUTPUT_READ_HARD_CAP })
+      assert.ok(atCap.content.length <= OUTPUT_READ_HARD_CAP)
+    } finally {
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  it("bounds a huge legacy file read when maxBytes is omitted", async () => {
+    const harness = await createOutputHarness()
+    try {
+      const content = Buffer.alloc(2 * 1024 * 1024, 0x62)
+      await seedOutputFile(harness, content)
+      const result = await harness.manager.readOutput(WORKSPACE_ID, "proc_fixed", {})
+      assert.ok(result.content.length <= OUTPUT_CAP_BYTES, `default read must stay within the log cap`)
+      assert.equal(result.truncated, true)
+    } finally {
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    }
+  })
+
+  it("never starts a truncated tail with a UTF-8 replacement character", async () => {
+    const harness = await createOutputHarness()
+    try {
+      const emoji = Buffer.from("😀")
+      const prefix = Buffer.from("HEAD")
+      const rebuilt = Buffer.concat([prefix, ...Array.from({ length: 1000 }, () => emoji)])
+      await seedOutputFile(harness, rebuilt)
+
+      // Window of 5 bytes lands at [..80][F0 9F 98 80]: one leading
+      // continuation byte, then a complete emoji. It must decode to "😀"
+      // with no leading U+FFFD.
+      const result = await harness.manager.readOutput(WORKSPACE_ID, "proc_fixed", { maxBytes: 5 })
+      assert.equal(result.content.startsWith("\uFFFD"), false, "truncated tail must not begin with U+FFFD")
+      assert.equal(result.content, "😀")
+
+      const cyrillic = Buffer.from("АБВГД😀ежз")
+      await seedOutputFile(harness, cyrillic)
+      const cut = await harness.manager.readOutput(WORKSPACE_ID, "proc_fixed", { maxBytes: 3 })
+      assert.equal(cut.content.startsWith("\uFFFD"), false, "Cyrillic tail cut mid-codepoint must not start with U+FFFD")
+    } finally {
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    }
   })
 })

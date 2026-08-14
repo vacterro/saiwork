@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify"
 import { z } from "zod"
-import type { BackgroundProcessManager } from "../../background-processes/manager"
+import { BackgroundProcessManager, OUTPUT_READ_HARD_CAP } from "../../background-processes/manager"
 
 interface RouteDeps {
   backgroundProcessManager: BackgroundProcessManager
@@ -31,7 +31,7 @@ const OutputQuerySchema = z.object({
   mode: z.enum(["full", "tail", "head", "grep"]).optional(),
   pattern: z.string().optional(),
   lines: z.coerce.number().int().positive().max(2000).optional(),
-  maxBytes: z.coerce.number().int().positive().optional(),
+  maxBytes: z.coerce.number().int().positive().max(OUTPUT_READ_HARD_CAP).optional(),
 })
 
 export function registerBackgroundProcessRoutes(app: FastifyInstance, deps: RouteDeps) {

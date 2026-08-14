@@ -180,7 +180,7 @@ function killProbeTree(child: ChildProcess): void {
   }
   if (process.platform === "win32") {
     try {
-      spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" })
+      spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", timeout: 3000 })
     } catch {
       try {
         child.kill("SIGKILL")

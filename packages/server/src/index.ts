@@ -743,6 +743,7 @@ async function main() {
           },
           stopReleaseMonitor: () => devReleaseMonitor?.stop(),
           stopSaipenWatcher: () => saipenWatcher.stop(),
+          stopSaipenAutoUpdate: () => stopSaipenAutoUpdate?.(),
           stopQueueManager: () => queueManager.flush(),
           stopFreebuffEngine: () => freebuff.stop(),
           stopOrphanCleanup: () => orphanCleanup.stop(),

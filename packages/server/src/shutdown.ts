@@ -8,7 +8,7 @@ export const SERVER_SHUTDOWN_INCOMPLETE = "SAIWORK_SHUTDOWN_STATUS:incomplete"
 export type ServerShutdownOperations = Record<
   "stopInstanceEventBridge" | "stopSidecars" | "stopClientConnections" | "stopRemoteProxySessions" | "stopWorkspaces" |
   "stopHttpServers" | "stopReleaseMonitor" | "stopSaipenWatcher" | "stopQueueManager" | "stopFreebuffEngine" |
-  "stopOrphanCleanup" | "stopBackgroundProcesses",
+  "stopOrphanCleanup" | "stopBackgroundProcesses" | "stopSaipenAutoUpdate",
   ShutdownOperation
 >
 
@@ -80,6 +80,7 @@ export async function orchestrateServerShutdown(
     ["stopInstanceEventBridge", operations.stopInstanceEventBridge], ["stopSidecars", operations.stopSidecars],
     ["stopClientConnections", operations.stopClientConnections], ["stopRemoteProxySessions", operations.stopRemoteProxySessions],
     ["stopSaipenWatcher", operations.stopSaipenWatcher],
+    ["stopSaipenAutoUpdate", operations.stopSaipenAutoUpdate],
   ])
 
   // Stop coordinator-owned children before WorkspaceManager removes the

@@ -11,7 +11,13 @@ export function parseCookies(header: string | undefined): Record<string, string>
     const key = part.slice(0, index).trim()
     const value = part.slice(index + 1).trim()
     if (!key) continue
-    result[key] = decodeURIComponent(value)
+    try {
+      result[key] = decodeURIComponent(value)
+    } catch {
+      // Malformed percent-encoding in an untrusted cookie must never crash
+      // request handling; skip this cookie (it stays unauthenticated) and
+      // keep parsing the rest of the header.
+    }
   }
   return result
 }

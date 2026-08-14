@@ -81,7 +81,7 @@ export class BoundedOutputWriter {
     this.pending.push(data)
     this.pendingBytes = bytes + data.length
     this.chain = this.chain
-      .then(() => this.flush())
+      .then(() => this.processOne())
       .catch((error) => this.fail(error))
   }
 
@@ -100,7 +100,12 @@ export class BoundedOutputWriter {
     await this.closeFd()
   }
 
-  private async flush(): Promise<void> {
+  /** Await every queued write (used by tests to reach a settled state). */
+  async flush(): Promise<void> {
+    await this.chain
+  }
+
+  private async processOne(): Promise<void> {
     const data = this.pending.shift()
     if (!data || this.failed) return
     this.pendingBytes -= data.length
@@ -118,7 +123,7 @@ export class BoundedOutputWriter {
   }
 
   private async rotateIfNeeded(fd: FileHandle): Promise<boolean> {
-    if (this.offset <= this.retainBytes) return false
+    if (this.offset <= this.capBytes) return false
 
     const tail = Buffer.alloc(this.retainBytes)
     await fd.read(tail, 0, tail.length, this.offset - tail.length)

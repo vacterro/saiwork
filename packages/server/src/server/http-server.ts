@@ -9,6 +9,7 @@ import { connect as connectTls, type TLSSocket } from "tls"
 import { fetch, type Headers } from "undici"
 import type { Logger } from "../logger"
 import { WorkspaceManager } from "../workspaces/manager"
+import { sanitizeLogValue, LOG_REDACTED } from "../log-sanitize"
 
 import type { SettingsService } from "../settings/service"
 import { FileSystemBrowser } from "../filesystem/browser"
@@ -152,7 +153,17 @@ export function createHttpServer(deps: HttpServerDeps) {
     }
     apiLogger.debug(base, "HTTP request completed")
     if (apiLogger.isLevelEnabled("trace")) {
-      apiLogger.trace({ ...base, params: request.params, query: request.query, body: request.body }, "HTTP request payload")
+      const pathname = (request.url.split("?")[0] ?? "").trim()
+      const isAuthRoute = pathname.startsWith("/api/auth/")
+      apiLogger.trace(
+        {
+          ...base,
+          params: sanitizeLogValue(request.params),
+          query: sanitizeLogValue(request.query),
+          body: isAuthRoute ? LOG_REDACTED : sanitizeLogValue(request.body),
+        },
+        "HTTP request payload",
+      )
     }
     done()
   })
@@ -732,7 +743,7 @@ async function proxyWorkspaceRequest(args: {
 
   logger.debug({ workspaceId, method: request.method, targetUrl }, "Proxying request to instance")
   if (logger.isLevelEnabled("trace")) {
-    logger.trace({ workspaceId, targetUrl, body: request.body }, "Instance proxy payload")
+    logger.trace({ workspaceId, targetUrl, body: sanitizeLogValue(request.body) }, "Instance proxy payload")
   }
 
   return reply.from(targetUrl, {
@@ -761,7 +772,7 @@ async function proxyWorkspaceRequest(args: {
             method: request.method,
             targetUrl,
             contentType: request.headers["content-type"],
-            body: bodyToJson(request.body),
+            body: sanitizeLogValue(bodyToJson(request.body)),
             headers: outgoing,
           },
           "Proxy -> OpenCode request",

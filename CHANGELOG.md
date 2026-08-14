@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.33] - 2026-08-14
+
+References such as `T-739` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Surgical integrity hardening (T-739)
+
+- Trace logging can no longer persist secrets: a single `sanitizeLogValue`
+  boundary recursively redacts password/token/secret/API-key/authorization/
+  cookie/private-key fields, bounds every logged string, and the global and
+  instance-proxy trace paths plus auth routes are covered.
+- Background-process output rotation now triggers only after `capBytes` is
+  exceeded (it previously rotated at `retainBytes`, contradicting the
+  documented 512 KiB / 256 KiB contract), with exact-boundary tests.
+- The persisted background index is structurally validated and fails closed
+  (safe ids, exact workspace, valid status/pid/timestamps, no duplicates);
+  corrupt records never get rewritten. Index writes go through a shared
+  crash-atomic helper (same-directory temp, fsync, rename).
+- Output reads are hard-capped server-side regardless of client `maxBytes`,
+  and truncated tail windows never start on a broken multibyte codepoint.
+- Live output stream ticks are single-flight, so a slow read can never
+  overlap the next interval and duplicate a byte range or reorder a rotation
+  event.
+- Windows `taskkill` calls carry a bounded timeout and fall back to the exact
+  owned child; malformed percent-encoding in a cookie is skipped instead of
+  crashing the request.
+- The SAIPEN auto-update timer is wired into shutdown and cleared even when
+  another shutdown step fails.
+
 ## [0.1.32] - 2026-08-14
 
 References such as `T-097` below are internal `.saipen` work-log identifiers,

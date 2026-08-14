@@ -7,15 +7,20 @@ import type { WorkspaceManager } from "../workspaces/manager"
 import { createInstanceClient } from "../workspaces/instance-client"
 import type { Logger } from "../logger"
 import type { BackgroundProcess, BackgroundProcessStatus, BackgroundProcessTerminalReason } from "../api-types"
+import { atomicWriteFile } from "../atomic-write"
 import { BoundedOutputWriter, type BoundedOutputWriterOptions } from "./output-writer"
+import { SingleFlightTicker } from "./stream-ticker"
 
 const ROOT_DIR = ".saiwork/background_processes"
 const INDEX_FILE = "index.json"
 const OUTPUT_FILE = "output.txt"
 const STOP_TIMEOUT_MS = 2000
 const EXIT_WAIT_TIMEOUT_MS = 5000
+const TASKKILL_TIMEOUT_MS = 3000
 const OUTPUT_LOG_CAP_BYTES = 512 * 1024
 const OUTPUT_LOG_RETAIN_BYTES = 256 * 1024
+/** Hard ceiling for a single output read, regardless of client maxBytes. */
+export const OUTPUT_READ_HARD_CAP = 4 * 1024 * 1024
 const OUTPUT_PUBLISH_INTERVAL_MS = 1000
 const OUTPUT_STREAM_INTERVAL_MS = 1000
 
@@ -428,7 +433,8 @@ export class BackgroundProcessManager {
     const sizeBytes = stats.size
     const method = options.method ?? "full"
     const lineCount = options.lines ?? 10
-    const effectiveMaxBytes = options.maxBytes ?? OUTPUT_LOG_CAP_BYTES
+    const requestedMaxBytes = options.maxBytes ?? OUTPUT_LOG_CAP_BYTES
+    const effectiveMaxBytes = clampReadMaxBytes(requestedMaxBytes)
 
     const raw = await this.readOutputBytes(outputPath, sizeBytes, effectiveMaxBytes)
     let content = raw
@@ -495,14 +501,14 @@ export class BackgroundProcessManager {
       reply.raw.write(`data: ${JSON.stringify({ type: "chunk", content })}\n\n`)
     }
 
-    const interval = setInterval(() => {
-      tick().catch((error) => {
+    const ticker = new SingleFlightTicker(this.outputStreamIntervalMs, tick, (error) => {
+      if (!ticker.isClosed) {
         this.deps.logger.warn({ err: error }, "Failed to stream background process output")
-      })
-    }, this.outputStreamIntervalMs)
+      }
+    })
 
     const close = () => {
-      clearInterval(interval)
+      ticker.close()
       file.close().catch(() => undefined)
       reply.raw.end?.()
     }
@@ -597,7 +603,20 @@ export class BackgroundProcessManager {
     if (pid && this.platform === "win32") {
       const args = this.buildWindowsTaskkillArgs(pid, signal)
       try {
-        const result = (this.deps.spawnSyncProcess ?? spawnSync)("taskkill", args, { stdio: "ignore" })
+        const result = (this.deps.spawnSyncProcess ?? spawnSync)("taskkill", args, {
+          stdio: "ignore",
+          timeout: TASKKILL_TIMEOUT_MS,
+        })
+        const errno = result.error as NodeJS.ErrnoException | undefined
+        if (errno?.code === "ETIMEDOUT") {
+          if (reportFailure) {
+            this.deps.logger.warn(
+              { pid, signal },
+              `Windows taskkill timed out after ${TASKKILL_TIMEOUT_MS}ms; falling back to the direct child`,
+            )
+          }
+          return this.killDirectChild(child, signal, reportFailure)
+        }
         if (result.status === 0 && !result.error) return true
         if (reportFailure) {
           this.deps.logger.warn(
@@ -622,11 +641,15 @@ export class BackgroundProcessManager {
       }
     }
 
+    return this.killDirectChild(child, signal, reportFailure)
+  }
+
+  private killDirectChild(child: ChildProcess, signal: NodeJS.Signals, reportFailure: boolean): boolean {
     try {
       return child.kill(signal)
     } catch (error) {
       if (reportFailure) {
-        this.deps.logger.warn({ pid, signal, err: error }, "Failed to signal background process child")
+        this.deps.logger.warn({ err: error, signal }, "Failed to signal background process child")
       }
       return false
     }
@@ -797,7 +820,7 @@ export class BackgroundProcessManager {
     const buffer = Buffer.alloc(sizeBytes - start)
     await file.read(buffer, 0, buffer.length, start)
     await file.close()
-    return buffer.toString("utf-8")
+    return buffer.subarray(utf8TrimLeadingContinuationBytes(buffer)).toString("utf-8")
   }
 
   private headLines(input: string, lines: number): string {
@@ -872,7 +895,21 @@ export class BackgroundProcessManager {
         `Background process index is not an array at ${indexPath}`,
       )
     }
-    return parsed as PersistedBackgroundProcess[]
+
+    const seen = new Set<string>()
+    const records: PersistedBackgroundProcess[] = []
+    for (let index = 0; index < parsed.length; index += 1) {
+      const record = parsed[index]
+      const problem = validatePersistedRecord(record, workspaceId, seen)
+      if (problem) {
+        throw new BackgroundProcessIndexError(
+          `Background process index is structurally corrupt at ${indexPath} (record ${index}): ${problem}`,
+        )
+      }
+      seen.add((record as PersistedBackgroundProcess).id)
+      records.push(record as PersistedBackgroundProcess)
+    }
+    return records
   }
 
   private async upsertIndex(workspaceId: string, record: PersistedBackgroundProcess) {
@@ -898,12 +935,11 @@ export class BackgroundProcessManager {
 
   private async writeIndexUnlocked(workspaceId: string, records: PersistedBackgroundProcess[]) {
     const indexPath = await this.getIndexPath(workspaceId)
-    await fs.mkdir(path.dirname(indexPath), { recursive: true })
     if (this.deps.writeIndex) {
       await this.deps.writeIndex(indexPath, records)
       return
     }
-    await fs.writeFile(indexPath, JSON.stringify(records, null, 2))
+    await atomicWriteFile(indexPath, JSON.stringify(records, null, 2))
   }
 
   private async withWorkspaceTransaction<T>(workspaceId: string, operation: () => Promise<T>): Promise<T> {
@@ -1093,4 +1129,80 @@ export class BackgroundProcessManager {
 
 function defaultCreateOutputWriter(outputPath: string, options: BoundedOutputWriterOptions) {
   return new BoundedOutputWriter(outputPath, options)
+}
+
+function clampReadMaxBytes(requested: number): number {
+  if (!Number.isFinite(requested) || requested <= 0) return OUTPUT_LOG_CAP_BYTES
+  return Math.min(requested, OUTPUT_READ_HARD_CAP)
+}
+
+/**
+ * Index of the first UTF-8 codepoint boundary in `buffer`. Continuation bytes
+ * (0x80..0xBF) can only follow a leading byte, so a tail window that starts
+ * mid-codepoint begins with continuation bytes; trimming them means the
+ * decoded text never starts with a spurious U+FFFD from the cut.
+ */
+function utf8TrimLeadingContinuationBytes(buffer: Buffer): number {
+  let index = 0
+  while (index < buffer.length && buffer[index] >= 0x80 && buffer[index] <= 0xbf) {
+    index += 1
+  }
+  return index
+}
+
+const RECORD_ID_RE = /^[A-Za-z0-9._-]+$/
+const STATUS_ENUM = new Set<BackgroundProcessStatus>(["running", "stopped", "error"])
+
+/**
+ * Validate one persisted background-process record. Returns a human-readable
+ * problem or null when the record is canonical. The workspace must match the
+ * requested one, IDs must be safe non-path identifiers, required fields must
+ * be the right shapes, running processes must carry a positive PID, optional
+ * numeric fields must be finite nonnegative, and duplicate IDs are rejected.
+ * Historical optional fields (notify, stoppedAt, exitCode) stay optional.
+ */
+function validatePersistedRecord(
+  record: unknown,
+  workspaceId: string,
+  seenIds: Set<string>,
+): string | null {
+  if (typeof record !== "object" || record === null || Array.isArray(record)) {
+    return "record is not an object"
+  }
+  const value = record as Record<string, unknown>
+
+  if (typeof value.id !== "string" || !RECORD_ID_RE.test(value.id)) {
+    return `id is not a safe identifier: ${JSON.stringify(value.id)}`
+  }
+  if (seenIds.has(value.id)) {
+    return `duplicate process id: ${value.id}`
+  }
+  if (value.workspaceId !== workspaceId) {
+    return `workspaceId ${JSON.stringify(value.workspaceId)} does not match ${workspaceId}`
+  }
+  if (typeof value.title !== "string" || typeof value.command !== "string" || typeof value.cwd !== "string") {
+    return "title/command/cwd must be strings"
+  }
+  if (typeof value.status !== "string" || !STATUS_ENUM.has(value.status as BackgroundProcessStatus)) {
+    return `invalid status: ${JSON.stringify(value.status)}`
+  }
+  if (value.status === "running") {
+    if (typeof value.pid !== "number" || !Number.isSafeInteger(value.pid) || value.pid <= 0) {
+      return "running process requires a positive integer pid"
+    }
+  } else if (value.pid !== undefined && (typeof value.pid !== "number" || !Number.isSafeInteger(value.pid) || value.pid <= 0)) {
+    return "pid must be a positive integer when present"
+  }
+  if (typeof value.startedAt !== "string" || !Number.isFinite(Date.parse(value.startedAt))) {
+    return "startedAt must be a valid timestamp string"
+  }
+  if (value.stoppedAt !== undefined && (typeof value.stoppedAt !== "string" || !Number.isFinite(Date.parse(value.stoppedAt)))) {
+    return "stoppedAt must be a valid timestamp string when present"
+  }
+  for (const field of ["outputSizeBytes", "outputDroppedBytes"]) {
+    if (value[field] !== undefined && (typeof value[field] !== "number" || !Number.isFinite(value[field]) || value[field] < 0)) {
+      return `${field} must be a finite nonnegative number when present`
+    }
+  }
+  return null
 }
