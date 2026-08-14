@@ -1,9 +1,24 @@
 # Changelog
 
+## [0.1.38] - 2026-08-14
+
+References such as `T-096` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Live agent plan in the SAIPEN bar (T-096)
+
+- The PLAN tab now shows the agent's live plan (the current `latestTodoState`
+  rendered as a todo list) instead of only the `.saipen` roadmap plan files,
+  which remain the fallback when no live plan exists. The instance shell wires
+  its live-plan accessor into the bar; the empty state is localized in all 9
+  locales.
+
 ## [0.1.37] - 2026-08-14
 
 References such as `T-743` below are internal `.saipen` work-log identifiers,
 not Git commits or release history.
+
+### Performance audit
 
 ### Performance audit
 
