@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.40] - 2026-08-14
+
+References such as `T-745` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Audit wave 2 (T-745)
+
+- **Untrusted preview content is sandboxed**: remote preview HTML is framed
+  with `sandbox="allow-same-origin"` ONLY (scripts, forms, top-navigation and
+  popups disabled) and re-sandboxed server-side via a `Content-Security-Policy:
+  sandbox allow-same-origin` header, so preview JavaScript can never execute
+  with SAIWORK authority. SideCar frames keep their separate trust policy.
+- **Bounded preview proxy**: non-rewritten bodies stream with backpressure
+  instead of being fully buffered; HTML/CSS rewriting enforces an 8 MiB byte
+  cap; a 60 s upstream timeout and client-disconnect abort stop stalled or
+  never-ending upstreams.
+- **SideCar persistence is transactional and fail-closed**: create/update/
+  delete persist the tentative list before committing memory (a failed write
+  leaves memory and disk agreeing); malformed persisted records, duplicate
+  ids, invalid ports/kind/prefixMode/timestamps fail closed with
+  `SideCarConfigError` and are never silently overwritten.
+- **Truthful worktree deletion**: `DELETE /api/workspaces/:id/worktrees/:slug`
+  reports `{removed: true, mappingPruned: false}` when secondary map cleanup
+  fails, instead of claiming the removal failed after the worktree is gone.
+- **Plugin SSE is per-client and backpressure-safe**: every connection gets a
+  bounded sender, heartbeats are connection-scoped (N clients get N pings per
+  interval, not N²), overflow disconnects, and the initial voice-mode snapshot
+  goes only to the newly connected client.
+- **Collision-free connection keys**: one canonical JSON-encoded pair replaces
+  the duplicated `clientId:connectionId` concatenation, so `(a:b, c)` and
+  `(a, b:c)` are distinct connections everywhere.
+- **Deterministic cache invalidation**: the worktree-directory cache is
+  invalidated on workspace deletion and worktree create/remove; preview tokens
+  are bounded by cap, idle/absolute TTL and shutdown clearing.
+
 ## [0.1.39] - 2026-08-14
 
 References such as `T-744` below are internal `.saipen` work-log identifiers,
