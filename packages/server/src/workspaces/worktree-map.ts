@@ -2,6 +2,7 @@ import fs from "fs"
 import { promises as fsp } from "fs"
 import path from "path"
 import type { WorktreeMap } from "../api-types"
+import { atomicWriteFile } from "../atomic-write"
 import { resolveRepoRoot } from "./git-worktrees"
 import type { LogLike } from "./git-worktrees"
 
@@ -11,12 +12,51 @@ const DEFAULT_MAP: WorktreeMap = {
   parentSessionWorktreeSlug: {},
 }
 
+export class WorktreeMapCorruptionError extends Error {
+  constructor(message: string, readonly cause?: unknown) {
+    super(message)
+    this.name = "WorktreeMapCorruptionError"
+  }
+}
+
 function getMapPath(repoRoot: string): string {
   return path.join(repoRoot, ".saiwork", "worktreeMap.json")
 }
 
 function getGitExcludePath(repoRoot: string): string {
   return path.join(repoRoot, ".git", "info", "exclude")
+}
+
+/** Per-repo serialized read-modify-write lock. */
+const mapLocks = new Map<string, Promise<unknown>>()
+
+function withRepoLock<T>(repoRoot: string, operation: () => Promise<T>): Promise<T> {
+  const previous = mapLocks.get(repoRoot) ?? Promise.resolve()
+  const run = previous.catch(() => undefined).then(operation)
+  const tail = run.then(() => undefined, () => undefined)
+  mapLocks.set(repoRoot, tail)
+  return run.finally(() => {
+    if (mapLocks.get(repoRoot) === tail) mapLocks.delete(repoRoot)
+  })
+}
+
+/**
+ * Validate a worktree map completely. A wrong version, a missing/empty
+ * default slug, a non-plain parent mapping, or any invalid session id or
+ * worktree slug rejects the whole map; entries are never silently dropped.
+ */
+export function validateWorktreeMap(value: unknown): value is WorktreeMap {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  if (record.version !== 1) return false
+  if (typeof record.defaultWorktreeSlug !== "string" || record.defaultWorktreeSlug.trim() === "") return false
+  const mapping = record.parentSessionWorktreeSlug
+  if (typeof mapping !== "object" || mapping === null || Array.isArray(mapping)) return false
+  for (const [sessionId, slug] of Object.entries(mapping as Record<string, unknown>)) {
+    if (typeof sessionId !== "string" || sessionId.trim() === "") return false
+    if (typeof slug !== "string" || slug.trim() === "") return false
+  }
+  return true
 }
 
 async function ensureGitExclude(repoRoot: string, logger?: LogLike): Promise<void> {
@@ -67,24 +107,9 @@ export async function ensureSaiworkGitExclude(workspaceFolder: string, logger?: 
 export async function readWorktreeMap(workspaceFolder: string, logger?: LogLike): Promise<WorktreeMap> {
   const { repoRoot, isGitRepo } = await resolveRepoRoot(workspaceFolder, logger)
   const filePath = getMapPath(repoRoot)
+  let raw: string
   try {
-    const raw = await fsp.readFile(filePath, "utf-8")
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== "object") {
-      return DEFAULT_MAP
-    }
-    const version = (parsed as any).version
-    if (version !== 1) {
-      return DEFAULT_MAP
-    }
-    const defaultWorktreeSlug = typeof (parsed as any).defaultWorktreeSlug === "string" ? (parsed as any).defaultWorktreeSlug : "root"
-    const parentSessionWorktreeSlug = (parsed as any).parentSessionWorktreeSlug
-    const mapping = parentSessionWorktreeSlug && typeof parentSessionWorktreeSlug === "object" ? parentSessionWorktreeSlug : {}
-    return {
-      version: 1,
-      defaultWorktreeSlug,
-      parentSessionWorktreeSlug: { ...mapping },
-    }
+    raw = await fsp.readFile(filePath, "utf-8")
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (code === "ENOENT") {
@@ -92,11 +117,20 @@ export async function readWorktreeMap(workspaceFolder: string, logger?: LogLike)
         // Best-effort ignore setup on first use.
         await ensureGitExclude(repoRoot, logger).catch(() => undefined)
       }
-      return DEFAULT_MAP
+      return cloneMap(DEFAULT_MAP)
     }
-    logger?.warn?.({ err: error, filePath }, "Failed to read worktree map")
-    return DEFAULT_MAP
+    throw new WorktreeMapCorruptionError(`Worktree map is unreadable at ${filePath}`, error)
   }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (error) {
+    throw new WorktreeMapCorruptionError(`Worktree map is corrupt (invalid JSON) at ${filePath}`, error)
+  }
+  if (!validateWorktreeMap(parsed)) {
+    throw new WorktreeMapCorruptionError(`Worktree map has an invalid structure at ${filePath}`)
+  }
+  return cloneMap(parsed)
 }
 
 export async function writeWorktreeMap(workspaceFolder: string, next: WorktreeMap, logger?: LogLike): Promise<void> {
@@ -104,37 +138,54 @@ export async function writeWorktreeMap(workspaceFolder: string, next: WorktreeMa
   const filePath = getMapPath(repoRoot)
   await fsp.mkdir(path.dirname(filePath), { recursive: true })
 
-  // Ensure ignore rules are present (local-only).
   if (isGitRepo) {
     await ensureGitExclude(repoRoot, logger).catch(() => undefined)
   }
 
-  if (Object.keys(next.parentSessionWorktreeSlug ?? {}).length === 0) {
+  // Validate the incoming map before persisting anything.
+  if (!validateWorktreeMap(next)) {
+    throw new WorktreeMapCorruptionError("Refusing to persist an invalid worktree map")
+  }
+
+  if (Object.keys(next.parentSessionWorktreeSlug).length === 0) {
     await deleteWorktreeMap(workspaceFolder, logger)
     return
   }
 
-  const payload: WorktreeMap = {
-    version: 1,
-    defaultWorktreeSlug: next.defaultWorktreeSlug || "root",
-    parentSessionWorktreeSlug: next.parentSessionWorktreeSlug ?? {},
-  }
-
-  // Write atomically.
-  const tmpPath = `${filePath}.${process.pid}.tmp`
-  await fsp.writeFile(tmpPath, JSON.stringify(payload, null, 2), "utf-8")
-  await fsp.rename(tmpPath, filePath)
+  await withRepoLock(repoRoot, async () => {
+    // Never silently overwrite a corrupt existing map with a believable empty one.
+    if (fs.existsSync(filePath)) {
+      let raw: string
+      try {
+        raw = await fsp.readFile(filePath, "utf-8")
+      } catch (error) {
+        throw new WorktreeMapCorruptionError(`Worktree map is unreadable at ${filePath}`, error)
+      }
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(raw)
+      } catch (error) {
+        throw new WorktreeMapCorruptionError(`Worktree map is corrupt (invalid JSON) at ${filePath}; refusing to overwrite`, error)
+      }
+      if (!validateWorktreeMap(parsed)) {
+        throw new WorktreeMapCorruptionError(`Worktree map has an invalid structure at ${filePath}; refusing to overwrite`)
+      }
+    }
+    await atomicWriteFile(filePath, JSON.stringify(next, null, 2))
+  })
 }
 
 export async function deleteWorktreeMap(workspaceFolder: string, logger?: LogLike): Promise<void> {
   const { repoRoot } = await resolveRepoRoot(workspaceFolder, logger)
   const filePath = getMapPath(repoRoot)
-  try {
-    await fsp.rm(filePath, { force: true })
-  } catch (error) {
-    logger?.warn?.({ err: error, filePath }, "Failed to delete worktree map")
-    throw error
-  }
+  await withRepoLock(repoRoot, async () => {
+    try {
+      await fsp.rm(filePath, { force: true })
+    } catch (error) {
+      logger?.warn?.({ err: error, filePath }, "Failed to delete worktree map")
+      throw error
+    }
+  })
 }
 
 export function worktreeMapExists(repoRoot: string): boolean {
@@ -142,5 +193,13 @@ export function worktreeMapExists(repoRoot: string): boolean {
     return fs.existsSync(getMapPath(repoRoot))
   } catch {
     return false
+  }
+}
+
+function cloneMap(map: WorktreeMap): WorktreeMap {
+  return {
+    version: map.version,
+    defaultWorktreeSlug: map.defaultWorktreeSlug,
+    parentSessionWorktreeSlug: { ...map.parentSessionWorktreeSlug },
   }
 }
