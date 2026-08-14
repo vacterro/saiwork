@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from "child_process"
-import { createWriteStream, existsSync, promises as fs, type WriteStream } from "fs"
+import { existsSync, promises as fs } from "fs"
 import path from "path"
 import { randomBytes } from "crypto"
 import type { EventBus } from "../events/bus"
@@ -7,14 +7,17 @@ import type { WorkspaceManager } from "../workspaces/manager"
 import { createInstanceClient } from "../workspaces/instance-client"
 import type { Logger } from "../logger"
 import type { BackgroundProcess, BackgroundProcessStatus, BackgroundProcessTerminalReason } from "../api-types"
+import { BoundedOutputWriter, type BoundedOutputWriterOptions } from "./output-writer"
 
 const ROOT_DIR = ".saiwork/background_processes"
 const INDEX_FILE = "index.json"
 const OUTPUT_FILE = "output.txt"
 const STOP_TIMEOUT_MS = 2000
 const EXIT_WAIT_TIMEOUT_MS = 5000
-const MAX_OUTPUT_BYTES = 20 * 1024
+const OUTPUT_LOG_CAP_BYTES = 512 * 1024
+const OUTPUT_LOG_RETAIN_BYTES = 256 * 1024
 const OUTPUT_PUBLISH_INTERVAL_MS = 1000
+const OUTPUT_STREAM_INTERVAL_MS = 1000
 
 interface ManagerDeps {
   workspaceManager: WorkspaceManager
@@ -22,12 +25,13 @@ interface ManagerDeps {
   logger: Logger
   spawnProcess?: typeof spawn
   spawnSyncProcess?: typeof spawnSync
-  createOutputStream?: typeof createWriteStream
+  createOutputWriter?: (outputPath: string, options: BoundedOutputWriterOptions) => BoundedOutputWriter
   writeIndex?: (indexPath: string, records: PersistedBackgroundProcess[]) => Promise<void>
   killProcess?: (child: ChildProcess, signal: NodeJS.Signals) => void
   platform?: NodeJS.Platform
   stopTimeoutMs?: number
   exitWaitTimeoutMs?: number
+  outputStreamIntervalMs?: number
   setTimeoutFn?: typeof setTimeout
   clearTimeoutFn?: typeof clearTimeout
 }
@@ -157,7 +161,6 @@ export class BackgroundProcessManager {
     }
     const outputPath = path.join(processDir, OUTPUT_FILE)
 
-    const outputStream = (this.deps.createOutputStream ?? createWriteStream)(outputPath, { flags: "a" })
     let outputFailed = false
     let infrastructureError: unknown
     let child: ChildProcess | undefined
@@ -182,11 +185,18 @@ export class BackgroundProcessManager {
       requestInfrastructureStop()
     }
 
-    outputStream.on("error", (error) => {
-      outputFailed = true
-      if (!outputStream.destroyed) outputStream.destroy()
-      handleInfrastructureError(error, "Background process output stream failed")
-    })
+    const outputWriter = (this.deps.createOutputWriter ?? defaultCreateOutputWriter)(
+      outputPath,
+      {
+        capBytes: OUTPUT_LOG_CAP_BYTES,
+        retainBytes: OUTPUT_LOG_RETAIN_BYTES,
+        onError: (error) => {
+          outputFailed = true
+          handleInfrastructureError(error, "Background process output writer failed")
+          void outputWriter.destroy()
+        },
+      },
+    )
 
     const { shellCommand, shellArgs, spawnOptions } = this.buildShellSpawn(command)
 
@@ -200,7 +210,7 @@ export class BackgroundProcessManager {
         ...spawnOptions,
       })
     } catch (error) {
-      if (!outputStream.destroyed) outputStream.destroy()
+      await outputWriter.destroy()
       throw error
     }
     child = spawnedChild
@@ -227,6 +237,7 @@ export class BackgroundProcessManager {
       pid: spawnedChild.pid,
       startedAt: new Date().toISOString(),
       outputSizeBytes: 0,
+      outputDroppedBytes: 0,
       notify: options.notify && options.notification
         ? {
             sessionID: options.notification.sessionID,
@@ -272,7 +283,7 @@ export class BackgroundProcessManager {
         }
 
         try {
-          await this.closeOutputStream(outputStream, outputFailed)
+          await this.closeOutputWriter(outputWriter, outputFailed)
         } catch (error) {
           handleInfrastructureError(error, "Failed to close background process output")
         }
@@ -323,17 +334,19 @@ export class BackgroundProcessManager {
       this.publishUpdate(workspaceId, record)
     }
 
+    outputWriter.onWritten = ({ diskSize, droppedBytes }) => {
+      record.outputSizeBytes = diskSize
+      record.outputDroppedBytes = droppedBytes
+      maybePublishSize()
+    }
+
     spawnedChild.stdout?.on("data", (data) => {
       if (outputFailed) return
-      outputStream.write(data)
-      record.outputSizeBytes = (record.outputSizeBytes ?? 0) + data.length
-      maybePublishSize()
+      outputWriter.enqueue(data)
     })
     spawnedChild.stderr?.on("data", (data) => {
       if (outputFailed) return
-      outputStream.write(data)
-      record.outputSizeBytes = (record.outputSizeBytes ?? 0) + data.length
-      maybePublishSize()
+      outputWriter.enqueue(data)
     })
 
     initialPersistence = this.upsertIndex(workspaceId, record)
@@ -415,8 +428,9 @@ export class BackgroundProcessManager {
     const sizeBytes = stats.size
     const method = options.method ?? "full"
     const lineCount = options.lines ?? 10
+    const effectiveMaxBytes = options.maxBytes ?? OUTPUT_LOG_CAP_BYTES
 
-    const raw = await this.readOutputBytes(outputPath, sizeBytes, options.maxBytes)
+    const raw = await this.readOutputBytes(outputPath, sizeBytes, effectiveMaxBytes)
     let content = raw
 
     switch (method) {
@@ -436,11 +450,10 @@ export class BackgroundProcessManager {
         content = raw
     }
 
-    const effectiveMaxBytes = options.maxBytes
     return {
       id: processId,
       content,
-      truncated: effectiveMaxBytes !== undefined && sizeBytes > effectiveMaxBytes,
+      truncated: sizeBytes > effectiveMaxBytes,
       sizeBytes,
     }
   }
@@ -463,6 +476,14 @@ export class BackgroundProcessManager {
 
     const tick = async () => {
       const stats = await file.stat()
+      if (stats.size < position) {
+        // The on-disk log was rotated: older bytes were dropped, so a live
+        // client that buffered them must reset and re-receive the retained
+        // tail or it would accumulate unbounded renderer memory.
+        position = 0
+        reply.raw.write(`data: ${JSON.stringify({ type: "truncate" })}\n\n`)
+        return
+      }
       if (stats.size <= position) return
 
       const length = stats.size - position
@@ -478,7 +499,7 @@ export class BackgroundProcessManager {
       tick().catch((error) => {
         this.deps.logger.warn({ err: error }, "Failed to stream background process output")
       })
-    }, 1000)
+    }, this.outputStreamIntervalMs)
 
     const close = () => {
       clearInterval(interval)
@@ -733,30 +754,16 @@ export class BackgroundProcessManager {
     return this.deps.exitWaitTimeoutMs ?? EXIT_WAIT_TIMEOUT_MS
   }
 
-  private async closeOutputStream(outputStream: WriteStream, failed: boolean) {
-    if (failed || outputStream.destroyed) {
-      if (!outputStream.destroyed) outputStream.destroy()
-      if (outputStream.closed) return
-      await new Promise<void>((resolve) => outputStream.once("close", resolve))
+  private get outputStreamIntervalMs(): number {
+    return this.deps.outputStreamIntervalMs ?? OUTPUT_STREAM_INTERVAL_MS
+  }
+
+  private async closeOutputWriter(outputWriter: BoundedOutputWriter, failed: boolean) {
+    if (failed) {
+      await outputWriter.destroy()
       return
     }
-
-    await new Promise<void>((resolve, reject) => {
-      let settled = false
-      const complete = (error?: unknown) => {
-        if (settled) return
-        settled = true
-        outputStream.off("error", onError)
-        error ? reject(error) : resolve()
-      }
-      const onError = (error: unknown) => complete(error)
-      outputStream.once("error", onError)
-      try {
-        outputStream.end(() => complete())
-      } catch (error) {
-        complete(error)
-      }
-    })
+    await outputWriter.close()
   }
 
   private async recoverFailedFinalization(
@@ -982,6 +989,7 @@ export class BackgroundProcessManager {
       stoppedAt: record.stoppedAt,
       exitCode: record.exitCode,
       outputSizeBytes: record.outputSizeBytes,
+      outputDroppedBytes: record.outputDroppedBytes,
       terminalReason: record.terminalReason,
       notifyEnabled: Boolean(record.notify),
     }
@@ -1081,4 +1089,8 @@ export class BackgroundProcessManager {
     const random = randomBytes(3).toString("hex")
     return `proc_${timestamp}_${random}`
   }
+}
+
+function defaultCreateOutputWriter(outputPath: string, options: BoundedOutputWriterOptions) {
+  return new BoundedOutputWriter(outputPath, options)
 }

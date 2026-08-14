@@ -54,7 +54,7 @@ export function BackgroundProcessOutputDialog(props: BackgroundProcessOutputDial
         if (!active) return
 
         setRawOutput(response.content)
-        setTruncated(response.truncated)
+        setTruncated(response.truncated || Boolean(process.outputDroppedBytes))
 
         const detectedAnsi = hasAnsi(response.content)
         if (detectedAnsi) {
@@ -82,6 +82,17 @@ export function BackgroundProcessOutputDialog(props: BackgroundProcessOutputDial
     eventSource.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data) as { type?: string; content?: string }
+        if (payload?.type === "truncate") {
+          // The server dropped older output bytes; reset so the retained tail
+          // that streams back stays the whole buffer instead of accumulating
+          // on top of discarded head bytes.
+          setRawOutput("")
+          setOutputHtml("")
+          setAnsiEnabled(false)
+          ansiRenderer.reset()
+          setTruncated(true)
+          return
+        }
         if (payload?.type !== "chunk" || typeof payload.content !== "string") {
           return
         }

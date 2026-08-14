@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.28] - 2026-08-14
+
+References such as `T-735` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Bounded background-process output (T-735)
+
+- On-disk output is now bounded per process: the log rotates when it exceeds
+  512 KiB, keeping only the newest 256 KiB, and the in-memory write backlog
+  is capped, so a hostile or chatty child cannot grow disk or RSS without
+  limit.
+- Cumulative trimmed bytes are surfaced on the process record
+  (`outputDroppedBytes`) and the output dialog shows a truncation notice;
+  the live stream emits a truncate event on rotation so the dialog resets to
+  the retained tail instead of accumulating discarded head bytes in the
+  renderer.
+- Output reads default to a bounded window, so a legacy oversized log is
+  never read in full.
+
 ## [0.1.27] - 2026-08-14
 
 References such as `T-736` below are internal `.saipen` work-log identifiers,

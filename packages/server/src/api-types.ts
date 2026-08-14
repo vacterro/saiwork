@@ -579,6 +579,8 @@ export interface BackgroundProcess {
   stoppedAt?: string
   exitCode?: number
   outputSizeBytes?: number
+  /** Cumulative bytes trimmed from the head of the on-disk output log. */
+  outputDroppedBytes?: number
   terminalReason?: BackgroundProcessTerminalReason
   notifyEnabled?: boolean
 }

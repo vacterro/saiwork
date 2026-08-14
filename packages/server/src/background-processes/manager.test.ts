@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { EventEmitter } from "node:events"
-import { promises as fs, type WriteStream } from "node:fs"
+import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
 import { PassThrough } from "node:stream"
@@ -30,9 +30,36 @@ interface CapturedRequest {
 }
 
 interface FailureHarnessOptions {
-  onSpawn: (child: ChildProcess, outputStream: WriteStream) => void
+  onSpawn: (child: ChildProcess, outputWriter: FakeOutputWriter) => void
   writeIndex?: (indexPath: string, records: any[]) => Promise<void>
   spawnThrows?: boolean
+}
+
+class FakeOutputWriter {
+  destroyed = false
+  closed = false
+  droppedBytes = 0
+  private onError?: (error: unknown) => void
+
+  constructor(_outputPath: string) {}
+
+  setOnError(onError?: (error: unknown) => void) {
+    this.onError = onError
+  }
+
+  enqueue(_data: Buffer) {}
+
+  fail(error: unknown) {
+    this.onError?.(error)
+  }
+
+  async close() {
+    this.closed = true
+  }
+
+  async destroy() {
+    this.destroyed = true
+  }
 }
 
 function createFakeChild(): ChildProcess {
@@ -105,7 +132,6 @@ async function createOwnershipHarness(options: OwnershipHarnessOptions = {}) {
     eventBus,
     logger,
     spawnProcess,
-    createOutputStream: (() => new PassThrough() as unknown as WriteStream) as any,
     writeIndex: options.writeIndex,
     platform: options.platform ?? "linux",
     spawnSyncProcess: options.spawnSyncProcess as any,
@@ -124,7 +150,7 @@ async function createOwnershipHarness(options: OwnershipHarnessOptions = {}) {
 async function createFailureHarness(options: FailureHarnessOptions) {
   const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "bp-failure-test-"))
   const child = createFakeChild()
-  const outputStream = new PassThrough() as unknown as WriteStream
+  const outputWriter = new FakeOutputWriter(path.join(workspacePath, "output.txt"))
   const updates: any[] = []
   const warnings: string[] = []
   let resolveTerminal = () => {}
@@ -170,17 +196,20 @@ async function createFailureHarness(options: FailureHarnessOptions) {
           throw new Error("injected spawn failure")
         }) as any
       : (() => {
-          options.onSpawn(child, outputStream)
+          options.onSpawn(child, outputWriter)
           return child
         }) as any,
-    createOutputStream: (() => outputStream) as any,
+    createOutputWriter: ((_outputPath: string, options: any) => {
+      outputWriter.setOnError(options.onError)
+      return outputWriter
+    }) as any,
     writeIndex: options.writeIndex,
     killProcess: (target) => {
       ;(target as any).killed = true
     },
   })
 
-  return { manager, child, outputStream, terminal, updates, warnings, workspacePath }
+  return { manager, child, outputWriter, terminal, updates, warnings, workspacePath }
 }
 
 /**
@@ -337,10 +366,10 @@ describe("BackgroundProcessManager failure containment", () => {
     assert.ok(harness.updates.some((record) => record.status === "error"))
   })
 
-  it("stops and finalizes after an output stream error", { timeout: TERMINAL_TIMEOUT_MS }, async (t) => {
+  it("stops and finalizes after an output writer error", { timeout: TERMINAL_TIMEOUT_MS }, async (t) => {
     const harness = await createFailureHarness({
-      onSpawn: (_child, outputStream) => {
-        queueMicrotask(() => outputStream.emit("error", new Error("injected output failure")))
+      onSpawn: (_child, outputWriter) => {
+        queueMicrotask(() => outputWriter.fail(new Error("injected output failure")))
       },
     })
     t.after(() => fs.rm(harness.workspacePath, { recursive: true, force: true }))
@@ -348,7 +377,7 @@ describe("BackgroundProcessManager failure containment", () => {
     const started = await harness.manager.start(WORKSPACE_ID, "output-failure", "ignored")
     assert.equal(started.status, "running")
     assert.equal(harness.child.killed, true)
-    assert.equal(harness.outputStream.destroyed, true)
+    assert.equal(harness.outputWriter.destroyed, true)
     assert.equal(harness.updates.some((record) => record.status === "error"), false)
 
     harness.child.emit("close", 1, null)
@@ -393,7 +422,7 @@ describe("BackgroundProcessManager failure containment", () => {
     t.after(() => fs.rm(harness.workspacePath, { recursive: true, force: true }))
 
     await assert.rejects(harness.manager.start(WORKSPACE_ID, "spawn-failure", "ignored"), /injected spawn failure/)
-    assert.equal(harness.outputStream.destroyed, true)
+    assert.equal(harness.outputWriter.destroyed, true)
     const records = await harness.manager.list(WORKSPACE_ID)
     assert.deepEqual(records, [])
   })
@@ -602,5 +631,145 @@ describe("BackgroundProcessManager ownership and shutdown", () => {
     assert.deepEqual(taskkillCalls[0]?.slice(0, 2), ["taskkill", ["/PID", String(harness.children[0]?.pid), "/T"]])
     assert.deepEqual(harness.children[0]?.killCalls, ["SIGTERM"])
     assert.ok(harness.warnings.includes("Windows taskkill failed; falling back to the direct child"))
+  })
+})
+
+const OUTPUT_CAP_BYTES = 512 * 1024
+
+async function createOutputHarness(options: { outputStreamIntervalMs?: number } = {}) {
+  const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "bp-output-test-"))
+  const child = createFakeChild() as any
+  child.kill = (signal: NodeJS.Signals = "SIGTERM") => {
+    child.killed = true
+    queueMicrotask(() => child.emit("close", null, signal))
+    return true
+  }
+  const updates: any[] = []
+  const eventBus = {
+    on: () => {},
+    off: () => {},
+    publish: (event: any) => {
+      const processRecord = event?.event?.properties?.process
+      if (processRecord) updates.push(processRecord)
+      return true
+    },
+  } as unknown as EventBus
+  const logger = {
+    warn: () => {},
+    debug: () => {},
+    trace: () => {},
+    info: () => {},
+    error: () => {},
+    fatal: () => {},
+    isLevelEnabled: () => false,
+    level: "info",
+    child: () => logger,
+  } as unknown as Logger
+  const workspaceManager = {
+    get: () => ({ path: workspacePath }),
+  } as unknown as WorkspaceManager
+
+  const manager = new BackgroundProcessManager({
+    workspaceManager,
+    eventBus,
+    logger,
+    spawnProcess: (() => child) as any,
+    outputStreamIntervalMs: options.outputStreamIntervalMs,
+  })
+  return { manager, child, updates, workspacePath, raw: undefined as EventEmitter | undefined }
+}
+
+function outputPathFor(workspacePath: string, processId: string) {
+  return path.join(workspacePath, ".saiwork", "background_processes", WORKSPACE_ID, processId, "output.txt")
+}
+
+async function waitFor(condition: () => boolean | Promise<boolean>, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs
+  while (!(await condition())) {
+    if (Date.now() > deadline) {
+      throw new Error("waitFor timed out")
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+describe("BackgroundProcessManager bounded output", () => {
+  it("keeps a chatty child's on-disk output within the cap and reports dropped bytes", { timeout: 15000 }, async (t) => {
+    const harness = await createOutputHarness()
+    t.after(async () => {
+      await harness.manager.shutdown()
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    })
+
+    const processRecord = await harness.manager.start(WORKSPACE_ID, "chatty", "ignored")
+    const chunk = Buffer.alloc(512, 0x61)
+    for (let i = 0; i < 2600; i += 1) {
+      harness.child.stdout.write(chunk)
+    }
+
+    await waitFor(() => harness.updates.some((record) => record.outputDroppedBytes > 0))
+
+    const published = harness.updates.find((record) => record.outputDroppedBytes > 0)
+    assert.ok(published.outputDroppedBytes > 0)
+    assert.ok(published.outputSizeBytes <= OUTPUT_CAP_BYTES, `retained size ${published.outputSizeBytes} exceeds cap`)
+
+    const onDisk = await fs.stat(outputPathFor(harness.workspacePath, processRecord.id))
+    assert.ok(onDisk.size <= OUTPUT_CAP_BYTES, `disk size ${onDisk.size} exceeds cap`)
+
+    const output = await harness.manager.readOutput(WORKSPACE_ID, processRecord.id, {})
+    assert.ok(output.content.length > 0)
+    assert.ok(output.content.length <= OUTPUT_CAP_BYTES)
+    assert.equal(output.content[output.content.length - 1], "a")
+  })
+
+  it("emits a truncate event and resumes from the retained tail after rotation", { timeout: 15000 }, async (t) => {
+    const harness = await createOutputHarness({ outputStreamIntervalMs: 10 })
+    t.after(async () => {
+      harness.raw?.emit("close")
+      await harness.manager.shutdown()
+      await fs.rm(harness.workspacePath, { recursive: true, force: true })
+    })
+
+    const processRecord = await harness.manager.start(WORKSPACE_ID, "streaming", "ignored")
+    const chunks: string[] = []
+    const raw = new EventEmitter() as any
+    raw.setHeader = () => {}
+    raw.flushHeaders = () => {}
+    raw.end = () => {}
+    raw.write = (value: string) => { chunks.push(String(value)) }
+    const reply: any = {
+      raw,
+      code: () => reply,
+      send: () => {},
+      hijack: () => {},
+    }
+    harness.raw = raw
+
+    const chunk = Buffer.alloc(512, 0x61)
+    for (let i = 0; i < 60; i += 1) {
+      harness.child.stdout.write(chunk)
+    }
+    const outputPath = outputPathFor(harness.workspacePath, processRecord.id)
+    await waitFor(async () => {
+      try {
+        await fs.stat(outputPath)
+        return true
+      } catch {
+        return false
+      }
+    })
+
+    await harness.manager.streamOutput(WORKSPACE_ID, processRecord.id, reply)
+    for (let i = 0; i < 20; i += 1) {
+      harness.child.stdout.write(chunk)
+    }
+    await waitFor(() => chunks.some((value) => value.includes('"type":"chunk"')))
+
+    for (let i = 0; i < 2600; i += 1) {
+      harness.child.stdout.write(chunk)
+    }
+    await waitFor(() => chunks.some((value) => value.includes('"type":"truncate"')), 8000)
+
+    assert.ok(chunks.some((value) => value.includes('"type":"truncate"')))
   })
 })
