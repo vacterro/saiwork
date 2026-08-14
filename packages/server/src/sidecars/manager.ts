@@ -25,14 +25,30 @@ interface SideCarRuntimeRecord {
   status: SideCarStatus
 }
 
+/** Raised when persisted `server.sidecars` is structurally invalid. Fail-closed:
+ * the manager refuses to construct runtime state from corrupt bytes and blocks
+ * every mutation so the corruption can never be silently overwritten. */
+export class SideCarConfigError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "SideCarConfigError"
+  }
+}
+
 export class SideCarManager {
   private readonly configs = new Map<string, SideCarConfigRecord>()
   private readonly runtime = new Map<string, SideCarRuntimeRecord>()
+  private readonly configError: SideCarConfigError | null
 
   constructor(private readonly options: SideCarManagerOptions) {
-    for (const record of this.loadConfiguredSideCars()) {
-      this.configs.set(record.id, record)
-      this.runtime.set(record.id, { status: "stopped" })
+    try {
+      for (const record of this.loadConfiguredSideCars()) {
+        this.configs.set(record.id, record)
+        this.runtime.set(record.id, { status: "stopped" })
+      }
+      this.configError = null
+    } catch (error) {
+      this.configError = error instanceof SideCarConfigError ? error : new SideCarConfigError(String(error))
     }
 
     queueMicrotask(() => {
@@ -44,12 +60,18 @@ export class SideCarManager {
     })
   }
 
+  private assertOperational(): void {
+    if (this.configError) throw this.configError
+  }
+
   async list(): Promise<SideCar[]> {
+    this.assertOperational()
     await this.refreshPortStatuses()
     return Array.from(this.configs.values()).map((record) => this.toSideCar(record))
   }
 
   async get(id: string): Promise<SideCar | undefined> {
+    this.assertOperational()
     if (!this.configs.has(id)) return undefined
     await this.refreshPortSideCar(id)
     return this.toSideCar(this.requireConfig(id))
@@ -62,6 +84,7 @@ export class SideCarManager {
     insecure: boolean
     prefixMode: SideCarPrefixMode
   }): Promise<SideCar> {
+    this.assertOperational()
     const normalizedName = input.name.trim()
     const id = this.buildSideCarId(normalizedName)
     if (this.configs.has(id)) {
@@ -80,9 +103,12 @@ export class SideCarManager {
       updatedAt: now,
     }
 
+    // Transactional: persist the tentative list FIRST. Only after the durable
+    // write succeeds do we commit the in-memory record, so a persistence
+    // failure leaves memory and disk agreeing (neither contains the record).
+    this.persistTentative([...this.configs.values(), record])
     this.configs.set(record.id, record)
     this.runtime.set(record.id, { status: "stopped" })
-    this.persistConfigs()
     await this.refreshPortSideCar(record.id)
     return this.toSideCar(record)
   }
@@ -96,26 +122,32 @@ export class SideCarManager {
       prefixMode: SideCarPrefixMode
     }>,
   ): Promise<SideCar> {
-    const record = this.requireConfig(id)
+    this.assertOperational()
+    const current = this.requireConfig(id)
+    // Clone instead of mutating the live record: the tentative version is what
+    // gets persisted, and memory only adopts it after the write succeeds.
+    const updated: SideCarConfigRecord = {
+      ...current,
+      name: typeof input.name === "string" ? input.name.trim() : current.name,
+      port: typeof input.port === "number" ? input.port : current.port,
+      insecure: typeof input.insecure === "boolean" ? input.insecure : current.insecure,
+      prefixMode: typeof input.prefixMode === "string" ? input.prefixMode : current.prefixMode,
+      updatedAt: new Date().toISOString(),
+    }
 
-    record.name = typeof input.name === "string" ? input.name.trim() : record.name
-    record.port = typeof input.port === "number" ? input.port : record.port
-    record.insecure = typeof input.insecure === "boolean" ? input.insecure : record.insecure
-    record.prefixMode = typeof input.prefixMode === "string" ? input.prefixMode : record.prefixMode
-    record.updatedAt = new Date().toISOString()
-
-    this.persistConfigs()
+    this.persistTentative([...this.configs.values()].map((record) => (record.id === id ? updated : record)))
+    this.configs.set(id, updated)
     await this.refreshPortSideCar(id)
-    return this.toSideCar(record)
+    return this.toSideCar(updated)
   }
 
   async delete(id: string): Promise<boolean> {
-    const record = this.configs.get(id)
-    if (!record) return false
+    this.assertOperational()
+    if (!this.configs.has(id)) return false
 
+    this.persistTentative([...this.configs.values()].filter((record) => record.id !== id))
     this.configs.delete(id)
     this.runtime.delete(id)
-    this.persistConfigs()
     this.options.eventBus.publish({ type: "sidecar.removed", sidecarId: id })
     return true
   }
@@ -199,29 +231,62 @@ export class SideCarManager {
     return record
   }
 
-  private persistConfigs() {
-    const sidecars = Array.from(this.configs.values()).map((record) => ({ ...record }))
+  private persistTentative(records: SideCarConfigRecord[]) {
+    const sidecars = records.map((record) => ({ ...record }))
     this.options.settings.mergePatchOwner("config", "server", { sidecars })
   }
 
   private loadConfiguredSideCars(): SideCarConfigRecord[] {
     const serverConfig = this.options.settings.getOwner("config", "server") as { sidecars?: unknown }
-    const list = Array.isArray(serverConfig?.sidecars) ? serverConfig.sidecars : []
-    const records: SideCarConfigRecord[] = []
-    for (const item of list) {
-      if (!item || typeof item !== "object") continue
-      const record = item as Record<string, unknown>
-      const kind = record.kind === "port" ? "port" : null
-      const id = typeof record.id === "string" && record.id.trim() ? record.id.trim() : null
-      const name = typeof record.name === "string" && record.name.trim() ? record.name.trim() : null
-      const port = typeof record.port === "number" && Number.isInteger(record.port) ? record.port : null
-      if (!kind || !id || !name || !port) continue
+    if (serverConfig?.sidecars === undefined) return []
+    const list = serverConfig.sidecars
+    if (!Array.isArray(list)) {
+      throw new SideCarConfigError("server.sidecars must be an array")
+    }
 
+    const seen = new Set<string>()
+    const records: SideCarConfigRecord[] = []
+    for (const [index, item] of list.entries()) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        throw new SideCarConfigError(`server.sidecars[${index}] must be an object`)
+      }
+      const record = item as Record<string, unknown>
+      if (record.kind !== "port") {
+        throw new SideCarConfigError(`server.sidecars[${index}].kind must be "port"`)
+      }
+      const id = typeof record.id === "string" ? record.id.trim() : ""
+      if (!id) {
+        throw new SideCarConfigError(`server.sidecars[${index}].id must be a non-empty string`)
+      }
+      if (seen.has(id)) {
+        throw new SideCarConfigError(`server.sidecars contains a duplicate id '${id}'`)
+      }
+      seen.add(id)
+      const name = typeof record.name === "string" ? record.name.trim() : ""
+      if (!name) {
+        throw new SideCarConfigError(`server.sidecars[${index}].name must be a non-empty string`)
+      }
+      const port = record.port
+      if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new SideCarConfigError(`server.sidecars[${index}].port must be an integer in 1..65535`)
+      }
+      if (record.prefixMode !== "preserve" && record.prefixMode !== "strip") {
+        throw new SideCarConfigError(`server.sidecars[${index}].prefixMode must be "preserve" or "strip"`)
+      }
+      // Explicitly-supported legacy optional fields are normalized; everything
+      // else above is required and strict. Timestamps must be valid ISO dates
+      // when present (missing ones get a stable default).
       const insecure = record.insecure === true
-      const prefixMode = record.prefixMode === "preserve" ? "preserve" : "strip"
-      const createdAt = typeof record.createdAt === "string" && record.createdAt ? record.createdAt : new Date().toISOString()
-      const updatedAt = typeof record.updatedAt === "string" && record.updatedAt ? record.updatedAt : createdAt
-      records.push({ id, kind, name, port, insecure, prefixMode, createdAt, updatedAt })
+      const createdAt = typeof record.createdAt === "string" && record.createdAt ? record.createdAt : null
+      if (createdAt !== null && Number.isNaN(Date.parse(createdAt))) {
+        throw new SideCarConfigError(`server.sidecars[${index}].createdAt must be a valid ISO timestamp`)
+      }
+      const finalCreatedAt = createdAt ?? new Date().toISOString()
+      const updatedAt = typeof record.updatedAt === "string" && record.updatedAt ? record.updatedAt : finalCreatedAt
+      if (Number.isNaN(Date.parse(updatedAt))) {
+        throw new SideCarConfigError(`server.sidecars[${index}].updatedAt must be a valid ISO timestamp`)
+      }
+      records.push({ id, kind: "port", name, port, insecure, prefixMode: record.prefixMode, createdAt: finalCreatedAt, updatedAt })
     }
     return records
   }

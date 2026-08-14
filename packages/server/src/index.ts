@@ -748,6 +748,7 @@ async function main() {
           stopQueueManager: () => queueManager.flush(),
           stopFreebuffEngine: () => freebuff.stop(),
           stopOrphanCleanup: () => orphanCleanup.stop(),
+          stopPreviews: () => previewManager.clear(),
         },
         logger,
       ),

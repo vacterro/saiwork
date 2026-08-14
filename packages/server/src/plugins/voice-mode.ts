@@ -1,6 +1,6 @@
 import type { Logger } from "../logger"
-import type { ClientConnectionManager, ClientConnectionRef } from "../clients/connection-manager"
-import type { PluginChannelManager } from "./channel"
+import { connectionKey, type ClientConnectionManager, type ClientConnectionRef } from "../clients/connection-manager"
+import type { PluginChannelManager, PluginOutboundEvent } from "./channel"
 
 interface VoiceModeManagerOptions {
   connections: ClientConnectionManager
@@ -28,7 +28,7 @@ export class VoiceModeManager {
       return false
     }
 
-    const key = getConnectionKey(connection)
+    const key = connectionKey(connection)
     const current = this.enabledConnectionsByInstance.get(instanceId) ?? new Set<string>()
 
     if (enabled) {
@@ -47,8 +47,16 @@ export class VoiceModeManager {
     return true
   }
 
-  syncInstance(instanceId: string): void {
-    this.options.channel.send(instanceId, buildVoiceModeEvent(this.isEnabled(instanceId)))
+  /**
+   * Send the current voice-mode snapshot to ONE newly registered connection
+   * only. Never use workspace-wide channel.send here: on a reconnect storm the
+   * "initial state for the new client" would be rebroadcast to every
+   * already-connected client, fabricating duplicate synthetic transitions.
+   * Workspace-wide publish is reserved for real aggregate state transitions
+   * (publishIfChanged).
+   */
+  syncInstance(instanceId: string, sendTo: (event: PluginOutboundEvent) => void): void {
+    sendTo(buildVoiceModeEvent(this.isEnabled(instanceId)))
   }
 
   isEnabled(instanceId: string): boolean {
@@ -56,7 +64,7 @@ export class VoiceModeManager {
   }
 
   private clearConnection(connection: ClientConnectionRef): void {
-    const key = getConnectionKey(connection)
+    const key = connectionKey(connection)
     for (const [instanceId, enabledConnections] of Array.from(this.enabledConnectionsByInstance.entries())) {
       if (!enabledConnections.delete(key)) continue
       if (enabledConnections.size === 0) {
@@ -93,8 +101,4 @@ function buildVoiceModeEvent(enabled: boolean) {
       formatVersion: "v1",
     },
   }
-}
-
-function getConnectionKey(connection: ClientConnectionRef): string {
-  return `${connection.clientId}:${connection.connectionId}`
 }

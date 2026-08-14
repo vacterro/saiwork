@@ -7,6 +7,7 @@ import { connect as connectTcp, type Socket } from "net"
 import path from "path"
 import { connect as connectTls, type TLSSocket } from "tls"
 import { fetch, type Headers } from "undici"
+import type { ReadableStream as ReadableStreamFromUndici } from "node:stream/web"
 import type { Logger } from "../logger"
 import { WorkspaceManager } from "../workspaces/manager"
 import { sanitizeLogValue, LOG_REDACTED } from "../log-sanitize"
@@ -109,6 +110,8 @@ export function shouldRetryPreferredPort(error: unknown, autoPortRequested: bool
   const code = (error as NodeJS.ErrnoException | undefined)?.code
   return code === "EADDRINUSE" || (platform === "win32" && code === "EACCES")
 }
+
+export { registerPreviewProxyRoutes }
 
 export function createHttpServer(deps: HttpServerDeps) {
   // Fastify's type-level RawServer inference gets noisy when toggling HTTP vs HTTPS.
@@ -464,6 +467,8 @@ interface SideCarWebSocketProxyDeps extends SideCarProxyDeps {
 interface PreviewProxyDeps {
   previewManager: PreviewManager
   logger: Logger
+  /** Upstream fetch/body timeout in ms (test seam; defaults to 60 s). */
+  upstreamTimeoutMs?: number
 }
 
 interface PreviewWebSocketProxyDeps extends PreviewProxyDeps {
@@ -512,6 +517,7 @@ function registerPreviewProxyRoutes(app: FastifyInstance, deps: PreviewProxyDeps
       previewManager: deps.previewManager,
       logger: deps.logger,
       pathSuffix: "",
+      upstreamTimeoutMs: deps.upstreamTimeoutMs,
     })
   }
 
@@ -525,6 +531,7 @@ function registerPreviewProxyRoutes(app: FastifyInstance, deps: PreviewProxyDeps
       previewManager: deps.previewManager,
       logger: deps.logger,
       pathSuffix: request.params["*"] ?? "",
+      upstreamTimeoutMs: deps.upstreamTimeoutMs,
     })
   }
 
@@ -1093,6 +1100,7 @@ async function proxyPreviewRequest(args: {
   previewManager: PreviewManager
   logger: Logger
   pathSuffix?: string
+  upstreamTimeoutMs?: number
 }) {
   const token = (args.request.params as { token?: string }).token ?? ""
   const preview = args.previewManager.get(token)
@@ -1123,6 +1131,7 @@ async function proxyPreviewRequest(args: {
     logContext: { previewToken: token },
     errorMessage: "Preview proxy failed",
     rewriteHeaders: (headers) => rewritePreviewResponseHeaders(headers, token, targetUrl.origin),
+    upstreamTimeoutMs: args.upstreamTimeoutMs,
   })
 }
 
@@ -1157,6 +1166,16 @@ async function proxyPreviewAssetRequest(args: {
   })
 }
 
+const MAX_PREVIEW_REWRITE_BYTES = 8 * 1024 * 1024
+const PREVIEW_UPSTREAM_TIMEOUT_MS = 60_000
+
+class PreviewBodyTooLargeError extends Error {
+  constructor(readonly bytes: number) {
+    super(`Preview response exceeds the ${MAX_PREVIEW_REWRITE_BYTES} byte rewrite cap (${bytes} bytes)`)
+    this.name = "PreviewBodyTooLargeError"
+  }
+}
+
 async function proxyPreviewTargetRequest(args: {
   request: FastifyRequest
   reply: FastifyReply
@@ -1167,7 +1186,22 @@ async function proxyPreviewTargetRequest(args: {
   logContext: Record<string, unknown>
   errorMessage: string
   rewriteHeaders: (headers: Record<string, string | string[] | undefined>) => Record<string, string | string[] | undefined>
+  upstreamTimeoutMs?: number
 }) {
+  // Preview upstreams are UNTRUSTED remote content. Bound everything: a hard
+  // timeout aborts a stalled upstream, the client disconnect aborts body
+  // consumption, HTML/CSS that must be rewritten is read under one explicit
+  // byte cap, and every other body is streamed with backpressure instead of
+  // being materialized into memory.
+  const controller = new AbortController()
+  let timedOut = false
+  const timeout = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, args.upstreamTimeoutMs ?? PREVIEW_UPSTREAM_TIMEOUT_MS)
+  const onClientClose = () => controller.abort()
+  args.request.raw.on("close", onClientClose)
+
   try {
     const response = await fetch(args.targetUrl, {
       method: args.request.method,
@@ -1175,6 +1209,7 @@ async function proxyPreviewTargetRequest(args: {
       body: shouldForwardRequestBody(args.request.method) ? (args.request.raw as any) : undefined,
       duplex: shouldForwardRequestBody(args.request.method) ? "half" : undefined,
       redirect: "manual",
+      signal: controller.signal,
     } as any)
 
     const headers = args.rewriteHeaders(headersToRecord(response.headers))
@@ -1185,6 +1220,13 @@ async function proxyPreviewTargetRequest(args: {
     for (const [key, value] of Object.entries(headers)) {
       if (value !== undefined) args.reply.header(key, value)
     }
+    // Defense in depth for UNTRUSTED preview content: even if a future renderer
+    // drops the iframe sandbox attribute, remote preview HTML is re-sandboxed
+    // server-side (same-origin, no scripts) so it can never execute with
+    // SAIWORK authority.
+    if (isHtmlContentType(contentType)) {
+      args.reply.header("content-security-policy", "sandbox allow-same-origin")
+    }
     args.reply.code(response.status)
 
     if (!response.body || args.request.method === "HEAD") {
@@ -1193,18 +1235,75 @@ async function proxyPreviewTargetRequest(args: {
     }
 
     if (isHtmlContentType(contentType) || isCssContentType(contentType)) {
-      const text = await response.text()
+      const text = await readPreviewBodyBounded(response.body, MAX_PREVIEW_REWRITE_BYTES)
       args.reply.send(rewritePreviewBodyUrls(text, args.publicBase, isCssContentType(contentType) ? "css" : "html"))
       return
     }
 
-    args.reply.send(Buffer.from(await response.arrayBuffer()))
-  } catch (error) {
-    args.logger.error({ ...args.logContext, err: error, targetUrl: args.targetUrl }, args.errorMessage)
-    if (!args.reply.sent) {
-      args.reply.code(502).send({ error: args.errorMessage })
+    // Stream non-rewritten bodies with backpressure instead of materializing
+    // them. Fastify's send(stream) does not pipe a Readable.fromWeb stream
+    // through inject, so hijack and drive reply.raw directly: write() honors
+    // drain backpressure, the AbortSignal cancels the upstream read when the
+    // client disconnects or the upstream times out, and a huge binary is never
+    // fully buffered.
+    args.reply.hijack()
+    const reader = response.body.getReader()
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (!args.reply.raw.write(Buffer.from(value))) {
+          await new Promise<void>((resolve) => args.reply.raw.once("drain", resolve))
+        }
+      }
+      args.reply.raw.end()
+    } catch (error) {
+      await reader.cancel().catch(() => undefined)
+      if (!args.request.raw.destroyed && !args.reply.raw.destroyed) {
+        args.reply.raw.destroy(error instanceof Error ? error : new Error(String(error)))
+      }
     }
+  } catch (error) {
+    if (args.request.raw.destroyed) return
+    const sendProxyError = (status: number, message: string) => {
+      if (!args.reply.sent) {
+        args.reply.type("application/json").code(status).send({ error: message })
+      }
+    }
+    if (error instanceof PreviewBodyTooLargeError) {
+      args.logger.warn({ ...args.logContext, err: error, targetUrl: args.targetUrl }, args.errorMessage)
+      sendProxyError(502, error.message)
+      return
+    }
+    if (timedOut) {
+      args.logger.warn({ ...args.logContext, err: error, targetUrl: args.targetUrl }, "Preview upstream timed out")
+      sendProxyError(504, "Preview upstream timed out")
+      return
+    }
+    args.logger.error({ ...args.logContext, err: error, targetUrl: args.targetUrl }, args.errorMessage)
+    sendProxyError(502, args.errorMessage)
+  } finally {
+    clearTimeout(timeout)
+    args.request.raw.off("close", onClientClose)
   }
+}
+
+/** Read a preview body under an explicit byte cap; oversized input aborts. */
+async function readPreviewBodyBounded(body: ReadableStreamFromUndici, cap: number): Promise<string> {
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > cap) {
+      await reader.cancel().catch(() => undefined)
+      throw new PreviewBodyTooLargeError(total)
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks).toString("utf8")
 }
 
 async function proxyTargetRequest(args: {

@@ -13,7 +13,7 @@ const operations = (overrides: Partial<ServerShutdownOperations> = {}): ServerSh
   stopInstanceEventBridge() {}, stopSidecars() {}, stopClientConnections() {},
   stopRemoteProxySessions() {}, stopWorkspaces() {}, stopHttpServers() {}, stopReleaseMonitor() {},
   stopSaipenWatcher() {}, stopQueueManager() {}, stopFreebuffEngine() {}, stopOrphanCleanup() {},
-  stopBackgroundProcesses() {}, stopSaipenAutoUpdate() {},
+  stopBackgroundProcesses() {}, stopSaipenAutoUpdate() {}, stopPreviews() {},
   ...overrides,
 })
 

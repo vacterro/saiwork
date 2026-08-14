@@ -11,6 +11,7 @@ import {
 import type { WorktreeListResponse, WorktreeMap } from "../../api-types"
 import type { OpencodeYoloPersistence } from "../../permissions/opencode-yolo-metadata"
 import { ensureSaiworkGitExclude, readWorktreeMap, writeWorktreeMap } from "../../workspaces/worktree-map"
+import { invalidateWorktreeDirectoryCache } from "../../workspaces/worktree-directory"
 
 interface RouteDeps {
   workspaceManager: WorkspaceManager
@@ -109,6 +110,7 @@ export function registerWorktreeRoutes(app: FastifyInstance, deps: RouteDeps) {
         logger: request.log,
       })
 
+      invalidateWorktreeDirectoryCache(request.params.id)
       reply.code(201)
       return created
     } catch (error) {
@@ -147,35 +149,51 @@ export function registerWorktreeRoutes(app: FastifyInstance, deps: RouteDeps) {
         return { error: "Worktree not found" }
       }
 
+      // The removal is the commit point: once removeWorktree succeeds the
+      // worktree is gone, no matter what happens next.
       await removeWorktree({ workspaceFolder: workspace.path, directory: match.directory, force, logger: request.log })
+      invalidateWorktreeDirectoryCache(request.params.id)
 
-      // Best-effort: prune any mappings that point at the deleted worktree.
-      const current = await readWorktreeMap(workspace.path, request.log)
-      let changed = false
-      const nextMapping: Record<string, string> = { ...(current.parentSessionWorktreeSlug ?? {}) }
-      for (const [sessionId, mapped] of Object.entries(nextMapping)) {
-        if (mapped === slug) {
-          delete nextMapping[sessionId]
+      // Best-effort, SECONDARY: prune any mappings that point at the deleted
+      // worktree. A failure here must NOT report the deletion as failed -- the
+      // worktree is already removed and a retry would lie about destructive
+      // state. Truthfully report removed=true with mappingPruned=false.
+      let mappingPruned = true
+      try {
+        const current = await readWorktreeMap(workspace.path, request.log)
+        let changed = false
+        const nextMapping: Record<string, string> = { ...(current.parentSessionWorktreeSlug ?? {}) }
+        for (const [sessionId, mapped] of Object.entries(nextMapping)) {
+          if (mapped === slug) {
+            delete nextMapping[sessionId]
+            changed = true
+          }
+        }
+        const nextDefault = current.defaultWorktreeSlug === slug ? "root" : current.defaultWorktreeSlug
+        if (nextDefault !== current.defaultWorktreeSlug) {
           changed = true
         }
-      }
-      const nextDefault = current.defaultWorktreeSlug === slug ? "root" : current.defaultWorktreeSlug
-      if (nextDefault !== current.defaultWorktreeSlug) {
-        changed = true
-      }
-      if (changed) {
-        await writeWorktreeMap(
-          workspace.path,
-          {
-            version: 1,
-            defaultWorktreeSlug: nextDefault,
-            parentSessionWorktreeSlug: nextMapping,
-          },
-          request.log,
+        if (changed) {
+          await writeWorktreeMap(
+            workspace.path,
+            {
+              version: 1,
+              defaultWorktreeSlug: nextDefault,
+              parentSessionWorktreeSlug: nextMapping,
+            },
+            request.log,
+          )
+        }
+      } catch (cleanupError) {
+        mappingPruned = false
+        request.log.warn(
+          { workspaceId: request.params.id, slug, err: cleanupError },
+          "Worktree removed but mapping cleanup failed; retry observes already-removed state",
         )
       }
 
-      reply.code(204)
+      reply.code(200)
+      return { removed: true, mappingPruned }
     } catch (error) {
       return handleError(error, reply)
     }

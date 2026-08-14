@@ -55,6 +55,14 @@ interface BrowserFrameProps {
   commentMode?: boolean
   onToggleCommentMode?: () => void
   onCommentTarget?: (target: BrowserFrameElementTarget) => void
+  /**
+   * Sandbox policy for the framed content. Untrusted proxied content (remote
+   * web previews) MUST be framed with `allow-same-origin` ONLY -- never
+   * combined with `allow-scripts`, because the proxied page then executes with
+   * SAIWORK same-origin authority. Trusted local sidecar frames may pass their
+   * own policy or leave this unset.
+   */
+  sandbox?: string
 }
 
 function getElementText(element: Element): string | undefined {
@@ -357,6 +365,7 @@ export const BrowserFrame: Component<BrowserFrameProps> = (props) => {
               margin: viewport().width ? "0 auto" : "0",
             }}
             referrerPolicy="same-origin"
+            sandbox={props.sandbox}
             onLoad={syncPathInputFromFrame}
           />
         </div>

@@ -14,6 +14,8 @@ interface RouteDeps {
   logger: Logger
   channel: PluginChannelManager
   voiceModeManager: VoiceModeManager
+  /** Heartbeat interval for plugin SSE (test seam; defaults to 15 s). */
+  heartbeatIntervalMs?: number
 }
 
 const PluginEventSchema = z.object({
@@ -42,11 +44,17 @@ export function registerPluginRoutes(app: FastifyInstance, deps: RouteDeps) {
     reply.hijack()
 
     const registration = deps.channel.register(request.params.id, reply)
-    deps.voiceModeManager.syncInstance(request.params.id)
+    // Initial voice-mode state goes to THIS new connection only; a reconnect
+    // storm must not rebroadcast synthetic snapshots to every existing client.
+    deps.voiceModeManager.syncInstance(request.params.id, (event) => registration.send(event))
 
+    // Heartbeats are connection-scoped: each client's ping goes through its own
+    // registration, never a workspace-wide broadcast (which would deliver N
+    // pings per interval to N connected clients).
+    const heartbeatIntervalMs = deps.heartbeatIntervalMs ?? 15_000
     const heartbeat = setInterval(() => {
-      deps.channel.send(request.params.id, buildPingEvent())
-    }, 15000)
+      registration.send(buildPingEvent())
+    }, heartbeatIntervalMs)
 
     const close = () => {
       clearInterval(heartbeat)

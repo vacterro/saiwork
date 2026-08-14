@@ -5,7 +5,7 @@ import { getWorktreeGitDiff, getWorktreeGitStatus } from "../../workspaces/git-s
 import { commitWorktreeChanges, isGitMutationError, stageWorktreePaths, unstageWorktreePaths } from "../../workspaces/git-mutations"
 import { cloneGitRepository, isGitCloneError } from "../../workspaces/git-clone"
 import { isGitAvailable, resolveRepoRoot } from "../../workspaces/git-worktrees"
-import { resolveWorktreeDirectory } from "../../workspaces/worktree-directory"
+import { invalidateWorktreeDirectoryCache, resolveWorktreeDirectory } from "../../workspaces/worktree-directory"
 
 interface RouteDeps {
   workspaceManager: WorkspaceManager
@@ -111,6 +111,8 @@ export function registerWorkspaceRoutes(app: FastifyInstance, deps: RouteDeps) {
 
   app.delete<{ Params: { id: string } }>("/api/workspaces/:id", async (request, reply) => {
     await deps.workspaceManager.delete(request.params.id)
+    // A deleted workspace must not leave a stale cached worktree list behind.
+    invalidateWorktreeDirectoryCache(request.params.id)
     reply.code(204)
   })
 

@@ -85,6 +85,7 @@ export const SessionPreviewView: Component<SessionPreviewViewProps> = (props) =>
         commentMode={commentMode()}
         onToggleCommentMode={() => setCommentMode((value) => !value)}
         onCommentTarget={(target) => void handleCommentTarget(target)}
+        sandbox="allow-same-origin"
       />
     </div>
   )

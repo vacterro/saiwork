@@ -8,6 +8,17 @@ export interface ClientConnectionRef {
   connectionId: string
 }
 
+/**
+ * ONE canonical collision-free connection-key derivation shared by every
+ * consumer (connection manager + voice mode). Raw `${clientId}:${connectionId}`
+ * concatenation collides: (`a:b`, `c`) and (`a`, `b:c`) produce the same key.
+ * JSON-encoding the pair cannot collide because the wire ids are arbitrary
+ * strings and the array brackets/quotes/commas are unambiguous.
+ */
+export function connectionKey(input: ClientConnectionRef): string {
+  return JSON.stringify([input.clientId, input.connectionId])
+}
+
 export interface ClientConnectionRecord extends ClientConnectionRef {
   key: string
   connectedAt: number
@@ -47,7 +58,7 @@ export class ClientConnectionManager {
   }
 
   register(input: ClientConnectionRef & { close: () => void }): () => void {
-    const key = getConnectionKey(input)
+    const key = connectionKey(input)
     const now = Date.now()
     const existing = this.connections.get(key)
 
@@ -71,7 +82,7 @@ export class ClientConnectionManager {
   }
 
   pong(input: ClientConnectionRef): boolean {
-    const key = getConnectionKey(input)
+    const key = connectionKey(input)
     const connection = this.connections.get(key)
     if (!connection) {
       this.logger.debug({ clientId: input.clientId, connectionId: input.connectionId }, "Ignoring pong for unknown client connection")
@@ -83,7 +94,7 @@ export class ClientConnectionManager {
   }
 
   isConnected(input: ClientConnectionRef): boolean {
-    return this.connections.has(getConnectionKey(input))
+    return this.connections.has(connectionKey(input))
   }
 
   private sweepStaleConnections(): void {
@@ -121,8 +132,4 @@ export class ClientConnectionManager {
       }
     }
   }
-}
-
-function getConnectionKey(input: ClientConnectionRef): string {
-  return `${input.clientId}:${input.connectionId}`
 }

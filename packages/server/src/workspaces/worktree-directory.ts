@@ -97,3 +97,13 @@ export async function resolveWorktreeSlugForDirectory(params: {
   })
   return refreshed.worktrees.find((wt) => wt.normalizedDirectory === target)?.slug ?? null
 }
+
+/**
+ * Explicitly drop a workspace's cached worktree list. The TTL is only a
+ * secondary freshness bound; authoritative invalidation MUST run when a
+ * workspace is deleted or a worktree is created/removed, so the next
+ * resolution sees the current list immediately instead of a stale 2 s entry.
+ */
+export function invalidateWorktreeDirectoryCache(workspaceId: string): void {
+  worktreeCache.delete(workspaceId)
+}
