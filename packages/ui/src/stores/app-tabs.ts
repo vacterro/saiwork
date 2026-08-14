@@ -54,21 +54,32 @@ const [appTabSelectionRevision, setAppTabSelectionRevision] = createSignal(0)
 const [appTabOrderRevision, setAppTabOrderRevision] = createSignal(0)
 
 /**
+ * One reactive pass over all session maps produces the per-instance working
+ * state used by the sort comparator and the became-working effect, so a
+ * status update never rescans the same session sets dozens of times inside
+ * Array.sort.
+ */
+const instanceWorkingState = createMemo<Map<string, { working: boolean; lastStoppedAt: number | null }>>(() => {
+  const result = new Map<string, { working: boolean; lastStoppedAt: number | null }>()
+  for (const [instanceId, instanceSessions] of sessions()) {
+    let working = false
+    let lastStoppedAt: number | null = null
+    for (const session of instanceSessions.values()) {
+      if (session.status === "working" || session.status === "compacting") working = true
+      const stopped = typeof session.idleSince === "number" ? session.idleSince : null
+      if (stopped !== null && (lastStoppedAt === null || stopped > lastStoppedAt)) lastStoppedAt = stopped
+    }
+    result.set(instanceId, { working, lastStoppedAt })
+  }
+  return result
+})
+
+/**
  * Per-instance "is work happening and when did it stop" derived from session
- * statuses. A session is working/compacting while a turn runs; `idleSince` is
- * the wall-clock moment it finished.
+ * statuses. O(1) lookup into the memoized working state.
  */
 function instanceWorkingInfo(instanceId: string): { working: boolean; lastStoppedAt: number | null } {
-  const instanceSessions = sessions().get(instanceId)
-  if (!instanceSessions) return { working: false, lastStoppedAt: null }
-  let working = false
-  let lastStoppedAt: number | null = null
-  for (const session of instanceSessions.values()) {
-    if (session.status === "working" || session.status === "compacting") working = true
-    const stopped = typeof session.idleSince === "number" ? session.idleSince : null
-    if (stopped !== null && (lastStoppedAt === null || stopped > lastStoppedAt)) lastStoppedAt = stopped
-  }
-  return { working, lastStoppedAt }
+  return instanceWorkingState().get(instanceId) ?? { working: false, lastStoppedAt: null }
 }
 
 /** When each tab's work most recently STARTED; drives the working-first order. */
@@ -130,8 +141,13 @@ const appTabs = createMemo<AppTabRecord[]>(() => {
   ]
 
   const tabsById = new Map(currentTabs.map((tab) => [tab.id, tab]))
-  const orderedIds = tabOrder().filter((tabId) => tabsById.has(tabId))
-  const missingIds = currentTabs.map((tab) => tab.id).filter((tabId) => !orderedIds.includes(tabId))
+  const orderedSet = new Set<string>()
+  const orderedIds = tabOrder().filter((tabId) => {
+    if (!tabsById.has(tabId)) return false
+    orderedSet.add(tabId)
+    return true
+  })
+  const missingIds = currentTabs.map((tab) => tab.id).filter((tabId) => !orderedSet.has(tabId))
   const ordered = [...orderedIds, ...missingIds].map((tabId) => tabsById.get(tabId)!).filter(Boolean)
 
   // Working tabs move LEFT so it is visible which project last started work;
