@@ -43,7 +43,7 @@ import { FreebuffThreadRegistry } from "../freebuff/gateway"
 import type { FreebuffController } from "../freebuff/controller"
 import { ServerMeta } from "../api-types"
 import { InstanceStore } from "../storage/instance-store"
-import { BackgroundProcessManager } from "../background-processes/manager"
+import type { BackgroundProcessManager } from "../background-processes/manager"
 import type { AutoAcceptManager } from "../permissions/auto-accept-manager"
 import type { OpencodeYoloPersistence } from "../permissions/opencode-yolo-metadata"
 import type { AuthManager } from "../auth/manager"
@@ -93,6 +93,7 @@ interface HttpServerDeps {
   uiDevServerUrl?: string
   toolCallRegistry: ToolCallRegistry
   freebuffThreadRegistry: FreebuffThreadRegistry
+  backgroundProcessManager: BackgroundProcessManager
   logger: Logger
 }
 
@@ -218,12 +219,6 @@ export function createHttpServer(deps: HttpServerDeps) {
       bodyTimeout: 0,
       headersTimeout: 0,
     },
-  })
-
-  const backgroundProcessManager = new BackgroundProcessManager({
-    workspaceManager: deps.workspaceManager,
-    eventBus: deps.eventBus,
-    logger: deps.logger.child({ component: "background-processes" }),
   })
 
   registerAuthRoutes(app, { authManager: deps.authManager })
@@ -373,7 +368,7 @@ export function createHttpServer(deps: HttpServerDeps) {
     channel: deps.pluginChannel,
     voiceModeManager: deps.voiceModeManager,
   })
-  registerBackgroundProcessRoutes(app, { backgroundProcessManager })
+  registerBackgroundProcessRoutes(app, { backgroundProcessManager: deps.backgroundProcessManager })
   registerYoloRoutes(app, { yoloManager: deps.yoloManager })
   registerInstanceProxyRoutes(app, { workspaceManager: deps.workspaceManager, logger: proxyLogger })
 

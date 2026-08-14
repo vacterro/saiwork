@@ -21,9 +21,15 @@ interface ManagerDeps {
   eventBus: EventBus
   logger: Logger
   spawnProcess?: typeof spawn
+  spawnSyncProcess?: typeof spawnSync
   createOutputStream?: typeof createWriteStream
   writeIndex?: (indexPath: string, records: PersistedBackgroundProcess[]) => Promise<void>
   killProcess?: (child: ChildProcess, signal: NodeJS.Signals) => void
+  platform?: NodeJS.Platform
+  stopTimeoutMs?: number
+  exitWaitTimeoutMs?: number
+  setTimeoutFn?: typeof setTimeout
+  clearTimeoutFn?: typeof clearTimeout
 }
 
 interface RunningProcess {
@@ -33,6 +39,7 @@ interface RunningProcess {
   exitPromise: Promise<void>
   workspaceId: string
   completion?: ProcessCompletion
+  stopPromise?: Promise<void>
 }
 
 interface ProcessCompletion {
@@ -59,6 +66,22 @@ export class BackgroundProcessIndexError extends Error {
   }
 }
 
+/** A child stayed live after both graceful and forceful cleanup attempts. */
+export class BackgroundProcessCleanupError extends Error {
+  constructor(readonly workspaceId: string, readonly processId: string, readonly pid?: number) {
+    super(`Background process ${processId}${pid ? ` (PID ${pid})` : ""} did not exit after forced cleanup`)
+    this.name = "BackgroundProcessCleanupError"
+  }
+}
+
+/** Persisted state claims "running", but this coordinator cannot prove ownership. */
+export class BackgroundProcessOwnershipError extends Error {
+  constructor(readonly workspaceId: string, readonly processId: string, readonly pid?: number) {
+    super(`Background process ${processId}${pid ? ` (PID ${pid})` : ""} is not owned by this coordinator`)
+    this.name = "BackgroundProcessOwnershipError"
+  }
+}
+
 interface StartOptions {
   notify?: boolean
   notification?: {
@@ -69,10 +92,25 @@ interface StartOptions {
 
 export class BackgroundProcessManager {
   private readonly running = new Map<string, RunningProcess>()
+  private readonly workspacePaths = new Map<string, string>()
+  private readonly workspaceTransactions = new Map<string, Promise<void>>()
+  private readonly workspaceCleanups = new Map<string, Promise<void>>()
+  private readonly pendingStarts = new Set<Promise<unknown>>()
+  private shuttingDown = false
+  private shutdownPromise?: Promise<void>
+  private listenersAttached = true
+
+  private readonly onWorkspaceStopped = (event: { workspaceId: string }) => {
+    this.observeWorkspaceCleanup(event.workspaceId)
+  }
+
+  private readonly onWorkspaceError = (event: { workspace: { id: string } }) => {
+    this.observeWorkspaceCleanup(event.workspace.id)
+  }
 
   constructor(private readonly deps: ManagerDeps) {
-    this.deps.eventBus.on("workspace.stopped", (event) => this.cleanupWorkspace(event.workspaceId))
-    this.deps.eventBus.on("workspace.error", (event) => this.cleanupWorkspace(event.workspace.id))
+    this.deps.eventBus.on("workspace.stopped", this.onWorkspaceStopped)
+    this.deps.eventBus.on("workspace.error", this.onWorkspaceError)
   }
 
   async list(workspaceId: string): Promise<BackgroundProcess[]> {
@@ -87,13 +125,36 @@ export class BackgroundProcessManager {
   }
 
   async start(workspaceId: string, title: string, command: string, options: StartOptions = {}): Promise<BackgroundProcess> {
+    if (this.shuttingDown) {
+      throw new Error("Background process manager is shutting down")
+    }
+
+    const operation = this.startProcess(workspaceId, title, command, options)
+    this.pendingStarts.add(operation)
+    try {
+      return await operation
+    } finally {
+      this.pendingStarts.delete(operation)
+    }
+  }
+
+  private async startProcess(
+    workspaceId: string,
+    title: string,
+    command: string,
+    options: StartOptions,
+  ): Promise<BackgroundProcess> {
     const workspace = this.deps.workspaceManager.get(workspaceId)
     if (!workspace) {
       throw new Error("Workspace not found")
     }
+    this.workspacePaths.set(workspaceId, workspace.path)
 
     const id = this.generateId()
     const processDir = await this.ensureProcessDir(workspaceId, id)
+    if (this.shuttingDown) {
+      throw new Error("Background process manager is shutting down")
+    }
     const outputPath = path.join(processDir, OUTPUT_FILE)
 
     const outputStream = (this.deps.createOutputStream ?? createWriteStream)(outputPath, { flags: "a" })
@@ -149,7 +210,9 @@ export class BackgroundProcessManager {
     })
 
     spawnedChild.on("exit", () => {
-      this.killProcessTree(spawnedChild, "SIGTERM")
+      // Best-effort descendant cleanup after natural shell exit. A missing PID
+      // is expected here and must not warn like an explicit stop failure.
+      this.killProcessTree(spawnedChild, "SIGTERM", false)
     })
 
     if (infrastructureError) requestInfrastructureStop()
@@ -300,20 +363,15 @@ export class BackgroundProcessManager {
       return null
     }
 
-    const running = this.running.get(processId)
-    if (running?.child && !running.child.killed) {
-      running.completion = { reason: "user_stopped", endContext: "normal" }
-      this.killProcessTree(running.child, "SIGTERM")
-      await this.waitForExit(running)
+    const running = this.getRunningProcess(workspaceId, processId)
+    if (running) {
+      await this.requestStop(running, { reason: "user_stopped", endContext: "normal" })
       const updated = await this.findProcess(workspaceId, processId)
       return updated ? this.toPublicProcess(updated) : this.toPublicProcess(record)
     }
 
     if (record.status === "running") {
-      record.status = "stopped"
-      record.terminalReason = "user_stopped"
-      record.stoppedAt = new Date().toISOString()
-      await this.finalizeRecord(workspaceId, record, { reason: "user_stopped", endContext: "normal" })
+      throw new BackgroundProcessOwnershipError(workspaceId, processId, record.pid)
     }
 
     return this.toPublicProcess(record)
@@ -323,17 +381,19 @@ export class BackgroundProcessManager {
     const record = await this.findProcess(workspaceId, processId)
     if (!record) return
 
-    const running = this.running.get(processId)
-    if (running?.child && !running.child.killed) {
-      running.completion = { reason: "user_terminated", endContext: "normal", removeAfterFinalize: true }
-      this.killProcessTree(running.child, "SIGTERM")
-      await this.waitForExit(running)
+    const running = this.getRunningProcess(workspaceId, processId)
+    if (running) {
+      await this.requestStop(running, {
+        reason: "user_terminated",
+        endContext: "normal",
+        removeAfterFinalize: true,
+      })
       return
     }
 
-    record.status = "stopped"
-    record.terminalReason = "user_terminated"
-    record.stoppedAt = new Date().toISOString()
+    if (record.status === "running") {
+      throw new BackgroundProcessOwnershipError(workspaceId, processId, record.pid)
+    }
     await this.finalizeRecord(workspaceId, record, {
       reason: "user_terminated",
       endContext: "normal",
@@ -430,44 +490,124 @@ export class BackgroundProcessManager {
     reply.raw.on("error", close)
   }
 
-  private async cleanupWorkspace(workspaceId: string) {
-    for (const [, running] of this.running.entries()) {
-      if (running.workspaceId !== workspaceId) continue
-      running.completion = {
-        reason: "user_terminated",
-        endContext: "workspace_cleanup",
-        removeAfterFinalize: true,
+  async shutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise
+
+    this.shuttingDown = true
+    this.detachWorkspaceListeners()
+    const operation = this.performShutdown()
+    this.shutdownPromise = operation
+    try {
+      await operation
+    } catch (error) {
+      if (this.shutdownPromise === operation) this.shutdownPromise = undefined
+      throw error
+    }
+  }
+
+  private async performShutdown(): Promise<void> {
+    await Promise.allSettled(Array.from(this.pendingStarts))
+
+    const workspaceIds = new Set<string>([
+      ...this.workspacePaths.keys(),
+      ...this.workspaceCleanups.keys(),
+      ...Array.from(this.running.values(), (running) => running.workspaceId),
+    ])
+    const results = await Promise.allSettled(
+      Array.from(workspaceIds, (workspaceId) => this.scheduleWorkspaceCleanup(workspaceId)),
+    )
+    const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+    if (this.running.size > 0 && failures.length === 0) {
+      failures.push(new Error(
+        `Background process cleanup remains incomplete for: ${Array.from(this.running.keys()).join(", ")}`,
+      ))
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, "Background process manager shutdown failed")
+    }
+  }
+
+  private detachWorkspaceListeners() {
+    if (!this.listenersAttached) return
+    this.listenersAttached = false
+    this.deps.eventBus.off("workspace.stopped", this.onWorkspaceStopped)
+    this.deps.eventBus.off("workspace.error", this.onWorkspaceError)
+  }
+
+  private observeWorkspaceCleanup(workspaceId: string) {
+    void this.scheduleWorkspaceCleanup(workspaceId).catch((error) => {
+      this.deps.logger.warn({ err: error, workspaceId }, "Background process workspace cleanup failed")
+    })
+  }
+
+  private scheduleWorkspaceCleanup(workspaceId: string): Promise<void> {
+    const existing = this.workspaceCleanups.get(workspaceId)
+    if (existing) return existing
+
+    const operation = this.cleanupWorkspace(workspaceId)
+    const tracked = operation.finally(() => {
+      if (this.workspaceCleanups.get(workspaceId) === tracked) {
+        this.workspaceCleanups.delete(workspaceId)
       }
-      this.killProcessTree(running.child, "SIGTERM")
-      await this.waitForExit(running)
+    })
+    this.workspaceCleanups.set(workspaceId, tracked)
+    return tracked
+  }
+
+  private async cleanupWorkspace(workspaceId: string) {
+    const runningProcesses = Array.from(this.running.values())
+      .filter((running) => running.workspaceId === workspaceId)
+    const results = await Promise.allSettled(runningProcesses.map((running) => this.requestStop(running, {
+      reason: "user_terminated",
+      endContext: "workspace_cleanup",
+      removeAfterFinalize: true,
+    })))
+    const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+    if (failures.length > 0) {
+      throw new AggregateError(failures, `Background process cleanup failed for workspace ${workspaceId}`)
     }
 
     await this.removeWorkspaceDir(workspaceId)
+    this.workspacePaths.delete(workspaceId)
   }
 
-  private killProcessTree(child: ChildProcess, signal: NodeJS.Signals) {
+  private killProcessTree(child: ChildProcess, signal: NodeJS.Signals, reportFailure = true): boolean {
     const pid = child.pid
-    if (pid && process.platform === "win32") {
+    if (pid && this.platform === "win32") {
       const args = this.buildWindowsTaskkillArgs(pid, signal)
       try {
-        spawnSync("taskkill", args, { stdio: "ignore" })
-        return
-      } catch {
-        // Fall back to killing the direct child.
+        const result = (this.deps.spawnSyncProcess ?? spawnSync)("taskkill", args, { stdio: "ignore" })
+        if (result.status === 0 && !result.error) return true
+        if (reportFailure) {
+          this.deps.logger.warn(
+            { pid, signal, status: result.status, err: result.error },
+            "Windows taskkill failed; falling back to the direct child",
+          )
+        }
+      } catch (error) {
+        if (reportFailure) {
+          this.deps.logger.warn(
+            { pid, signal, err: error },
+            "Windows taskkill threw; falling back to the direct child",
+          )
+        }
       }
     } else if (pid) {
       try {
         process.kill(-pid, signal)
-        return
+        return true
       } catch {
         // Fall back to killing the direct child.
       }
     }
 
     try {
-      child.kill(signal)
-    } catch {
-      // ignore
+      return child.kill(signal)
+    } catch (error) {
+      if (reportFailure) {
+        this.deps.logger.warn({ pid, signal, err: error }, "Failed to signal background process child")
+      }
+      return false
     }
   }
 
@@ -477,33 +617,67 @@ export class BackgroundProcessManager {
       exited = true
     })
 
-    const killTimeout = setTimeout(() => {
+    const scheduleTimeout = this.deps.setTimeoutFn ?? setTimeout
+    const cancelTimeout = this.deps.clearTimeoutFn ?? clearTimeout
+    const killTimeout = scheduleTimeout(() => {
       if (!exited) {
-        this.killProcessTree(running.child, "SIGKILL")
+        this.killBackgroundProcess(running.child, "SIGKILL")
       }
-    }, STOP_TIMEOUT_MS)
+    }, this.stopTimeoutMs)
+
+    let exitWaitTimeout: NodeJS.Timeout | undefined
+    const deadline = new Promise<false>((resolve) => {
+      exitWaitTimeout = scheduleTimeout(() => resolve(false), this.exitWaitTimeoutMs)
+    })
 
     try {
-      await Promise.race([
-        exitPromise,
-        new Promise<void>((resolve) => {
-          setTimeout(resolve, EXIT_WAIT_TIMEOUT_MS)
-        }),
+      const didExit = await Promise.race([
+        exitPromise.then(() => true),
+        deadline,
       ])
 
-      if (!exited) {
-        this.killProcessTree(running.child, "SIGKILL")
-        this.running.delete(running.id)
-        this.deps.logger.warn({ pid: running.child.pid }, "Timed out waiting for background process to exit")
+      if (!didExit || !exited) {
+        this.killBackgroundProcess(running.child, "SIGKILL")
+        const error = new BackgroundProcessCleanupError(
+          running.workspaceId,
+          running.id,
+          running.child.pid,
+        )
+        this.deps.logger.warn({ err: error, pid: running.child.pid }, "Timed out waiting for background process to exit")
+        throw error
       }
     } finally {
-      clearTimeout(killTimeout)
+      cancelTimeout(killTimeout)
+      if (exitWaitTimeout) cancelTimeout(exitWaitTimeout)
+    }
+  }
+
+  private getRunningProcess(workspaceId: string, processId: string): RunningProcess | undefined {
+    const running = this.running.get(processId)
+    return running?.workspaceId === workspaceId ? running : undefined
+  }
+
+  private async requestStop(running: RunningProcess, completion: ProcessCompletion): Promise<void> {
+    if (!running.completion?.removeAfterFinalize || completion.removeAfterFinalize) {
+      running.completion = completion
+    }
+    if (running.stopPromise) return running.stopPromise
+
+    const operation = (async () => {
+      if (!running.child.killed) this.killBackgroundProcess(running.child, "SIGTERM")
+      await this.waitForExit(running)
+    })()
+    running.stopPromise = operation
+    try {
+      await operation
+    } finally {
+      if (running.stopPromise === operation) running.stopPromise = undefined
     }
   }
 
 
   private buildShellSpawn(command: string): { shellCommand: string; shellArgs: string[]; spawnOptions?: Record<string, unknown> } {
-    if (process.platform === "win32") {
+    if (this.platform === "win32") {
       const comspec = process.env.ComSpec || "cmd.exe"
       return {
         shellCommand: comspec,
@@ -545,6 +719,18 @@ export class BackgroundProcessManager {
       return
     }
     this.killProcessTree(child, signal)
+  }
+
+  private get platform(): NodeJS.Platform {
+    return this.deps.platform ?? process.platform
+  }
+
+  private get stopTimeoutMs(): number {
+    return this.deps.stopTimeoutMs ?? STOP_TIMEOUT_MS
+  }
+
+  private get exitWaitTimeoutMs(): number {
+    return this.deps.exitWaitTimeoutMs ?? EXIT_WAIT_TIMEOUT_MS
   }
 
   private async closeOutputStream(outputStream: WriteStream, failed: boolean) {
@@ -638,21 +824,14 @@ export class BackgroundProcessManager {
   }
 
   private async ensureWorkspaceDir(workspaceId: string) {
-    const workspace = this.deps.workspaceManager.get(workspaceId)
-    if (!workspace) {
-      throw new Error("Workspace not found")
-    }
-    const root = path.join(workspace.path, ROOT_DIR, workspaceId)
+    const workspacePath = this.requireWorkspacePath(workspaceId)
+    const root = path.join(workspacePath, ROOT_DIR, workspaceId)
     await fs.mkdir(root, { recursive: true })
     return root
   }
 
   private getOutputPath(workspaceId: string, processId: string) {
-    const workspace = this.deps.workspaceManager.get(workspaceId)
-    if (!workspace) {
-      throw new Error("Workspace not found")
-    }
-    return path.join(workspace.path, ROOT_DIR, workspaceId, processId, OUTPUT_FILE)
+    return path.join(this.requireWorkspacePath(workspaceId), ROOT_DIR, workspaceId, processId, OUTPUT_FILE)
   }
 
   private async findProcess(workspaceId: string, processId: string): Promise<PersistedBackgroundProcess | null> {
@@ -661,6 +840,10 @@ export class BackgroundProcessManager {
   }
 
   private async readIndex(workspaceId: string): Promise<PersistedBackgroundProcess[]> {
+    return this.withWorkspaceTransaction(workspaceId, () => this.readIndexUnlocked(workspaceId))
+  }
+
+  private async readIndexUnlocked(workspaceId: string): Promise<PersistedBackgroundProcess[]> {
     const indexPath = await this.getIndexPath(workspaceId)
     if (!existsSync(indexPath)) return []
 
@@ -686,23 +869,27 @@ export class BackgroundProcessManager {
   }
 
   private async upsertIndex(workspaceId: string, record: PersistedBackgroundProcess) {
-    const records = await this.readIndex(workspaceId)
-    const index = records.findIndex((entry) => entry.id === record.id)
-    if (index >= 0) {
-      records[index] = record
-    } else {
-      records.push(record)
-    }
-    await this.writeIndex(workspaceId, records)
+    await this.withWorkspaceTransaction(workspaceId, async () => {
+      const records = await this.readIndexUnlocked(workspaceId)
+      const index = records.findIndex((entry) => entry.id === record.id)
+      if (index >= 0) {
+        records[index] = record
+      } else {
+        records.push(record)
+      }
+      await this.writeIndexUnlocked(workspaceId, records)
+    })
   }
 
   private async removeFromIndex(workspaceId: string, processId: string) {
-    const records = await this.readIndex(workspaceId)
-    const next = records.filter((entry) => entry.id !== processId)
-    await this.writeIndex(workspaceId, next)
+    await this.withWorkspaceTransaction(workspaceId, async () => {
+      const records = await this.readIndexUnlocked(workspaceId)
+      const next = records.filter((entry) => entry.id !== processId)
+      await this.writeIndexUnlocked(workspaceId, next)
+    })
   }
 
-  private async writeIndex(workspaceId: string, records: PersistedBackgroundProcess[]) {
+  private async writeIndexUnlocked(workspaceId: string, records: PersistedBackgroundProcess[]) {
     const indexPath = await this.getIndexPath(workspaceId)
     await fs.mkdir(path.dirname(indexPath), { recursive: true })
     if (this.deps.writeIndex) {
@@ -712,30 +899,53 @@ export class BackgroundProcessManager {
     await fs.writeFile(indexPath, JSON.stringify(records, null, 2))
   }
 
-  private async getIndexPath(workspaceId: string) {
-    const workspace = this.deps.workspaceManager.get(workspaceId)
-    if (!workspace) {
-      throw new Error("Workspace not found")
+  private async withWorkspaceTransaction<T>(workspaceId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.workspaceTransactions.get(workspaceId) ?? Promise.resolve()
+    const current = previous.catch(() => undefined).then(operation)
+    const tail = current.then(() => undefined, () => undefined)
+    this.workspaceTransactions.set(workspaceId, tail)
+    try {
+      return await current
+    } finally {
+      if (this.workspaceTransactions.get(workspaceId) === tail) {
+        this.workspaceTransactions.delete(workspaceId)
+      }
     }
-    return path.join(workspace.path, ROOT_DIR, workspaceId, INDEX_FILE)
+  }
+
+  private async getIndexPath(workspaceId: string) {
+    return path.join(this.requireWorkspacePath(workspaceId), ROOT_DIR, workspaceId, INDEX_FILE)
   }
 
   private async removeProcessDir(workspaceId: string, processId: string) {
-    const workspace = this.deps.workspaceManager.get(workspaceId)
-    if (!workspace) {
-      return
-    }
-    const processDir = path.join(workspace.path, ROOT_DIR, workspaceId, processId)
+    const workspacePath = this.getWorkspacePath(workspaceId)
+    if (!workspacePath) return
+    const processDir = path.join(workspacePath, ROOT_DIR, workspaceId, processId)
     await fs.rm(processDir, { recursive: true, force: true })
   }
 
   private async removeWorkspaceDir(workspaceId: string) {
+    const workspacePath = this.getWorkspacePath(workspaceId)
+    if (!workspacePath) return
+    await this.withWorkspaceTransaction(workspaceId, async () => {
+      const workspaceDir = path.join(workspacePath, ROOT_DIR, workspaceId)
+      await fs.rm(workspaceDir, { recursive: true, force: true })
+    })
+  }
+
+  private getWorkspacePath(workspaceId: string): string | undefined {
+    const cached = this.workspacePaths.get(workspaceId)
+    if (cached) return cached
     const workspace = this.deps.workspaceManager.get(workspaceId)
-    if (!workspace) {
-      return
-    }
-    const workspaceDir = path.join(workspace.path, ROOT_DIR, workspaceId)
-    await fs.rm(workspaceDir, { recursive: true, force: true })
+    if (!workspace) return undefined
+    this.workspacePaths.set(workspaceId, workspace.path)
+    return workspace.path
+  }
+
+  private requireWorkspacePath(workspaceId: string): string {
+    const workspacePath = this.getWorkspacePath(workspaceId)
+    if (!workspacePath) throw new Error("Workspace not found")
+    return workspacePath
   }
 
   private async getOutputSize(workspaceId: string, processId: string): Promise<number> {

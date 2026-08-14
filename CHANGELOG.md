@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.26] - 2026-08-14
+
+References such as `T-734` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Background-process containment (T-734)
+
+- HTTP and HTTPS listeners share one background-process owner and one
+  serialized workspace index, preventing cross-listener lost updates and
+  false stop reports.
+- Workspace cleanup is tracked, rejection-safe, and awaited before workspace
+  shutdown; starts close during shutdown and temporary listeners and timers
+  are disposed deterministically.
+- Windows `taskkill` results are checked. A failed tree kill falls back to the
+  exact owned child, and an unowned or still-live process remains an explicit
+  cleanup failure instead of being persisted as stopped.
+
 ## [0.1.25] - 2026-08-14
 
 References such as `T-727` below are internal `.saipen` work-log identifiers,

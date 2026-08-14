@@ -48,6 +48,7 @@ import type { SaipenSettings } from "./saipen/core"
 import { ToolCallRegistry } from "./google/shim"
 import { createFileToolCallRegistryPersister } from "./google/tool-call-persistence"
 import { FreebuffThreadRegistry } from "./freebuff/gateway"
+import { BackgroundProcessManager } from "./background-processes/manager"
 
 const require = createRequire(import.meta.url)
 
@@ -413,6 +414,13 @@ async function main() {
     getServerBaseUrl: () => serverMeta.localUrl,
     nodeExtraCaCertsPath,
   })
+  // Both listeners are views over one process-ownership domain. A manager per
+  // listener lets HTTPS persist "stopped" while an HTTP-owned child stays live.
+  const backgroundProcessManager = new BackgroundProcessManager({
+    workspaceManager,
+    eventBus,
+    logger: logger.child({ component: "background-processes" }),
+  })
   const fileSystemBrowser = new FileSystemBrowser({
     rootDir: options.rootDir,
     unrestricted: options.unrestrictedRoot,
@@ -587,6 +595,7 @@ async function main() {
         uiDevServerUrl: uiResolution.uiDevServerUrl,
         toolCallRegistry,
         freebuffThreadRegistry,
+        backgroundProcessManager,
         logger,
       })
     : null
@@ -620,6 +629,7 @@ async function main() {
         uiDevServerUrl: undefined,
         toolCallRegistry,
         freebuffThreadRegistry,
+        backgroundProcessManager,
         logger,
       })
     : null
@@ -721,6 +731,7 @@ async function main() {
           stopSidecars: () => sidecarManager.shutdown(),
           stopClientConnections: () => clientConnectionManager.shutdown(),
           stopRemoteProxySessions: () => remoteProxySessionManager.shutdown(),
+          stopBackgroundProcesses: () => backgroundProcessManager.shutdown(),
           stopWorkspaces: () => workspaceManager.shutdown(),
           stopHttpServers: async () => {
             yoloManager.stop()

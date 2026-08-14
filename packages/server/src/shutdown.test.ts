@@ -13,6 +13,7 @@ const operations = (overrides: Partial<ServerShutdownOperations> = {}): ServerSh
   stopInstanceEventBridge() {}, stopSidecars() {}, stopClientConnections() {},
   stopRemoteProxySessions() {}, stopWorkspaces() {}, stopHttpServers() {}, stopReleaseMonitor() {},
   stopSaipenWatcher() {}, stopQueueManager() {}, stopFreebuffEngine() {}, stopOrphanCleanup() {},
+  stopBackgroundProcesses() {},
   ...overrides,
 })
 
@@ -22,10 +23,11 @@ describe("server shutdown orchestration", () => {
     let attempts = 0
     await orchestrateServerShutdown(operations({
       stopRemoteProxySessions: () => { calls.push("remote-proxy") },
+      stopBackgroundProcesses: () => { calls.push("background-processes") },
       stopWorkspaces: () => { calls.push(`workspaces-${++attempts}`); if (attempts === 1) throw new Error("still alive") },
       stopHttpServers: () => { calls.push("http") },
     }), logger)
-    assert.deepEqual(calls, ["workspaces-1", "remote-proxy", "workspaces-2", "http"])
+    assert.deepEqual(calls, ["remote-proxy", "background-processes", "workspaces-1", "workspaces-2", "http"])
   })
 
   it("stops the watcher and drains pending queue work after HTTP admission closes", async () => {

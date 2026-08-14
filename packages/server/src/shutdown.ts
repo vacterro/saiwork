@@ -8,7 +8,7 @@ export const SERVER_SHUTDOWN_INCOMPLETE = "SAIWORK_SHUTDOWN_STATUS:incomplete"
 export type ServerShutdownOperations = Record<
   "stopInstanceEventBridge" | "stopSidecars" | "stopClientConnections" | "stopRemoteProxySessions" | "stopWorkspaces" |
   "stopHttpServers" | "stopReleaseMonitor" | "stopSaipenWatcher" | "stopQueueManager" | "stopFreebuffEngine" |
-  "stopOrphanCleanup",
+  "stopOrphanCleanup" | "stopBackgroundProcesses",
   ShutdownOperation
 >
 
@@ -76,6 +76,17 @@ export async function orchestrateServerShutdown(
     }
   }
 
+  const preliminaryShutdown = settle([
+    ["stopInstanceEventBridge", operations.stopInstanceEventBridge], ["stopSidecars", operations.stopSidecars],
+    ["stopClientConnections", operations.stopClientConnections], ["stopRemoteProxySessions", operations.stopRemoteProxySessions],
+    ["stopSaipenWatcher", operations.stopSaipenWatcher],
+  ])
+
+  // Stop coordinator-owned children before WorkspaceManager removes the
+  // workspace records used to finalize their indexes. Preliminary resources
+  // still drain concurrently, so a slow proxy does not delay containment.
+  await settle([["stopBackgroundProcesses", operations.stopBackgroundProcesses]])
+
   const workspaceShutdown = (async () => {
     const attempts = Math.max(1, Math.floor(workspaceAttempts))
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -90,14 +101,7 @@ export async function orchestrateServerShutdown(
       logger.error({ err: error, attempts }, "Workspace manager shutdown failed")
     }
   })()
-  await Promise.all([
-    settle([
-      ["stopInstanceEventBridge", operations.stopInstanceEventBridge], ["stopSidecars", operations.stopSidecars],
-      ["stopClientConnections", operations.stopClientConnections], ["stopRemoteProxySessions", operations.stopRemoteProxySessions],
-      ["stopSaipenWatcher", operations.stopSaipenWatcher],
-    ]),
-    workspaceShutdown,
-  ])
+  await Promise.all([preliminaryShutdown, workspaceShutdown])
   // Close request admission before draining the shared queue transaction.
   await settle([["stopHttpServers", operations.stopHttpServers]])
   await settle([["stopQueueManager", operations.stopQueueManager], ["stopReleaseMonitor", operations.stopReleaseMonitor]])

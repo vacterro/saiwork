@@ -62,3 +62,30 @@
 - 14.08.26 06:33 [E-758] [parent: E-757] [T-727] [agent: agents] [op: transition-f5887486] RUN: PASS: Electron typecheck + 153 native tests; conf: high
 - 14.08.26 06:34 [E-759] [parent: E-758] [T-733] [agent: agents] [op: ticket-4161669b] DEC: ticket added via SAIOPS
 - 14.08.26 06:38 [E-760] [parent: E-759] [T-727] [agent: agents] [op: transition-fb623ceb] RUN: SHIP after FIXES: review re-run Electron typecheck + 153 native tests PASS
+- 14.08.26 06:47 [E-761] [parent: E-760] [T-727] [agent: agents] [op: checkpoint-f6c46fca] RUN: ship v0.1.25 -> pushed 8c8e5dd4
+- 14.08.26 06:47 [E-762] [parent: E-761] [T-727] [agent: agents] [op: finish-67e9980e] DEC: ticket finished via SAIOPS -- completion (from SHIP)
+- 14.08.26 06:47 [E-763] [parent: E-762] [agent: agents] [op: transition-fba8bf76] RUN: transition to HUNT
+- 14.08.26 06:52 [E-764] [parent: E-763] [agent: agents] [op: checkpoint-1d50d3d8] RUN: perf baseline: isolated idle server 20.17s; CPU 31.25ms = 0.155% one core / 0.0097% machine; RSS 151.34->106.88 MiB; clean stdin shutdown
+- 14.08.26 07:01 [E-765] [parent: E-764] [T-734] [agent: agents] [op: ticket-6b4155c6] DEC: ticket added via SAIOPS
+- 14.08.26 07:01 [E-766] [parent: E-765] [T-735] [agent: agents] [op: ticket-156ad343] DEC: ticket added via SAIOPS
+- 14.08.26 07:01 [E-767] [parent: E-766] [T-736] [agent: agents] [op: ticket-1165cf0c] DEC: ticket added via SAIOPS
+- 14.08.26 07:01 [E-768] [parent: E-767] [T-737] [agent: agents] [op: ticket-eb5b7c3f] DEC: ticket added via SAIOPS
+- 14.08.26 07:01 [E-769] [parent: E-768] [T-738] [agent: agents] [op: ticket-eaf66001] DEC: ticket added via SAIOPS
+- 14.08.26 07:02 [E-770] [parent: E-769] [agent: agents] [op: checkpoint-49ab4e8d] RUN: HUNT full sweep: tests green and commits verified; new T-734..T-738; FreeBuff orphan/poller/event findings folded into T-733, UI clock fanout into T-726, auto-update into T-722, dead code and stale kitchen inventory into T-720; cap 5
+- 14.08.26 07:02 [E-771] [parent: E-770] [agent: agents] [op: transition-fba4f120] RUN: five bounded HUNT tickets, execute highest-impact process containment first
+- 14.08.26 07:03 [E-772] [parent: E-771] [T-734] [agent: agents] [op: checkpoint-eeeb0d98] DEC: PLAN: one shared BackgroundProcessManager is injected into both listeners; manager owns serialized index mutation, workspace cleanup subscription, and awaited shutdown; Windows stop verifies command status and child identity before success; preserve API shapes and add hostile cross-listener/concurrency/failure tests
+- 14.08.26 07:03 [E-773] [parent: E-772] [T-734] [agent: agents] [op: claim-c101833a] DEC: claimed via SAIOPS -- owner agents
+- 14.08.26 07:06 [E-774] [parent: E-773] [T-734] [agent: agents] [op: checkpoint-6bf84e98] RUN: SCOUT -- shared index-scope manager; per-workspace mutation queue; tracked event cleanup and shutdown; Windows taskkill status checked; focused manager/index/shutdown tests from KNOWLEDGE/testing.md
+- 14.08.26 07:06 [E-775] [parent: E-774] [T-734] [agent: agents] [op: transition-7f38ccda] RUN: SCOUT complete; implement shared ownership and awaited containment
+- 14.08.26 07:16 [E-776] [parent: E-775] [T-734] [agent: agents] [op: checkpoint-02666db9] RUN: BUILD -- shared listener manager, serialized workspace indexes, tracked cleanup/shutdown, ownership refusal, and checked taskkill fallback implemented; focused 22/22 and server 578 pass/4 skip
+- 14.08.26 07:16 [E-777] [parent: E-776] [T-734] [agent: agents] [op: transition-5ac9f097] RUN: implementation and hostile lifecycle tests complete
+- 14.08.26 07:18 [E-778] [parent: E-777] [T-734] [agent: agents] [op: checkpoint-3d88dadf] RUN: VERIFY PASS -- UI 649, server 578 pass/4 skip, plugin 12, Electron 153; all typechecks; server production build; release check 24; diff check and SAIPEN core PASS
+- 14.08.26 07:18 [E-779] [parent: E-778] [T-734] [agent: agents] [op: transition-70374efb] RUN: canonical verification passed on final implementation bytes
+- 14.08.26 07:19 [E-780] [parent: E-779] [T-734] [agent: agents] [op: checkpoint-57c96157] DEC: REVIEW NO -- explicit containment timers must stay ref'ed until child exit or concrete timeout; cleared timers prevent idle-handle leakage
+- 14.08.26 07:19 [E-781] [parent: E-780] [T-734] [agent: agents] [op: transition-f13ea211] RUN: fix shutdown timer liveness and add timer-clear regression evidence
+- 14.08.26 07:19 [E-782] [parent: E-781] [T-734] [agent: agents] [op: checkpoint-cd96b5ae] RUN: BUILD review fix -- containment timers stay referenced and both clear after exit; focused lifecycle/shutdown 23/23 and server typecheck PASS
+- 14.08.26 07:19 [E-783] [parent: E-782] [T-734] [agent: agents] [op: transition-5e4a7bb7] RUN: review timer-liveness fix and regression test complete
+- 14.08.26 07:20 [E-784] [parent: E-783] [T-734] [agent: agents] [op: checkpoint-fc42082a] RUN: VERIFY PASS final -- server 579 pass/4 skip, all workspace typechecks, production server build, release tests 24, diff check and SAIPEN core PASS
+- 14.08.26 07:20 [E-785] [parent: E-784] [T-734] [agent: agents] [op: transition-68c9531c] RUN: final timer-liveness bytes pass canonical verification
+- 14.08.26 07:21 [E-786] [parent: E-785] [T-734] [agent: agents] [op: checkpoint-6dd4bdfa] DEC: REVIEW PASS -- exact ownership, fail-closed stop, serialized persistence, listener/timer disposal, shutdown retry, and platform fallback contracts hold; no P1 findings
+- 14.08.26 07:21 [E-787] [parent: E-786] [T-734] [agent: agents] [op: transition-aa70842e] RUN: review passed after containment timer fix
