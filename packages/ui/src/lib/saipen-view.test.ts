@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
+import { readFileSync } from "node:fs"
 
 import {
   externalChangeAction,
@@ -123,5 +124,22 @@ describe("SAIPEN view parsing", () => {
       draft: "submitted",
       conflict: null,
     }, "submitted", "rev-saved"), null)
+  })
+})
+
+describe("SAIPEN plan panel wiring", () => {
+  it("renders the agent's live plan from the livePlan prop in the Plan tab", () => {
+    const panel = readFileSync(new URL("../components/saipen-view-panel.tsx", import.meta.url), "utf8")
+    assert.match(panel, /livePlan/)
+    assert.match(panel, /TodoListView state=\{props\.livePlan\?\.\(\) \?\? undefined\}/)
+    assert.match(panel, /saipenView\.noLivePlan/)
+  })
+
+  it("the SaipenBar wires the live plan through and the shell passes latestTodoState", () => {
+    const bar = readFileSync(new URL("../components/saipen-bar.tsx", import.meta.url), "utf8")
+    const shell = readFileSync(new URL("../components/instance/instance-shell2.tsx", import.meta.url), "utf8")
+    assert.match(bar, /plan\?: \(\) => ToolState \| null/)
+    assert.match(bar, /livePlan=\{props\.plan\}/)
+    assert.match(shell, /plan=\{latestTodoState\}/)
   })
 })

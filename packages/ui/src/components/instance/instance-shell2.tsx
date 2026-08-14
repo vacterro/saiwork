@@ -1401,6 +1401,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
                       <SaipenBar
                         folder={props.instance.folder}
                         instanceId={props.instance.id}
+                        plan={latestTodoState}
                         onRunShortcut={(shortcut) => void handleFirstPromptSend(shortcut, [])}
                         onInsertShortcut={(text) => draftPromptInputApi()?.setPromptText(text, { focus: true })}
                         onSplitPane={handleSplitPaneClick}

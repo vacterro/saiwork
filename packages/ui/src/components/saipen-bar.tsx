@@ -2,6 +2,7 @@ import { For, Show, createSignal, createEffect, onCleanup, onMount, type Compone
 import { useI18n } from "../lib/i18n"
 import { getLogger } from "../lib/logger"
 import { serverApi } from "../lib/api-client"
+import type { ToolState } from "@opencode-ai/sdk/v2"
 import { SAIPEN_COMMANDS, SAIPEN_CATEGORIES, type SaipenCommand } from "../lib/saipen-commands"
 import { getSaipenSubLifecycleKey, getSaipenSubPackageCounts, getSaipenSubPackageKey, isSaipenSubReady } from "../lib/saipen-sub-status"
 import type { SaipenStatusResponse } from "../../../server/src/api-types"
@@ -36,6 +37,8 @@ interface SaipenBarProps {
   onSplitPane?: () => void
   /** Elapsed ms since the agent started responding; shown as a live clock. */
   responseElapsedMs?: number
+  /** The agent's LIVE plan (latestTodoState); shown under the PLAN tab. */
+  plan?: () => ToolState | null
 }
 
 /**
@@ -442,6 +445,7 @@ const SaipenBar: Component<SaipenBarProps> = (props) => {
         collapsed={!expanded()}
         onTabChange={setViewTab}
         onRefreshStatus={() => void refresh()}
+        livePlan={props.plan}
         statusSlot={() => (
             <div class="saipen-bar-status">
               <Show when={loadError()}>

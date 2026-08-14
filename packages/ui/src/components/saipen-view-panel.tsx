@@ -14,6 +14,8 @@ import {
   type SaipenEditingFile,
 } from "../lib/saipen-view"
 import { serverEvents } from "../lib/server-events"
+import { TodoListView } from "./tool-call/renderers/todo"
+import type { ToolState } from "@opencode-ai/sdk/v2"
 import "../styles/components/saipen-view.css"
 
 const log = getLogger("actions")
@@ -38,6 +40,8 @@ interface SaipenViewPanelProps {
   onRefreshStatus?: () => void
   /** The existing status table body; rendered under the "Status" tab. */
   statusSlot?: () => JSX.Element
+  /** The agent's LIVE plan (latestTodoState); rendered under the "Plan" tab when present. */
+  livePlan?: () => ToolState | null
 }
 
 /**
@@ -267,40 +271,50 @@ const SaipenViewPanel: Component<SaipenViewPanelProps> = (props) => {
       </Show>
 
       <Show when={props.tab === "plan"}>
-        <div class="saipen-view-plans">
-          <Show
-            when={(view()?.plans.length ?? 0) > 0}
-            fallback={<p class="saipen-view-empty">{t("saipenView.noPlans")}</p>}
-          >
-            <For each={view()?.plans ?? []}>
-              {(plan) => (
-                <div class="saipen-view-plan">
-                  <button
-                    type="button"
-                    class="saipen-view-plan-toggle"
-                    aria-expanded={openPlans().has(plan.name)}
-                    onClick={() => togglePlan(plan.name)}
-                  >
-                    {openPlans().has(plan.name) ? "-" : "+"} {plan.name}
-                  </button>
-                  <Show when={!plan.truncated}>
-                    <button
-                      type="button"
-                      class="saipen-view-plan-edit"
-                      onClick={() => beginEdit(`kitchen/${plan.name}`, plan.content)}
-                    >
-                      {t("saipenView.edit")}
-                    </button>
-                  </Show>
-                  <Show when={openPlans().has(plan.name)}>
-                    <pre class="saipen-view-plan-content">{plan.content}</pre>
-                  </Show>
-                </div>
-              )}
-            </For>
-          </Show>
-        </div>
+        <Show
+          when={props.livePlan?.()}
+          fallback={
+            <div class="saipen-view-plans">
+              <Show
+                when={(view()?.plans.length ?? 0) > 0}
+                fallback={<p class="saipen-view-empty">{t("saipenView.noPlans")}</p>}
+              >
+                <For each={view()?.plans ?? []}>
+                  {(plan) => (
+                    <div class="saipen-view-plan">
+                      <button
+                        type="button"
+                        class="saipen-view-plan-toggle"
+                        aria-expanded={openPlans().has(plan.name)}
+                        onClick={() => togglePlan(plan.name)}
+                      >
+                        {openPlans().has(plan.name) ? "-" : "+"} {plan.name}
+                      </button>
+                      <Show when={!plan.truncated}>
+                        <button
+                          type="button"
+                          class="saipen-view-plan-edit"
+                          onClick={() => beginEdit(`kitchen/${plan.name}`, plan.content)}
+                        >
+                          {t("saipenView.edit")}
+                        </button>
+                      </Show>
+                      <Show when={openPlans().has(plan.name)}>
+                        <pre class="saipen-view-plan-content">{plan.content}</pre>
+                      </Show>
+                    </div>
+                  )}
+                </For>
+              </Show>
+            </div>
+          }
+        >
+          <div class="saipen-view-live-plan">
+            <TodoListView state={props.livePlan?.() ?? undefined} emptyLabel={t("saipenView.noLivePlan")} showStatusLabel={false} />
+          </div>
+        </Show>
       </Show>
+
 
       <Show when={props.tab === "board" || props.tab === "log" || props.tab === "state"}>
         <Show when={view()?.missing} fallback={<BoardLogState tab={props.tab} view={view()} />}>

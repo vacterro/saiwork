@@ -276,6 +276,7 @@
   "saipenView.conflictKeepDraft": "РЎРѕС…СЂР°РЅРёС‚СЊ С‡РµСЂРЅРѕРІРёРє",
   "saipenView.externalChanged": "Р¤Р°Р№Р» SAIPEN РёР·РјРµРЅС‘РЅ РёР·РІРЅРµ. Р’Р°С€ С‡РµСЂРЅРѕРІРёРє СЃРѕС…СЂР°РЅС‘РЅ; РїРµСЂРµР·Р°РіСЂСѓР·РёС‚Рµ, С‡С‚РѕР±С‹ РїСЂРѕРґРѕР»Р¶РёС‚СЊ.",
   "saipenView.noPlans": "РќРµС‚ С„Р°Р№Р»РѕРІ РїР»Р°РЅРѕРІ РІ .saipen/kitchen.",
+  "saipenView.noLivePlan": "РЈ Р°РіРµРЅС‚Р° РїРѕРєР° РЅРµС‚ Р¶РёРІРѕРіРѕ РїР»Р°РЅР°.",
   "saipenView.boardEmpty": "РќРµС‚ С‚РёРєРµС‚РѕРІ РЅР° РґРѕСЃРєРµ.",
   "saipenView.logEmpty": "РќРµС‚ Р·Р°РїРёСЃРµР№ РІ Р»РѕРіРµ.",
   "saipenView.stateEmpty": "STATE.md РµС‰Рµ РЅРµС‚.",

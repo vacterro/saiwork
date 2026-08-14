@@ -1,4 +1,4 @@
-﻿export const messagingMessages = {
+export const messagingMessages = {
   "messageListHeader.sidebar.openSessionListAriaLabel": "Ч¤ЧЄЧ— ЧЁЧ©Ч™ЧћЧЄ ЧЎЧ©Ч Ч™Чќ",
   "messageListHeader.metrics.usedLabel": "Ч‘Ч©Ч™ЧћЧ•Ч©",
   "messageListHeader.metrics.availableLabel": "Ч Ч•ЧЄЧЁ",
@@ -274,6 +274,7 @@
   "saipenView.conflictKeepDraft": "Ч©ЧћЧ•ЧЁ ЧЧ™Ч•ЧЧ”",
   "saipenView.externalChanged": "Ч§Ч•Ч‘ЧҐ SAIPEN Ч©Ч•Ч Ч” ЧћЧ‘Ч—Ч•ЧҐ. Ч”ЧЧ™Ч•ЧЧ” Ч Ч©ЧћЧЁЧЄ; ЧЧўЧџ ЧћЧ—Ч“Ч© Ч›Ч“Ч™ ЧњЧ”ЧћЧ©Ч™Чљ.",
   "saipenView.noPlans": "ЧђЧ™Чџ Ч§Ч‘Ч¦Ч™ ЧЄЧ•Ч›Ч Ч™ЧЄ Ч‘-.saipen/kitchen.",
+  "saipenView.noLivePlan": "The agent has no live plan yet.",
   "saipenView.boardEmpty": "ЧђЧ™Чџ ЧћЧ©Ч™ЧћЧ•ЧЄ Ч‘ЧњЧ•Ч—.",
   "saipenView.logEmpty": "ЧђЧ™Чџ ЧЁЧ©Ч•ЧћЧ•ЧЄ Ч™Ч•ЧћЧџ.",
   "saipenView.stateEmpty": "ЧўЧ“Ч™Ч™Чџ ЧђЧ™Чџ STATE.md.",

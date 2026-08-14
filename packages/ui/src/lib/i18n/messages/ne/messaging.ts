@@ -1,4 +1,4 @@
-﻿export const messagingMessages = {
+export const messagingMessages = {
   "messageListHeader.sidebar.openSessionListAriaLabel": "а¤ёа¤¤аҐЌа¤° а¤ёаҐ‚а¤љаҐЂ а¤–аҐ‹а¤ІаҐЌа¤ЁаҐЃа¤№аҐ‹а¤ёаҐЌ",
   "messageListHeader.metrics.usedLabel": "а¤ЄаҐЌа¤°а¤ЇаҐ‹а¤— а¤—а¤°а¤їа¤Џа¤•аҐ‹",
   "messageListHeader.metrics.availableLabel": "а¤¬а¤ѕа¤Ѓа¤•аҐЂ",
@@ -274,6 +274,7 @@
   "saipenView.conflictKeepDraft": "а¤®а¤ёаҐЌа¤ЇаҐЊа¤¦а¤ѕ а¤°а¤ѕа¤–аҐЌа¤ЁаҐЃа¤№аҐ‹а¤ёаҐЌ",
   "saipenView.externalChanged": "SAIPEN а¤«а¤ѕа¤‡а¤І а¤¬а¤ѕа¤№а¤їа¤°а¤¬а¤ѕа¤џ а¤Єа¤°а¤їа¤µа¤°аҐЌа¤¤а¤Ё а¤­а¤ЇаҐ‹аҐ¤ а¤®а¤ёаҐЌа¤ЇаҐЊа¤¦а¤ѕ а¤°а¤ѕа¤–а¤їа¤ЁаҐЌа¤›; а¤ња¤ѕа¤°аҐЂ а¤°а¤ѕа¤–аҐЌа¤Ё а¤ЄаҐЃа¤Ёа¤ѓ а¤ІаҐ‹а¤Ў а¤—а¤°аҐЌа¤ЁаҐЃа¤№аҐ‹а¤ёаҐЌаҐ¤",
   "saipenView.noPlans": ".saipen/kitchen а¤®а¤ѕ а¤•аҐЃа¤ЁаҐ€ а¤ЇаҐ‹а¤ња¤Ёа¤ѕ а¤«а¤ѕа¤‡а¤І а¤›аҐ€а¤ЁаҐ¤",
+  "saipenView.noLivePlan": "The agent has no live plan yet.",
   "saipenView.boardEmpty": "а¤¬аҐ‹а¤°аҐЌа¤Ўа¤®а¤ѕ а¤•аҐЃа¤ЁаҐ€ а¤џа¤їа¤•а¤џ а¤›аҐ€а¤ЁаҐ¤",
   "saipenView.logEmpty": "а¤•аҐЃа¤ЁаҐ€ а¤Іа¤— а¤ЄаҐЌа¤°а¤µа¤їа¤·аҐЌа¤џа¤ї а¤›аҐ€а¤ЁаҐ¤",
   "saipenView.stateEmpty": "а¤…а¤ќаҐ€ STATE.md а¤›аҐ€а¤ЁаҐ¤",

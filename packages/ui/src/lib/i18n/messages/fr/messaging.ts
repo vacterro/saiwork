@@ -1,4 +1,4 @@
-﻿export const messagingMessages = {
+export const messagingMessages = {
   "messageListHeader.sidebar.openSessionListAriaLabel": "Ouvrir la liste des sessions",
   "messageListHeader.metrics.usedLabel": "UtilisР“В©",
   "messageListHeader.metrics.availableLabel": "Reste",
@@ -276,6 +276,7 @@
   "saipenView.conflictKeepDraft": "Conserver le brouillon",
   "saipenView.externalChanged": "Fichier SAIPEN modifiР“В© Р“В  l'extР“В©rieur. Votre brouillon est conservР“В©; rechargez pour continuer.",
   "saipenView.noPlans": "Aucun plan dans .saipen/kitchen.",
+  "saipenView.noLivePlan": "The agent has no live plan yet.",
   "saipenView.boardEmpty": "Aucun ticket au tableau.",
   "saipenView.logEmpty": "Aucune entrР“В©e de journal.",
   "saipenView.stateEmpty": "Pas encore de STATE.md.",

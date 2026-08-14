@@ -274,6 +274,7 @@
   "saipenView.conflictKeepDraft": "Copy/retain local draft",
   "saipenView.externalChanged": "SAIPEN file changed externally. Your draft is preserved; reload to resolve.",
   "saipenView.noPlans": "No plan files in .saipen/kitchen.",
+  "saipenView.noLivePlan": "The agent has no live plan yet.",
   "saipenView.boardEmpty": "No tickets on the board.",
   "saipenView.logEmpty": "No log entries.",
   "saipenView.stateEmpty": "No STATE.md yet.",
