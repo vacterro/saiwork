@@ -312,17 +312,13 @@ function getAllowedRendererOrigins(window?: BrowserWindow | null): string[] {
   return Array.from(origins)
 }
 
+export type NavigationTargetClassification = "internal" | "externalAllowed" | "blocked"
+export { classifyNavigationTarget } from "./navigation-policy"
+import { classifyNavigationTarget } from "./navigation-policy"
+
 function shouldOpenExternally(url: string, window?: BrowserWindow | null): boolean {
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return true
-    }
-    const allowedOrigins = getAllowedRendererOrigins(window)
-    return !allowedOrigins.includes(parsed.origin)
-  } catch {
-    return false
-  }
+  const classification = classifyNavigationTarget(url, getAllowedRendererOrigins(window))
+  return classification === "externalAllowed"
 }
 
 function setupNavigationGuards(window: BrowserWindow, navigationController?: ClientStateNavigationController) {
@@ -330,16 +326,25 @@ function setupNavigationGuards(window: BrowserWindow, navigationController?: Cli
     shell.openExternal(url).catch((error) => console.error("[cli] failed to open external URL", url, error))
   }
 
+  // ALL raw window.open calls are denied: an internal target navigates the
+  // existing surface, an external target opens the OS browser only, and a
+  // blocked scheme launches nothing. Chromium never invents an unmanaged
+  // BrowserWindow behind SAIWORK's back.
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (shouldOpenExternally(url, window)) {
+    const classification = classifyNavigationTarget(url, getAllowedRendererOrigins(window))
+    if (classification === "externalAllowed") {
       handleExternal(url)
-      return { action: "deny" }
     }
-    return { action: "allow" }
+    return { action: "deny" }
   })
 
   window.webContents.on("will-navigate", (event, url) => {
-    if (shouldOpenExternally(url, window)) {
+    const classification = classifyNavigationTarget(url, getAllowedRendererOrigins(window))
+    if (classification === "blocked") {
+      event.preventDefault()
+      return
+    }
+    if (classification === "externalAllowed") {
       event.preventDefault()
       handleExternal(url)
     } else if (navigationController) {
@@ -353,9 +358,12 @@ function setupNavigationGuards(window: BrowserWindow, navigationController?: Cli
   })
 
   window.webContents.on("will-redirect", (event, url) => {
-    if (shouldOpenExternally(url, window)) {
+    const classification = classifyNavigationTarget(url, getAllowedRendererOrigins(window))
+    if (classification === "externalAllowed") {
       event.preventDefault()
       handleExternal(url)
+    } else if (classification === "blocked") {
+      event.preventDefault()
     }
   })
 }
