@@ -440,7 +440,8 @@ async function main() {
   const previewManager = new PreviewManager()
   const yoloLogger = logger.child({ component: "yolo" })
   const sessionMetadataPersistence = createOpencodeYoloPersistence(workspaceManager)
-  const yoloDefault = resolveYoloDefault()
+  const yoloRemoteAccess = options.host === "0.0.0.0" || !isLoopbackHost(options.host)
+  const yoloDefault = resolveYoloDefault({ isLoopback: !yoloRemoteAccess })
   const yoloManager = new AutoAcceptManager({
     eventBus,
     logger: yoloLogger,
@@ -448,7 +449,7 @@ async function main() {
     persistence: sessionMetadataPersistence,
     defaultEnabled: yoloDefault,
   })
-  yoloLogger.info({ defaultEnabled: yoloDefault }, "Yolo mode default")
+  yoloLogger.info({ defaultEnabled: yoloDefault, remoteAccess: yoloRemoteAccess }, "Yolo mode default")
   yoloManager.start()
 
   const freebuff = new FreebuffController({

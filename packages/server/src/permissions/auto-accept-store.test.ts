@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
-import { describe, it } from "node:test"
+import { after, describe, it } from "node:test"
 
-import { AutoAcceptStore, resolveFamilyRoot } from "./auto-accept-store"
+import { AutoAcceptStore, resolveFamilyRoot, resolveYoloDefault } from "./auto-accept-store"
 
 describe("resolveFamilyRoot", () => {
   it("returns the session id itself when no info is known", () => {
@@ -211,5 +211,32 @@ describe("AutoAcceptStore session tree maintenance", () => {
     assert.equal(store.isEnabled("inst", "master"), true)
     // child is its own root now, not enabled unless toggled
     assert.equal(store.isEnabled("inst", "child"), false)
+  })
+})
+
+describe("resolveYoloDefault", () => {
+  const original = process.env.SAIWORK_YOLO_DEFAULT
+  after(() => {
+    if (original === undefined) delete process.env.SAIWORK_YOLO_DEFAULT
+    else process.env.SAIWORK_YOLO_DEFAULT = original
+  })
+
+  it("defaults ON for a loopback-only server with no explicit setting", () => {
+    delete process.env.SAIWORK_YOLO_DEFAULT
+    assert.equal(resolveYoloDefault({ isLoopback: true }), true)
+  })
+
+  it("defaults OFF for remote-access servers with no explicit setting", () => {
+    delete process.env.SAIWORK_YOLO_DEFAULT
+    assert.equal(resolveYoloDefault({ isLoopback: false }), false)
+  })
+
+  it("lets an explicit SAIWORK_YOLO_DEFAULT win for either trust domain", () => {
+    process.env.SAIWORK_YOLO_DEFAULT = "false"
+    assert.equal(resolveYoloDefault({ isLoopback: true }), false)
+    process.env.SAIWORK_YOLO_DEFAULT = "true"
+    assert.equal(resolveYoloDefault({ isLoopback: false }), true)
+    process.env.SAIWORK_YOLO_DEFAULT = "1"
+    assert.equal(resolveYoloDefault({ isLoopback: false }), true)
   })
 })

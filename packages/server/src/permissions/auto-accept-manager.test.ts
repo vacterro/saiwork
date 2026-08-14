@@ -918,3 +918,64 @@ function makeRecordingReplier() {
 function flushMicrotasks() {
   return new Promise<void>((resolve) => setImmediate(resolve))
 }
+
+describe("AutoAcceptManager hostile hydration", () => {
+  it("bounds queued events and retries when persistence always fails", async () => {
+    const bus = new EventBus(noopLogger)
+    const replier = makeRecordingReplier()
+    let loadCalls = 0
+    const persistence: AutoAcceptPersistence = {
+      loadSessions: async () => {
+        loadCalls += 1
+        throw new Error("persistence boom")
+      },
+      persist: async () => {},
+    }
+    const manager = new AutoAcceptManager({ eventBus: bus, logger: noopLogger, replier, persistence, defaultEnabled: true })
+    manager.start()
+
+    for (let i = 0; i < 10_000; i += 1) {
+      publishInstanceEvent(bus, "inst", {
+        type: "permission.v2.asked",
+        properties: { id: `perm-${i}`, sessionID: "sess" },
+      })
+    }
+    await flushMicrotasks()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    assert.equal(replier.calls.length, 0, "auto-accept must never run from unknown persisted state")
+    assert.ok(loadCalls < 50, `hydration retries must be bounded, got ${loadCalls}`)
+    const queued = (manager as unknown as { queuedEvents: Map<string, unknown[]> }).queuedEvents.get("inst")
+    assert.ok(queued !== undefined && queued.length <= 256, "queued event buffer must stay bounded")
+    manager.stop()
+  })
+
+  it("recovers with one controlled rehydrate, replays queued events once, and never duplicates replies", async () => {
+    const bus = new EventBus(noopLogger)
+    const replier = makeRecordingReplier()
+    let fail = true
+    const persistence: AutoAcceptPersistence = {
+      loadSessions: async () => {
+        if (fail) throw new Error("still failing")
+        return [{ id: "master", yoloEnabled: true, parentId: null, workspaceId: "ws" }]
+      },
+      persist: async () => {},
+    }
+    const manager = new AutoAcceptManager({ eventBus: bus, logger: noopLogger, replier, persistence, defaultEnabled: true })
+    manager.start()
+
+    publishInstanceEvent(bus, "inst", { type: "permission.v2.asked", properties: { id: "perm-1", sessionID: "master" } })
+    await flushMicrotasks()
+    assert.equal(replier.calls.length, 0)
+
+    // Persistence recovers; workspace.started is the controlled recovery trigger.
+    fail = false
+    bus.publish({ type: "workspace.started", workspace: { id: "inst" } as never })
+    await flushMicrotasks()
+
+    assert.equal(manager.isHydrated("inst"), true, "recovery performs one controlled rehydrate")
+    assert.equal(replier.calls.length, 1, "queued permission replays once")
+    assert.equal((manager as unknown as { queuedEvents: Map<string, unknown[]> }).queuedEvents.has("inst"), false, "queue drains after replay")
+    manager.stop()
+  })
+})

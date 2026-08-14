@@ -45,23 +45,23 @@ export function resolveFamilyRoot(sessionId: string, getSession: SessionLookup):
 }
 
 /**
- * SAIWORK ships with yolo mode on, decided once at the wiring layer.
+ * The effective Yolo (permission auto-accept) default, decided once at the
+ * wiring layer.
  *
- * Upstream defaults this off and makes you opt in per session. This fork runs
- * against trusted local repositories where a prompt per tool call is pure
- * friction, so production passes `defaultEnabled: true`. The class itself keeps
- * the upstream default so the existing test suite still describes real
- * behaviour instead of being rewritten around a global flag.
+ * An explicit `SAIWORK_YOLO_DEFAULT=true|false|1|0|on|off` always wins.
+ * Without an explicit setting the trust decision is host-aware: a loopback-
+ * only server defaults ON (local automation), while a server reachable from
+ * the network defaults OFF and requires an explicit policy -- "authenticated"
+ * never implies remote trust.
  *
- * `SAIWORK_YOLO_DEFAULT=false` restores opt-in for the whole server.
- *
- * What it actually does: every permission request the agent raises is approved
+ * What the flag does: every permission request the agent raises is approved
  * without asking, including file writes, deletions and shell commands.
  */
-export function resolveYoloDefault(): boolean {
+export function resolveYoloDefault(options: { isLoopback: boolean } = { isLoopback: true }): boolean {
   const raw = process.env.SAIWORK_YOLO_DEFAULT?.trim().toLowerCase()
+  if (raw === "true" || raw === "1" || raw === "on") return true
   if (raw === "false" || raw === "0" || raw === "off") return false
-  return true
+  return options.isLoopback
 }
 
 export class AutoAcceptStore {

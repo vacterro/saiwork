@@ -64,6 +64,18 @@ const PERMISSION_REPLIED_TYPES = new Set(["permission.v2.replied", "permission.r
 const SESSION_UPSERT_TYPES = new Set(["session.updated", "session.created"])
 const SESSION_REMOVE_TYPES = new Set(["session.deleted"])
 
+const MAX_QUEUED_EVENTS_PER_INSTANCE = 256
+const HYDRATION_BACKOFF_BASE_MS = 1_000
+const HYDRATION_BACKOFF_MAX_MS = 30_000
+
+type HydrationStatus = "hydrating" | "ready" | "backoff"
+
+interface HydrationState {
+  status: HydrationStatus
+  attempt: number
+  backoffUntil: number
+}
+
 export class AutoAcceptManager {
   private static readonly MAX_REPLY_ATTEMPTS = 3
   private readonly store: AutoAcceptStore
@@ -73,8 +85,7 @@ export class AutoAcceptManager {
   private readonly pending = new Map<string, Map<string, PendingPermission>>()
   /** instanceId:permissionId -> failure count, to stop retrying stuck permissions */
   private readonly replyAttempts = new Map<string, number>()
-  private readonly hydratedInstances = new Set<string>()
-  private readonly hydration = new Map<string, Promise<void>>()
+  private readonly hydrationState = new Map<string, HydrationState>()
   private readonly queuedEvents = new Map<string, InstanceStreamPayload[]>()
   private readonly instanceGeneration = new Map<string, number>()
   private readonly sessionWorkspaces = new Map<string, Map<string, string>>()
@@ -89,20 +100,45 @@ export class AutoAcceptManager {
     if (this.unsubscribe) return
     const handler = (payload: { instanceId?: string; event?: InstanceStreamPayload }) => {
       if (!payload || !payload.instanceId || !payload.event) return
-      if (this.deps.persistence && !this.hydratedInstances.has(payload.instanceId)) {
-        const queued = this.queuedEvents.get(payload.instanceId) ?? []
-        queued.push(payload.event)
-        this.queuedEvents.set(payload.instanceId, queued)
-        void this.hydrateInstance(payload.instanceId).catch((error) => {
-          this.deps.logger.warn({ instanceId: payload.instanceId, err: error }, "Failed to hydrate persisted Yolo state")
-        })
+      if (!this.deps.persistence) {
+        this.handleInstanceEvent(payload.instanceId, payload.event)
         return
       }
-      this.handleInstanceEvent(payload.instanceId, payload.event)
+      const state = this.hydrationState.get(payload.instanceId)
+      if (state?.status === "ready") {
+        this.handleInstanceEvent(payload.instanceId, payload.event)
+        return
+      }
+      if (state?.status === "hydrating") {
+        this.queueBounded(payload.instanceId, payload.event)
+        return
+      }
+      if (state?.status === "backoff") {
+        // A permanent persistence failure must not retry per incoming event
+        // or grow memory without bound. While backing off, events are dropped;
+        // one controlled rehydrate happens after the backoff window.
+        if (Date.now() >= state.backoffUntil) {
+          state.status = "hydrating"
+          this.queueBounded(payload.instanceId, payload.event)
+          void this.hydrateInstance(payload.instanceId).catch((error) => {
+            this.deps.logger.warn({ instanceId: payload.instanceId, err: error }, "Failed to hydrate persisted Yolo state")
+          })
+        }
+        return
+      }
+      // Never hydrated yet: start one in-flight hydration and queue the event.
+      this.hydrationState.set(payload.instanceId, { status: "hydrating", attempt: 1, backoffUntil: 0 })
+      this.queueBounded(payload.instanceId, payload.event)
+      void this.hydrateInstance(payload.instanceId).catch((error) => {
+        this.deps.logger.warn({ instanceId: payload.instanceId, err: error }, "Failed to hydrate persisted Yolo state")
+      })
     }
     const onStarted = (event: { workspace?: { id?: string } }) => {
       const instanceId = event.workspace?.id
       if (!instanceId) return
+      // Workspace (re)start is the recovery signal: one controlled rehydrate
+      // even when the previous attempt is backing off.
+      if (this.hydrationState.get(instanceId)?.status === "ready") return
       void this.hydrateInstance(instanceId).catch((error) => {
         this.deps.logger.warn({ instanceId, err: error }, "Failed to hydrate persisted Yolo state")
       })
@@ -134,11 +170,29 @@ export class AutoAcceptManager {
     return this.store.isEnabled(instanceId, sessionId)
   }
 
+  /** True only after persisted state for the instance loaded successfully. */
+  isHydrated(instanceId: string): boolean {
+    return this.hydrationState.get(instanceId)?.status === "ready"
+  }
+
+  /** Bound a queued event list; oldest events are dropped beyond the cap. */
+  private queueBounded(instanceId: string, event: InstanceStreamPayload): void {
+    const queued = this.queuedEvents.get(instanceId) ?? []
+    queued.push(event)
+    if (queued.length > MAX_QUEUED_EVENTS_PER_INSTANCE) {
+      queued.splice(0, queued.length - MAX_QUEUED_EVENTS_PER_INSTANCE)
+    }
+    this.queuedEvents.set(instanceId, queued)
+  }
+
   hydrateInstance(instanceId: string): Promise<void> {
-    if (!this.deps.persistence || this.hydratedInstances.has(instanceId)) return Promise.resolve()
-    const existing = this.hydration.get(instanceId)
-    if (existing) return existing
+    if (!this.deps.persistence) return Promise.resolve()
+    const inFlight = this.inFlightHydration.get(instanceId)
+    if (inFlight) return inFlight
+    const current = this.hydrationState.get(instanceId)
+    if (current?.status === "ready") return Promise.resolve()
     const generation = this.instanceGeneration.get(instanceId) ?? 0
+    this.hydrationState.set(instanceId, { status: "hydrating", attempt: current?.attempt ?? 1, backoffUntil: 0 })
     let hydrated = false
     const pending = this.deps.persistence.loadSessions(instanceId).then((sessions) => {
       if ((this.instanceGeneration.get(instanceId) ?? 0) !== generation) return
@@ -152,13 +206,8 @@ export class AutoAcceptManager {
       const defaultEnabled = this.deps.defaultEnabled ?? false
       for (const session of sessions) {
         if (this.store.familyRoot(instanceId, session.id) !== session.id) continue
-        // `null` means no marker: the user never touched this session, so it
-        // falls back to the server default (on in production) instead of being
-        // stamped disabled. Only an explicit `true`/`false` survives a restart.
         if (session.yoloEnabled !== null) {
           this.store.setEnabled(instanceId, session.id, session.yoloEnabled)
-          // Only a departure from the default is news. Announcing every session
-          // that merely matches the default would flood the bus on startup.
           if (session.yoloEnabled !== defaultEnabled) {
             this.deps.eventBus.publish({
               type: "yolo.stateChanged",
@@ -170,19 +219,30 @@ export class AutoAcceptManager {
         }
         if (session.yoloEnabled === true) this.drainPending(instanceId, session.id)
       }
-      this.hydratedInstances.add(instanceId)
+      if ((this.instanceGeneration.get(instanceId) ?? 0) !== generation) return
+      this.hydrationState.set(instanceId, { status: "ready", attempt: 1, backoffUntil: 0 })
       hydrated = true
+    }).catch((error) => {
+      if ((this.instanceGeneration.get(instanceId) ?? 0) !== generation) return
+      const attempt = this.hydrationState.get(instanceId)?.attempt ?? 1
+      const delayMs = Math.min(HYDRATION_BACKOFF_BASE_MS * 2 ** Math.max(0, attempt - 1), HYDRATION_BACKOFF_MAX_MS)
+      this.hydrationState.set(instanceId, { status: "backoff", attempt: attempt + 1, backoffUntil: Date.now() + delayMs })
+      this.deps.logger.warn({ instanceId, err: error, attempt }, "Yolo hydration failed; entering backoff")
+      throw error
     }).finally(() => {
       if ((this.instanceGeneration.get(instanceId) ?? 0) !== generation) return
-      this.hydration.delete(instanceId)
+      this.inFlightHydration.delete(instanceId)
       if (!hydrated) return
       const queued = this.queuedEvents.get(instanceId) ?? []
       this.queuedEvents.delete(instanceId)
       for (const event of queued) this.handleInstanceEvent(instanceId, event)
     })
-    this.hydration.set(instanceId, pending)
+    this.inFlightHydration.set(instanceId, pending)
     return pending
   }
+
+  /** Tracks the single in-flight hydration per instance. */
+  private readonly inFlightHydration = new Map<string, Promise<void>>()
 
   toggle(instanceId: string, sessionId: string): boolean | Promise<boolean> {
     if (this.deps.persistence) return this.togglePersisted(instanceId, sessionId)
@@ -257,8 +317,8 @@ export class AutoAcceptManager {
 
   clearInstance(instanceId: string): void {
     this.instanceGeneration.set(instanceId, (this.instanceGeneration.get(instanceId) ?? 0) + 1)
-    this.hydratedInstances.delete(instanceId)
-    this.hydration.delete(instanceId)
+    this.hydrationState.delete(instanceId)
+    this.inFlightHydration.delete(instanceId)
     this.queuedEvents.delete(instanceId)
     this.sessionWorkspaces.delete(instanceId)
     this.mutations.delete(instanceId)
