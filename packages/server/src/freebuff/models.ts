@@ -50,18 +50,29 @@ export const FREEBUFF_MODEL_IDS = new Set(FREEBUFF_MODELS.map((model) => model.i
  * display name until static metadata catches up.
  */
 export function freebuffLiveCatalog(liveModelIds?: Iterable<string> | null): FreebuffModelInfo[] {
-  const byId = new Map(FREEBUFF_MODELS.map((model) => [model.id, model]))
-  for (const id of liveModelIds ?? []) {
-    if (!id || byId.has(id)) continue
-    byId.set(id, { id, displayName: id, tagline: "", free: true })
+  if (liveModelIds === undefined || liveModelIds === null) {
+    return FREEBUFF_MODELS
   }
-  return [...byId.values()]
+  const byId = new Map(FREEBUFF_MODELS.map((model) => [model.id, model]))
+  const live: FreebuffModelInfo[] = []
+  for (const id of liveModelIds) {
+    if (!id) continue
+    if (byId.has(id)) {
+      live.push(byId.get(id)!)
+    } else {
+      live.push({ id, displayName: id, tagline: "", free: true })
+    }
+  }
+  return live
 }
 
-/** The set of model ids the FreeBuff backend currently exposes, static included. */
+/** The set of model ids the FreeBuff backend currently exposes, static included on fallback. */
 export function freebuffLiveModelIds(liveModelIds?: Iterable<string> | null): Set<string> {
-  const ids = new Set<string>(FREEBUFF_MODELS.map((model) => model.id))
-  for (const id of liveModelIds ?? []) {
+  if (liveModelIds === undefined || liveModelIds === null) {
+    return new Set(FREEBUFF_MODELS.map((model) => model.id))
+  }
+  const ids = new Set<string>()
+  for (const id of liveModelIds) {
     if (id) ids.add(id)
   }
   return ids

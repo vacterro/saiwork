@@ -112,8 +112,8 @@ export class BoundedOutputWriter {
 
     const fd = await this.ensureOpen()
     if (this.failed) return
-    const { bytesWritten } = await fd.write(data, 0, data.length, this.offset)
-    this.offset += bytesWritten
+    await writeAll(fd, data, this.offset)
+    this.offset += data.length
     this.lastRotated = await this.rotateIfNeeded(fd)
     this.onWritten?.({
       diskSize: this.offset,
@@ -125,12 +125,20 @@ export class BoundedOutputWriter {
   private async rotateIfNeeded(fd: FileHandle): Promise<boolean> {
     if (this.offset <= this.capBytes) return false
 
-    const tail = Buffer.alloc(this.retainBytes)
-    await fd.read(tail, 0, tail.length, this.offset - tail.length)
-    this.dropped += this.offset - tail.length
+    const oldSize = this.offset
+    const retainStart = Math.max(0, oldSize - this.retainBytes)
+    const allocSize = oldSize - retainStart
+    const tail = Buffer.alloc(allocSize)
+    
+    const actualRetained = await readAvailableExactRange(fd, tail, retainStart)
+    this.dropped += oldSize - actualRetained
+    
     await fd.truncate(0)
-    const { bytesWritten } = await fd.write(tail, 0, tail.length, 0)
-    this.offset = bytesWritten
+    
+    const validTail = tail.subarray(0, actualRetained)
+    await writeAll(fd, validTail, 0)
+    
+    this.offset = actualRetained
     return true
   }
 
@@ -165,4 +173,25 @@ function requirePositiveInteger(value: number, name: string): number {
     throw new RangeError(`${name} must be a positive safe integer`)
   }
   return value
+}
+
+async function writeAll(fd: FileHandle, buffer: Buffer, position: number): Promise<void> {
+  let written = 0
+  while (written < buffer.length) {
+    const { bytesWritten } = await fd.write(buffer, written, buffer.length - written, position + written)
+    if (bytesWritten <= 0) {
+      throw new Error(`Write stalled: 0 bytes written to file`)
+    }
+    written += bytesWritten
+  }
+}
+
+async function readAvailableExactRange(fd: FileHandle, buffer: Buffer, position: number): Promise<number> {
+  let totalRead = 0
+  while (totalRead < buffer.length) {
+    const { bytesRead } = await fd.read(buffer, totalRead, buffer.length - totalRead, position + totalRead)
+    if (bytesRead <= 0) break
+    totalRead += bytesRead
+  }
+  return totalRead
 }

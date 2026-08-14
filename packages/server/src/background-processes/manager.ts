@@ -480,6 +480,8 @@ export class BackgroundProcessManager {
     const file = await fs.open(outputPath, "r")
     let position = (await file.stat()).size
 
+    const STREAM_CHUNK_HARD_CAP = 1024 * 1024;
+
     const tick = async () => {
       const stats = await file.stat()
       if (stats.size < position) {
@@ -492,12 +494,22 @@ export class BackgroundProcessManager {
       }
       if (stats.size <= position) return
 
-      const length = stats.size - position
+      const length = Math.min(stats.size - position, STREAM_CHUNK_HARD_CAP)
       const buffer = Buffer.alloc(length)
-      await file.read(buffer, 0, length, position)
-      position = stats.size
+      const { bytesRead } = await file.read(buffer, 0, length, position)
 
-      const content = buffer.toString("utf-8")
+      if (bytesRead === 0) {
+        // Handle rotation race: file might have shrunk between stat and read
+        const currentStats = await file.stat()
+        if (currentStats.size < position) {
+          position = 0
+          reply.raw.write(`data: ${JSON.stringify({ type: "truncate" })}\n\n`)
+        }
+        return
+      }
+      position += bytesRead
+
+      const content = buffer.subarray(0, bytesRead).toString("utf-8")
       reply.raw.write(`data: ${JSON.stringify({ type: "chunk", content })}\n\n`)
     }
 

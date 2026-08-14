@@ -76,8 +76,8 @@ export const ANTIGRAVITY_DENIED_LIVE_IDS = new Set(["gemini-3.1-pro-high"])
  * drop off. When the live list is empty (no session / network down) the
  * static catalog is the fallback so the provider never goes empty.
  */
-export function antigravityLiveCatalog(live: AntigravityModelInfo[]): RawModel[] {
-  if (live.length === 0) return ANTIGRAVITY_MODELS
+export function antigravityLiveCatalog(live: AntigravityModelInfo[] | null): RawModel[] {
+  if (live === null || live.length === 0) return ANTIGRAVITY_MODELS
   const staticById = new Map(ANTIGRAVITY_MODELS.map((model) => [model.id, model]))
   const out: RawModel[] = []
   for (const model of live) {
@@ -91,7 +91,7 @@ export function antigravityLiveCatalog(live: AntigravityModelInfo[]): RawModel[]
       output: existing?.output ?? (model.maxOutputTokens ?? 65_536),
     })
   }
-  return out.length > 0 ? out : ANTIGRAVITY_MODELS
+  return out
 }
 
 /** The raw Antigravity catalog used by both the OpenCode provider config and the shim. */

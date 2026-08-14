@@ -290,6 +290,19 @@ describe("freebuff gateway slot retry", () => {
 })
 
 describe("freebuff gateway request validation", () => {
+  it("serves a newly released backend model in the /fb/v1/models list", async () => {
+    const app = Fastify({ logger: false })
+    registerFreebuffGatewayRoutes(app, {
+      freebuff: {} as FreebuffController,
+      liveModelIds: async () => ["nova/nova-1.0", "deepseek/deepseek-v4-flash"],
+    })
+    const response = await app.inject({ method: "GET", url: "/fb/v1/models" })
+    await app.close()
+    const ids = response.json().data.map((model: { id: string }) => model.id)
+    assert.ok(ids.includes("deepseek/deepseek-v4-flash"))
+    assert.ok(ids.includes("nova/nova-1.0"), "a live backend model must appear in the gateway model list")
+  })
+
   const request = async (messages: unknown[]) => {
     const app = Fastify({ logger: false })
     registerFreebuffGatewayRoutes(app, { freebuff: {} as FreebuffController })

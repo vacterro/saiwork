@@ -92,7 +92,7 @@ export function registerFreebuffGatewayRoutes(app: FastifyInstance, deps: Gatewa
   const registry = deps.registry ?? new FreebuffThreadRegistry()
 
   app.get("/fb/v1/models", async () => {
-    const liveIds = await (deps.liveModelIds?.() ?? Promise.resolve([]))
+    const liveIds = await (deps.liveModelIds?.() ?? Promise.resolve(null))
     return {
       object: "list",
       data: freebuffLiveCatalog(liveIds).map((model) => ({
@@ -121,7 +121,7 @@ export function registerFreebuffGatewayRoutes(app: FastifyInstance, deps: Gatewa
     if (!prompt) {
       return reply.code(400).send({ error: { message: "no user message" } })
     }
-    if (!freebuffLiveModelIds(await (deps.liveModelIds?.() ?? Promise.resolve([]))).has(body.model)) {
+    if (!freebuffLiveModelIds(await (deps.liveModelIds?.() ?? Promise.resolve(null))).has(body.model)) {
       return reply.code(400).send({ error: { message: `unsupported model: ${body.model}` } })
     }
 

@@ -46,6 +46,11 @@ function parseChatBody(body: unknown): OpenAiChatRequest | null {
   const value = body as Record<string, unknown>
   if (typeof value.model !== "string" || !value.model.trim()) return null
   if (!Array.isArray(value.messages)) return null
+  for (const m of value.messages) {
+    if (!m || typeof m !== "object" || Array.isArray(m)) return null
+    if (typeof m.role !== "string") return null
+    if (m.content !== null && m.content !== undefined && typeof m.content !== "string" && !Array.isArray(m.content)) return null
+  }
   return {
     model: value.model,
     messages: value.messages as OpenAiChatRequest["messages"],
@@ -70,7 +75,7 @@ export function registerGoogleShimRoutes(app: FastifyInstance, deps: ShimDeps = 
       // so the provider never lists nothing.
       models = antigravityLiveCatalog(await session.listModels())
     } catch {
-      models = antigravityCatalog()
+      models = antigravityLiveCatalog(null)
     }
     const data = models.map((model) => ({
       id: model.id,
