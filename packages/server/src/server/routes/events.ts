@@ -26,8 +26,14 @@ const PongBodySchema = ConnectionQuerySchema.extend({
 
 const MAX_PENDING_EVENTS = 64
 
+interface SerializedEvent {
+  frame: string
+  type: string
+}
+
 export interface BackpressuredSenderOptions {
-  writeFrame: (payload: unknown) => boolean
+  /** Writes an already-serialized SSE frame; returns false when backpressured. */
+  writeFrame: (frame: string) => boolean
   onOverflow: () => void
   onTrace?: (event: WorkspaceEventPayload) => void
   maxPending?: number
@@ -46,7 +52,7 @@ export function createBackpressuredSender(options: BackpressuredSenderOptions) {
   const maxPending = options.maxPending ?? MAX_PENDING_EVENTS
   let closed = false
   let backpressured = false
-  let pending: WorkspaceEventPayload[] = []
+  let pending: SerializedEvent[] = []
 
   return {
     get pendingCount(): number {
@@ -55,7 +61,7 @@ export function createBackpressuredSender(options: BackpressuredSenderOptions) {
     get isBackpressured(): boolean {
       return backpressured
     },
-    send(event: WorkspaceEventPayload): void {
+    send(serialized: SerializedEvent, event: WorkspaceEventPayload): void {
       if (closed) return
       options.onTrace?.(event)
       if (backpressured) {
@@ -68,14 +74,14 @@ export function createBackpressuredSender(options: BackpressuredSenderOptions) {
           backpressured = false
           return
         }
-        const index = pending.findIndex((entry) => entry.type === event.type)
-        if (index >= 0) pending[index] = event
-        else pending.push(event)
+        const index = pending.findIndex((entry) => entry.type === serialized.type)
+        if (index >= 0) pending[index] = serialized
+        else pending.push(serialized)
         return
       }
-      if (!options.writeFrame(event)) {
+      if (!options.writeFrame(serialized.frame)) {
         backpressured = true
-        pending = [event]
+        pending = [serialized]
       }
     },
     /** Flush the backlog after the underlying writer drains. */
@@ -83,7 +89,7 @@ export function createBackpressuredSender(options: BackpressuredSenderOptions) {
       if (closed || !backpressured) return
       while (pending.length > 0) {
         const next = pending.shift()!
-        if (!options.writeFrame(next)) return
+        if (!options.writeFrame(next.frame)) return
       }
       backpressured = false
     },
@@ -95,7 +101,39 @@ export function createBackpressuredSender(options: BackpressuredSenderOptions) {
   }
 }
 
+/**
+ * One bus subscription, one JSON.stringify per event, immutable frame fanned
+ * out to every subscribed client -- N detached windows no longer serialize
+ * the same event N times.
+ */
+export function createSseBroadcaster(eventBus: EventBus) {
+  const clients = new Set<(serialized: SerializedEvent, event: WorkspaceEventPayload) => void>()
+  const unsubscribe = eventBus.onEvent((event) => {
+    const frame = JSON.stringify(event)
+    for (const client of clients) {
+      client({ frame, type: event.type }, event)
+    }
+  })
+  return {
+    subscribe(client: (serialized: SerializedEvent, event: WorkspaceEventPayload) => void): () => void {
+      clients.add(client)
+      return () => {
+        clients.delete(client)
+      }
+    },
+    get size(): number {
+      return clients.size
+    },
+    stop(): void {
+      unsubscribe()
+    },
+  }
+}
+
 export function registerEventRoutes(app: FastifyInstance, deps: RouteDeps) {
+  const broadcaster = createSseBroadcaster(deps.eventBus)
+  const activeClients = new Set<() => void>()
+
   app.get("/api/events", (request, reply) => {
     const clientId = ++nextClientId
     const connection = ConnectionQuerySchema.parse(request.query ?? {})
@@ -112,12 +150,8 @@ export function registerEventRoutes(app: FastifyInstance, deps: RouteDeps) {
 
     let closed = false
 
-    const writeFrame = (payload: unknown): boolean => {
-      return reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`)
-    }
-
     const sender = createBackpressuredSender({
-      writeFrame,
+      writeFrame: (frame) => reply.raw.write(frame),
       onOverflow: () => {
         deps.logger.warn({ clientId }, "SSE client too slow; disconnecting to force authoritative re-sync")
         close()
@@ -130,9 +164,10 @@ export function registerEventRoutes(app: FastifyInstance, deps: RouteDeps) {
       },
     })
 
-    const send = (event: WorkspaceEventPayload) => sender.send(event)
-
-    const unsubscribe = deps.eventBus.onEvent(send)
+    const unsubscribeClient = broadcaster.subscribe((serialized, event) => {
+      sender.send(serialized, event)
+    })
+    activeClients.add(unsubscribeClient)
     reply.raw.on("drain", () => sender.flush())
     const heartbeat = setInterval(() => {
       if (closed || sender.isBackpressured) return
@@ -145,7 +180,8 @@ export function registerEventRoutes(app: FastifyInstance, deps: RouteDeps) {
       closed = true
       clearInterval(heartbeat)
       sender.close()
-      unsubscribe()
+      unsubscribeClient()
+      activeClients.delete(unsubscribeClient)
       reply.raw.end?.()
       deps.logger.debug({ clientId }, "SSE client disconnected")
     }
