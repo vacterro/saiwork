@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.36] - 2026-08-14
+
+References such as `T-742` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Second-wave integrity hunt
+
+- **Filesystem containment**: restricted browse/read/write/create now prove
+  the real target stays physically inside the workspace root (realpath on
+  the target and on create-time ancestors), so symlink and Windows junction
+  escapes are rejected while in-root symlinks still work. The worktree
+  directory boundary rejects arbitrary directories.
+- **Instance storage**: identities are keyed by a SHA-256 digest of the raw
+  id (slash vs underscore, case and Unicode paths can no longer collapse),
+  and state is revisioned with CAS writes/deletes under a per-key lock and
+  atomic persistence; stale writers get 409, deleted generations cannot be
+  resurrected, and malformed files fail closed instead of reading as empty.
+- **Worktree map**: corrupt or structurally invalid maps fail closed with the
+  original bytes preserved, and mutations are serialized per repo through the
+  atomic writer.
+- **Yolo**: persistent hydration failures are bounded (single in-flight
+  attempt, capped queue, exponential backoff, one controlled recovery), and
+  the default is host-aware -- ON for loopback-only servers, OFF for remote
+  access unless explicitly set.
+- **SSE**: per-client writes are backpressured with a tiny newest-per-type
+  backlog; a too-slow client is disconnected instead of growing server
+  memory, heartbeats defer under backpressure, and trace payloads go through
+  the log sanitizer.
+- **Electron**: a canonical URL policy allows only http(s) (and renderer
+  origins) externally; every other scheme and malformed URLs are blocked, and
+  all window.open calls are denied so no unmanaged BrowserWindow is created.
+- **/goal command**: typing `/goal <objective>` sends `saipen goal
+  <objective>` and forces Goal Auto on, so the agent continues until the
+  board has no remaining work.
+
 ## [0.1.35] - 2026-08-14
 
 References such as `T-741` below are internal `.saipen` work-log identifiers,
