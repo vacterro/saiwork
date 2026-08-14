@@ -102,7 +102,7 @@ export class FreebuffController {
     return fetchFreebuffQuota(getToken)
   }
 
-  private modelIdsCache: { ids: Set<string>; at: number } | null = null
+  private modelIdsCache: { ids: Set<string> | null; at: number } | null = null
 
   /**
    * The model ids the FreeBuff backend currently serves, from the live quota
@@ -110,17 +110,17 @@ export class FreebuffController {
    * set so callers fall back to the static catalog; a newly released model
    * appears here as soon as the backend reports it.
    */
-  async liveModelIds(): Promise<Set<string>> {
+  async liveModelIds(): Promise<Set<string> | null> {
     const now = Date.now()
     if (this.modelIdsCache && now - this.modelIdsCache.at < 60_000) {
       return this.modelIdsCache.ids
     }
-    let ids = new Set<string>()
+    let ids: Set<string> | null = null
     try {
       const { snapshot } = await this.quota()
       ids = new Set<string>(Object.keys(snapshot?.rateLimitsByModel ?? {}))
     } catch {
-      ids = new Set<string>()
+      ids = null
     }
     this.modelIdsCache = { ids, at: now }
     return ids

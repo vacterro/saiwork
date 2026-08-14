@@ -25,6 +25,10 @@ describe("createFreebuffClient", () => {
     assert.equal(log[0].url, "http://127.0.0.1:57934/api/threads")
     const body = JSON.parse(String(log[0].init?.body))
     assert.deepEqual(body, { projectPath: "C:/proj", model: "deepseek/deepseek-v4-flash" })
+    const headers = new Headers(log[0].init?.headers)
+    assert.equal(headers.get("origin"), "http://127.0.0.1:57934")
+    assert.equal(headers.get("sec-fetch-site"), "same-origin")
+    assert.equal(headers.get("x-saiwork-coordinator"), "1")
   })
 
   it("dispatches a prompt via the thread message action", async () => {

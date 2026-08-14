@@ -130,6 +130,8 @@ node packages/server/dist/bin.js --tlsSANs "localhost,127.0.0.1,my-hostname,192.
 ### Authentication
 
 - Default behavior: SaiWork requires a login (username/password) and stores a session cookie in the browser.
+- Server sessions expire after 24 hours of inactivity and after 30 days regardless of activity. SaiWork keeps at most 128 sessions and deterministically removes the least recently used session before admitting another one.
+- Logout revokes the presented server-side session, so a copied cookie cannot be reused. Changing the password revokes every existing session and gives only the requesting browser a fresh session.
 - `--dangerously-skip-auth` / `SAIWORK_SKIP_AUTH=true` disables the login prompt and treats all requests as authenticated.
   Use this only when access is already protected by another layer (SSO proxy, VPN, Coder workspace auth, etc.).
   If you bind to `0.0.0.0` while skipping auth, anyone who can reach the port can access the API.

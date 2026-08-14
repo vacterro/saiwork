@@ -7,6 +7,8 @@ const test = require("node:test")
 const {
   checkArtifacts,
   checkMetadata,
+  checkRepository,
+  checkTicketReconciliation,
   findPeVersions,
   peVersionMatches,
 } = require("./check-release-consistency.js")
@@ -246,5 +248,42 @@ test("fails an artifacts-only gate when no Windows artifacts exist", async () =>
   const rootDir = makeFixture()
   const errors = await checkArtifacts(rootDir, [], { required: true })
   assert.ok(errors.some((error) => error.includes("Windows artifacts are missing")))
+  fs.rmSync(rootDir, { recursive: true, force: true })
+})
+
+test("rejects a shipped CHANGELOG ticket that the BOARD still lists as open", () => {
+  const rootDir = makeFixture()
+  write(path.join(rootDir, "CHANGELOG.md"), `# Changelog\n\n## [${VERSION}] - 2026-08-11\n\n### Demo feature (T-900)\n`)
+  write(path.join(rootDir, ".saipen/BOARD.md"), "# BOARD\n\n## TODO\n- [ ] T-900 Demo ticket stays open\n")
+  const errors = checkTicketReconciliation(rootDir)
+  assert.ok(errors.some((error) => error.includes("T-900")), "a TODO ticket referenced by the shipped CHANGELOG must fail")
+  fs.rmSync(rootDir, { recursive: true, force: true })
+})
+
+test("rejects a shipped CHANGELOG ticket that the BOARD has in progress (DOING)", () => {
+  const rootDir = makeFixture()
+  write(path.join(rootDir, "CHANGELOG.md"), `# Changelog\n\n## [${VERSION}] - 2026-08-11\n\n### Demo feature (T-901)\n`)
+  write(path.join(rootDir, ".saipen/BOARD.md"), "# BOARD\n\n## DOING\n- [/] T-901 Demo ticket in progress\n")
+  const errors = checkTicketReconciliation(rootDir)
+  assert.ok(errors.some((error) => error.includes("T-901")), "a DOING ticket referenced by the shipped CHANGELOG must fail")
+  fs.rmSync(rootDir, { recursive: true, force: true })
+})
+
+test("accepts a shipped CHANGELOG ticket that the BOARD marks done, ignoring prose mentions", () => {
+  const rootDir = makeFixture()
+  write(path.join(rootDir, "CHANGELOG.md"), `# Changelog\n\n## [${VERSION}] - 2026-08-11\n\n### Demo feature (T-900, T-901)\n`)
+  write(
+    path.join(rootDir, ".saipen/BOARD.md"),
+    "# BOARD\n\n## TODO\n- [ ] T-903 unrelated open work\n\n## DONE\n- [x] T-900 Demo feature\n- [x] T-901 Demo feature two\n\nEarlier prose mentions (T-063, T-099) are not ticket items.\n",
+  )
+  assert.deepEqual(checkTicketReconciliation(rootDir), [])
+  fs.rmSync(rootDir, { recursive: true, force: true })
+})
+
+test("fails the release check when BOARD is missing but CHANGELOG references tickets", async () => {
+  const rootDir = makeFixture()
+  write(path.join(rootDir, "CHANGELOG.md"), `# Changelog\n\n## [${VERSION}] - 2026-08-11\n\n### Demo feature (T-900)\n`)
+  const errors = await checkRepository(rootDir, { artifacts: false })
+  assert.ok(errors.some((error) => error.includes("BOARD.md is missing")), "a missing BOARD must fail closed for a ticket-referencing release")
   fs.rmSync(rootDir, { recursive: true, force: true })
 })

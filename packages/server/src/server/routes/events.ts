@@ -41,12 +41,13 @@ export interface BackpressuredSenderOptions {
 
 /**
  * Bounded per-client SSE sender. A slow client (write() returning false)
- * switches the sender into backpressure: new events are coalesced into a tiny
- * backlog (newest per type) and the writer is told to stop until drain. A
- * client that stays too far behind trips the overflow and is disconnected, so
- * server memory stays bounded. Events are invalidation hints, not durable
- * state; order is preserved across types and within a type only the newest
- * state is retained while backlogged.
+ * switches the sender into backpressure: events arriving while backlogged are
+ * queued in a bounded FIFO and the writer is told to stop until drain. When a
+ * `writeFrame()` returns false the frame has ALREADY been accepted by Node's
+ * stream buffer, so it is never re-queued -- queueing it here would resend the
+ * same frame on flush. A client that stays too far behind trips the overflow
+ * and is disconnected, so server memory stays bounded and the client resyncs
+ * authoritatively instead of silently dropping or coalescing events.
  */
 export function createBackpressuredSender(options: BackpressuredSenderOptions) {
   const maxPending = options.maxPending ?? MAX_PENDING_EVENTS
@@ -74,14 +75,12 @@ export function createBackpressuredSender(options: BackpressuredSenderOptions) {
           backpressured = false
           return
         }
-        const index = pending.findIndex((entry) => entry.type === serialized.type)
-        if (index >= 0) pending[index] = serialized
-        else pending.push(serialized)
+        pending.push(serialized)
         return
       }
       if (!options.writeFrame(serialized.frame)) {
+        // The frame is already buffered by Node; only enter backpressure.
         backpressured = true
-        pending = [serialized]
       }
     },
     /** Flush the backlog after the underlying writer drains. */
@@ -102,14 +101,15 @@ export function createBackpressuredSender(options: BackpressuredSenderOptions) {
 }
 
 /**
- * One bus subscription, one JSON.stringify per event, immutable frame fanned
+ * One bus subscription, one full SSE frame per event, immutable frame fanned
  * out to every subscribed client -- N detached windows no longer serialize
- * the same event N times.
+ * the same event N times, and native EventSource/onmessage receives a proper
+ * `data:` frame instead of bare JSON.
  */
 export function createSseBroadcaster(eventBus: EventBus) {
   const clients = new Set<(serialized: SerializedEvent, event: WorkspaceEventPayload) => void>()
   const unsubscribe = eventBus.onEvent((event) => {
-    const frame = JSON.stringify(event)
+    const frame = `data: ${JSON.stringify(event)}\n\n`
     for (const client of clients) {
       client({ frame, type: event.type }, event)
     }

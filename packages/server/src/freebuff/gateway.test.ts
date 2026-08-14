@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
+import { readFileSync } from "node:fs"
 
 import {
   firstUserText,
@@ -321,6 +322,30 @@ describe("freebuff gateway", () => {
     // A catalog model without an explicit range still falls back to high.
     await registry.getOrCreate(client, "C:/proj", "s2", "mimo/mimo-v2.5", [{ role: "user", content: "other" }])
     assert.equal(createdParams[1].reasoningEffort, "high")
+  })
+
+  it("omits reasoningEffort for a live model whose capability is unknown", async () => {
+    const createdParams: Array<Record<string, unknown>> = []
+    const client = {
+      createThread: async (params: Record<string, unknown>) => {
+        createdParams.push(params)
+        return { id: `t-${createdParams.length}` }
+      },
+    } as unknown as FreebuffClient
+    const registry = new FreebuffThreadRegistry()
+
+    await registry.getOrCreate(client, "C:/proj", "s1", "brand-new/brand-new-v1", [{ role: "user", content: "hello" }])
+    assert.equal(createdParams.length, 1, "the unknown live model creates a thread successfully")
+    assert.equal("reasoningEffort" in createdParams[0], false, "no invented effort is sent for an unknown model")
+  })
+
+  it("never documents the first user prompt as thread identity (weak-model bait)", () => {
+    const source = readFileSync(new URL("./gateway.ts", import.meta.url), "utf8")
+    const firstUserDoc = source.slice(0, source.indexOf("export function firstUserText"))
+    assert.ok(!/session identity/.test(firstUserDoc), "no comment may call the prompt text the session identity")
+    assert.ok(!/first user message[^\n]*identity/.test(source), "no statement assigns the first user message identity")
+    assert.match(firstUserDoc, /title seed only/i)
+    assert.match(firstUserDoc, /never the thread[\s\S]*?identity/)
   })
 
   it("runs a turn, collects text and resolves on idle", async () => {

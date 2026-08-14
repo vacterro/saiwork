@@ -6,12 +6,13 @@
  *
  * Checks, in order:
  *   1. install located (tolerant of a renamed app directory)
- *   2. engine spawns and /api/auth/status answers
+ *   2. concurrent starts converge on one launch-bound ready engine
  *   3. account authed
  *   4. which catalog model ids the engine currently accepts (createThread probe,
  *      no quota consumed)
  *   5. closeThread releases the slot (open another thread after closing)
- *   6. optional: one real turn
+ *   6. optional: one completed real turn (consumes quota)
+ *   7. graceful close followed by a fresh SAIWORK-managed restart
  *
  * Exits non-zero on the first failed invariant. Safe to re-run.
  */
@@ -23,6 +24,7 @@ import { FreebuffController } from "../src/freebuff/controller"
 import { createLogger } from "../src/logger"
 import { locateFreebuffInstall } from "../src/freebuff/install"
 import { FREEBUFF_MODELS, freebuffMaxReasoningEffort } from "../src/freebuff/models"
+import { runFreebuffTurn } from "../src/freebuff/gateway"
 
 const logger = createLogger({ component: "freebuff-verify" })
 const workspace = path.join(os.tmpdir(), "saiwork-freebuff-verify")
@@ -31,27 +33,32 @@ mkdirSync(workspace, { recursive: true })
 async function main() {
   const install = locateFreebuffInstall()
   if (!install) {
-    console.error("FAIL: FreeBuff install not found. Check SAIWORK_FREEBUFF_HOME or reinstall FreeBuff desktop.")
-    process.exit(1)
+    throw new Error("FreeBuff install not found. Check SAIWORK_FREEBUFF_HOME or reinstall FreeBuff Desktop.")
   }
-  console.log(`OK  install: ${install.root}`)
+  console.log(`OK  install: ${install.root} (Desktop ${install.version ?? "unverified"})`)
 
   const engineManager = new FreebuffEngineManager({ logger })
   const controller = new FreebuffController({ engineManager, logger })
   try {
-    const status = await controller.ensureRunning()
+    const starts = await Promise.all([
+      controller.ensureRunning(),
+      controller.ensureRunning(),
+      controller.ensureRunning(),
+    ])
+    const status = starts[0]
     if (!status.ready || !status.engineRunning) {
-      console.error(`FAIL: engine did not start: ${status.error ?? "unknown"}`)
-      process.exit(1)
+      throw new Error(`engine did not start: ${status.error ?? "unknown"}`)
     }
-    console.log(`OK  engine: ready on port ${status.port}`)
+    if (!starts.every((entry) => entry.port === status.port && entry.ready)) {
+      throw new Error("concurrent engine starts did not converge on one ready port")
+    }
+    console.log(`OK  engine: concurrent start converged on port ${status.port}`)
 
     const client = controller.client()
     if (!client) throw new Error("no client after engine start")
     const auth = await client.authStatus()
     if (!auth.authed) {
-      console.error("FAIL: not authenticated with FreeBuff. Sign in to FreeBuff desktop once.")
-      process.exit(1)
+      throw new Error("not authenticated with FreeBuff; sign in to FreeBuff Desktop once")
     }
     console.log(`OK  auth: ${(auth.user as { email?: string } | undefined)?.email ?? "authed"}`)
 
@@ -74,8 +81,7 @@ async function main() {
       }
     }
     if (accepted.length === 0) {
-      console.error("FAIL: no catalog model accepted by the engine")
-      process.exit(1)
+      throw new Error("no catalog model accepted by the engine")
     }
 
     const slotCheck = await client.createThread({ projectPath: workspace, harnessId: "codebuff", model: accepted[0] })
@@ -86,12 +92,33 @@ async function main() {
 
     if (process.env.FREEBUFF_RUN_TURN === "1") {
       const turn = await client.createThread({ projectPath: workspace, harnessId: "codebuff", model: accepted[0] })
-      const result = await client.postMessage(turn.id, "Reply with exactly: FREE_BUFF_OK and nothing else.")
-      console.log(`OK  turn dispatched: ${JSON.stringify(result)}`)
-      await client.closeThread(turn.id)
+      try {
+        const answer = await runFreebuffTurn(
+          client,
+          turn.id,
+          "Reply with exactly: FREE_BUFF_OK and nothing else.",
+          () => {},
+          { timeoutMs: 10 * 60 * 1000 },
+        )
+        if (answer.trim() !== "FREE_BUFF_OK") throw new Error(`unexpected turn answer: ${JSON.stringify(answer)}`)
+        console.log("OK  turn: completed with FREE_BUFF_OK")
+      } finally {
+        await client.closeThread(turn.id).catch(() => undefined)
+      }
     } else {
       console.log("SKIP real turn (set FREEBUFF_RUN_TURN=1 to run one and burn quota)")
     }
+
+    await controller.stop()
+    const restarted = await controller.ensureRunning()
+    if (!restarted.ready || !restarted.engineRunning) {
+      throw new Error(`SAIWORK restart failed: ${restarted.error ?? "unknown"}`)
+    }
+    const restartedClient = controller.client()
+    if (!restartedClient || !(await restartedClient.authStatus()).authed) {
+      throw new Error("restarted engine lost the authenticated Desktop session")
+    }
+    console.log(`OK  restart: new managed launch ready on port ${restarted.port}`)
 
     console.log("\nVERIFY PASS")
   } finally {
@@ -101,5 +128,5 @@ async function main() {
 
 main().catch((error) => {
   console.error("VERIFY FAILED:", error)
-  process.exit(1)
+  process.exitCode = 1
 })

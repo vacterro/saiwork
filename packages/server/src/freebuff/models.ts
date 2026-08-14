@@ -86,9 +86,19 @@ export function freebuffModelInfo(modelId: string): FreebuffModelInfo | null {
   return FREEBUFF_MODELS.find((model) => model.id === modelId) ?? null
 }
 
-/** The maximum reasoning effort the engine will honor for `modelId`. */
-export function freebuffMaxReasoningEffort(modelId: string): FreebuffReasoningEffort {
+/**
+ * The maximum reasoning effort the engine will honor for `modelId`, or
+ * `undefined` when the model's capability is unknown. A KNOWN catalog model
+ * declares/known its effort range (explicit efforts or the free-tier fallback
+ * of high) and gets an explicit maximum; an unknown LIVE model (newly
+ * discovered, no static metadata) has no declared capability, so returning a
+ * fabricated value would make it executable with an unsupported invented
+ * effort. The gateway omits `reasoningEffort` in that case and lets FreeBuff
+ * choose its own supported default.
+ */
+export function freebuffMaxReasoningEffort(modelId: string): FreebuffReasoningEffort | undefined {
   const model = freebuffModelInfo(modelId)
+  if (!model) return undefined
   const efforts = model?.efforts
   if (efforts && efforts.length > 0) return efforts[efforts.length - 1]
   return model?.reasoningEffort ?? FREEBUFF_MAX_REASONING_EFFORT

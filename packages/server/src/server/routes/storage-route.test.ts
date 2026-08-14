@@ -83,4 +83,65 @@ describe("instance storage routes", () => {
     assert.equal(resurrect.statusCode, 409, "a deleted generation must not be resurrected by a stale writer")
     await app.close()
   })
+
+  it("rejects unknown instance ids with 404 and never mints persistence for a deleted workspace", async (t) => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "storage-route-"))
+    t.after(() => fs.rm(dir, { recursive: true, force: true }))
+    const storeDir = path.join(dir, "instances")
+    const instanceStore = new InstanceStore(storeDir)
+    const registered = new Set<string>(["ws-live"])
+    const workspaceManager = {
+      get: (id: string) => (registered.has(id) ? { path: path.join(dir, "workspaces", id) } : undefined),
+    } as unknown as WorkspaceManager
+    const app = Fastify({ logger: false })
+    registerStorageRoutes(app, { instanceStore, eventBus: new EventBus(), workspaceManager })
+    const storedFiles = async () => fs.readdir(storeDir)
+
+    assert.equal((await app.inject({ method: "GET", url: "/api/storage/instances/ghost" })).statusCode, 404, "unknown id GET fails")
+    assert.equal(
+      (await app.inject({ method: "PUT", url: "/api/storage/instances/ghost", payload: { data: { messageHistory: [], agentModelSelections: {} }, expectedRevision: 0 } })).statusCode,
+      404,
+      "unknown id PUT fails",
+    )
+    assert.equal((await app.inject({ method: "DELETE", url: "/api/storage/instances/ghost", payload: { expectedRevision: 0 } })).statusCode, 404, "unknown id DELETE fails")
+    assert.deepEqual(await storedFiles(), [], "an unknown id mints no persistence")
+
+    const put = await app.inject({
+      method: "PUT",
+      url: "/api/storage/instances/ws-live",
+      payload: { data: { messageHistory: ["v1"], agentModelSelections: {} }, expectedRevision: 0 },
+    })
+    assert.equal(put.statusCode, 200)
+    assert.equal(put.json().revision, 1)
+    assert.equal((await storedFiles()).length, 1)
+
+    // Authoritative deletion while the workspace is registered removes state.
+    const okDelete = await app.inject({ method: "DELETE", url: "/api/storage/instances/ws-live", payload: { expectedRevision: 1 } })
+    assert.equal(okDelete.statusCode, 204)
+    assert.deepEqual(await storedFiles(), [], "authoritative delete leaves no persisted instance state")
+
+    // The workspace is now gone; a late client with the old id must fail and
+    // must not be able to recreate a fresh persistence namespace.
+    registered.delete("ws-live")
+    assert.equal((await app.inject({ method: "GET", url: "/api/storage/instances/ws-live" })).statusCode, 404, "late GET of a deleted workspace fails")
+    const latePut = await app.inject({
+      method: "PUT",
+      url: "/api/storage/instances/ws-live",
+      payload: { data: { messageHistory: ["zombie"], agentModelSelections: {} }, expectedRevision: 1 },
+    })
+    assert.equal(latePut.statusCode, 404, "late PUT of a deleted workspace is rejected")
+    const lateDelete = await app.inject({ method: "DELETE", url: "/api/storage/instances/ws-live", payload: { expectedRevision: 1 } })
+    assert.equal(lateDelete.statusCode, 404, "late DELETE of a deleted workspace is rejected")
+    assert.deepEqual(await storedFiles(), [], "no new instance JSON may appear after workspace deletion")
+
+    registered.add("ws-live2")
+    const put2 = await app.inject({
+      method: "PUT",
+      url: "/api/storage/instances/ws-live2",
+      payload: { data: { messageHistory: ["ok"], agentModelSelections: {} }, expectedRevision: 0 },
+    })
+    assert.equal(put2.statusCode, 200, "a live registered workspace still persists normally")
+    assert.equal(put2.json().revision, 1)
+    await app.close()
+  })
 })

@@ -32,9 +32,13 @@ const EMPTY_INSTANCE_DATA: InstanceData = {
 }
 
 export function registerStorageRoutes(app: FastifyInstance, deps: RouteDeps) {
-  const resolveStorageKey = (instanceId: string): string => {
-    const workspace = deps.workspaceManager.get(instanceId)
-    return workspace?.path ?? instanceId
+  // Runtime instance storage is keyed by a REGISTERED workspace's path only.
+  // Falling back to the raw instance id would let a late client of a deleted
+  // instance mint a brand-new hashed persistence namespace (revision 0) that
+  // no registered workspace owns, contradicting permanent deletion. Unknown
+  // ids resolve to null and every route returns 404.
+  const resolveStorageKey = (instanceId: string): string | null => {
+    return deps.workspaceManager.get(instanceId)?.path ?? null
   }
 
   const sendConflict = (reply: { code: (code: number) => { send: (body: unknown) => void } }, error: InstanceStoreConflictError) => {
@@ -48,6 +52,10 @@ export function registerStorageRoutes(app: FastifyInstance, deps: RouteDeps) {
   app.get<{ Params: { id: string } }>("/api/storage/instances/:id", async (request, reply) => {
     try {
       const storageId = resolveStorageKey(request.params.id)
+      if (storageId === null) {
+        reply.code(404)
+        return { error: "Instance is not a registered workspace" }
+      }
       const stored = await deps.instanceStore.read(storageId)
       return { data: stored.data, revision: stored.revision }
     } catch (error) {
@@ -64,6 +72,10 @@ export function registerStorageRoutes(app: FastifyInstance, deps: RouteDeps) {
     try {
       const body = PutBodySchema.parse(request.body ?? {})
       const storageId = resolveStorageKey(request.params.id)
+      if (storageId === null) {
+        reply.code(404)
+        return { error: "Instance is not a registered workspace" }
+      }
       const stored = await deps.instanceStore.write(storageId, body.data, body.expectedRevision)
       deps.eventBus.publish({
         type: "instance.dataChanged",
@@ -89,6 +101,10 @@ export function registerStorageRoutes(app: FastifyInstance, deps: RouteDeps) {
     try {
       const body = DeleteBodySchema.parse(request.body ?? {})
       const storageId = resolveStorageKey(request.params.id)
+      if (storageId === null) {
+        reply.code(404)
+        return { error: "Instance is not a registered workspace" }
+      }
       await deps.instanceStore.delete(storageId, body.expectedRevision)
       deps.eventBus.publish({
         type: "instance.dataChanged",

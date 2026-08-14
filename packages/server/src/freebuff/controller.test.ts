@@ -16,6 +16,8 @@ function fakeEngineManager(port: number | null): FreebuffEngineManager {
     root: "C:/freebuff",
     auth: { token: "tok", user: { id: "u1" } },
     error: null,
+    coordinator: "saiwork",
+    desktopVersion: "0.0.61",
   })
   const manager = {
     get status() {
@@ -30,6 +32,41 @@ function fakeEngineManager(port: number | null): FreebuffEngineManager {
     },
   }
   return manager as unknown as FreebuffEngineManager
+}
+
+function controllableEngineManager(port: number) {
+  let ready = true
+  const listeners = new Set<(status: FreebuffEngineStatus) => void>()
+  const status = (): FreebuffEngineStatus => ({
+    installFound: true,
+    engineRunning: ready,
+    ready,
+    port: ready ? port : null,
+    root: "C:/freebuff",
+    auth: { token: "tok", user: { id: "u1" } },
+    error: null,
+    coordinator: "saiwork",
+    desktopVersion: "0.0.61",
+  })
+  const notify = () => {
+    const value = status()
+    for (const listener of listeners) listener(value)
+  }
+  const manager = {
+    get status() { return status() },
+    start: async () => status(),
+    stop: async () => { ready = false; notify() },
+    onStatusChange(listener: (value: FreebuffEngineStatus) => void) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  } as unknown as FreebuffEngineManager
+  return {
+    manager,
+    listenerCount() { return listeners.size },
+    crash() { ready = false; notify() },
+    recover() { ready = true; notify() },
+  }
 }
 
 function sseResponse(frames: unknown[]): Response {
@@ -102,6 +139,59 @@ describe("FreebuffController thread registry", () => {
       assert.equal(controller.listThreads().length, 1)
       await controller.stop()
       assert.equal(controller.listThreads().length, 0)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("removes empty project buckets when the final thread closes", async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async (input: any) => {
+      if (String(input).endsWith("/api/events")) {
+        return sseResponse([threadEvent("only", "open"), threadEvent("only", "closed")])
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+    try {
+      const controller = new FreebuffController({ engineManager: fakeEngineManager(19_009), logger: logger as never })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      const projects = (controller as unknown as { threadsByProject: Map<string, unknown> }).threadsByProject
+      assert.equal(projects.size, 0)
+      await controller.stop()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("reattaches its mirror immediately after engine crash recovery", async () => {
+    const originalFetch = globalThis.fetch
+    const engine = controllableEngineManager(19_010)
+    let subscriptions = 0
+    globalThis.fetch = (async (input: any, init?: RequestInit) => {
+      if (!String(input).endsWith("/api/events")) return new Response("{}", { status: 200 })
+      subscriptions += 1
+      const encoder = new TextEncoder()
+      const id = `reconnect-${subscriptions}`
+      const body = new ReadableStream<Uint8Array>({
+        start(stream) {
+          stream.enqueue(encoder.encode(`data: ${JSON.stringify(threadEvent(id, "open"))}\n\n`))
+          init?.signal?.addEventListener("abort", () => stream.close(), { once: true })
+        },
+      })
+      return new Response(body, { status: 200 })
+    }) as typeof fetch
+    try {
+      const controller = new FreebuffController({ engineManager: engine.manager, logger: logger as never })
+      await controller.ensureRunning()
+      await waitFor(() => subscriptions === 1 && controller.listThreads().length === 1)
+      engine.crash()
+      engine.recover()
+      await waitFor(() => subscriptions === 2 && controller.listThreads().length === 2)
+      assert.deepEqual(controller.listThreads().map((thread) => thread.id).sort(), ["reconnect-1", "reconnect-2"])
+      assert.equal(engine.listenerCount(), 1)
+      await controller.stop()
+      assert.equal(engine.listenerCount(), 0)
     } finally {
       globalThis.fetch = originalFetch
     }
@@ -508,3 +598,11 @@ describe("FreebuffController thread registry", () => {
     }
   })
 })
+
+async function waitFor(predicate: () => boolean, timeoutMs = 250): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("condition not reached")
+    await new Promise((resolve) => setTimeout(resolve, 2))
+  }
+}

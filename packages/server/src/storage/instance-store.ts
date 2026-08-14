@@ -89,6 +89,11 @@ export class InstanceStore {
   }
 
   async delete(id: string, expectedRevision: number): Promise<void> {
+    // Deletion has no tombstone/generation semantics: the physical file is
+    // removed and the next read observes the implicit revision 0. Correctness
+    // relies on the storage ROUTES enforcing the single canonical ownership
+    // rule -- only a registered workspace path may ever be written or deleted
+    // -- so no caller can mutate after an authoritative workspace removal.
     return this.withKeyLock(id, async () => {
       const current = await this.read(id)
       if (current.revision !== expectedRevision) {

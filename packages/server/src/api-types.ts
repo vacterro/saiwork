@@ -906,6 +906,8 @@ export interface FreebuffStatusResponse {
   root: string | null
   auth: FreebuffUser | null
   error: string | null
+  coordinator: "saiwork"
+  desktopVersion: string | null
   quota: FreebuffQuotaResponse
 }
 

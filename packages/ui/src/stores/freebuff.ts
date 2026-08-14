@@ -2,6 +2,8 @@ import { batch, createSignal } from "solid-js"
 
 import { serverApi } from "../lib/api-client"
 import { getLogger } from "../lib/logger"
+import { createSharedInterval } from "./shared-interval"
+import { deleteThreadEvents, pruneThreadEvents, putThreadEvents } from "./thread-event-cache"
 import type {
   FreebuffStatusResponse,
   FreebuffReleaseSlotResponse,
@@ -10,6 +12,9 @@ import type {
 } from "../../../server/src/api-types"
 
 const log = getLogger("freebuff")
+const FREEBUFF_EVENT_TEXT_CHARS = 256 * 1024
+const FREEBUFF_THREAD_EVENT_WEIGHT = 512 * 1024
+const TRUNCATED_EVENT_PREFIX = "[…]\n"
 
 export interface FreebuffAgentEventView {
   seq: number
@@ -36,7 +41,10 @@ const [busy, setBusy] = createSignal(false)
 const [error, setError] = createSignal<string | null>(null)
 
 let eventsSource: EventSource | null = null
-let statusRefreshTimer: ReturnType<typeof setInterval> | null = null
+let statusRefreshInFlight: Promise<void> | null = null
+const statusPoller = createSharedInterval(() => {
+  if (status()?.ready) void refreshFreebuffStatus()
+}, 30_000)
 
 export const freebuffStatus = status
 export const freebuffThreads = threads
@@ -85,10 +93,14 @@ function connectEvents() {
 
 function handleBusEvent(event: FreebuffBusEventView) {
   if (event.type === "thread" && typeof event.threadId === "string") {
+    const threadId = event.threadId
     setThreads((current) => {
       const snapshot = event as unknown as { thread?: FreebuffThreadView }
       if (!snapshot.thread) return current
       const existing = current.findIndex((thread) => thread.id === snapshot.thread!.id)
+      if (snapshot.thread.status !== "open") {
+        return existing >= 0 ? current.filter((thread) => thread.id !== snapshot.thread!.id) : current
+      }
       if (existing >= 0) {
         const next = [...current]
         next[existing] = snapshot.thread!
@@ -96,6 +108,11 @@ function handleBusEvent(event: FreebuffBusEventView) {
       }
       return [snapshot.thread!, ...current]
     })
+    const snapshot = (event as unknown as { thread?: FreebuffThreadView }).thread
+    if (snapshot?.status !== "open") {
+      setEventsByThread((current) => deleteThreadEvents(current, threadId))
+      if (activeThreadId() === threadId) setActiveThreadId(null)
+    }
     return
   }
   if (event.type === "agent" && typeof event.threadId === "string" && event.event) {
@@ -104,6 +121,7 @@ function handleBusEvent(event: FreebuffBusEventView) {
       ...rest,
       seq: typeof event.seq === "number" ? event.seq : (typeof innerSeq === "number" ? innerSeq : 0),
     } as FreebuffAgentEventView
+    if (typeof agentEvent.text === "string") agentEvent.text = boundEventText(agentEvent.text)
     setEventsByThread((current) => {
       const next = new Map(current)
       const list = [...(next.get(event.threadId!) ?? [])]
@@ -113,28 +131,35 @@ function handleBusEvent(event: FreebuffBusEventView) {
       if (last && (last.type === "text" || last.type === "reasoning" || last.type === "reasoning_delta")
         && agentEvent.type === last.type
         && typeof last.text === "string" && typeof agentEvent.text === "string") {
-        list[list.length - 1] = { ...last, text: last.text + agentEvent.text }
+        list[list.length - 1] = { ...last, text: boundEventText(last.text + agentEvent.text) }
       } else {
         list.push(agentEvent)
       }
-      next.set(event.threadId!, list.slice(-400))
-      return next
+      return putFreebuffThreadEvents(next, event.threadId!, list)
     })
   }
 }
 
-export async function refreshFreebuffStatus(): Promise<void> {
-  try {
-    const next = await serverApi.fetchFreebuffStatus()
-    batch(() => {
-      setStatus(next)
-      setError(next.error ? next.error : null)
-    })
-    if (next.ready) connectEvents()
-  } catch (cause) {
-    log.error("Failed to load FreeBuff status", cause)
-    setError(cause instanceof Error ? cause.message : String(cause))
-  }
+export function refreshFreebuffStatus(): Promise<void> {
+  if (statusRefreshInFlight) return statusRefreshInFlight
+  const refresh = (async () => {
+    try {
+      const next = await serverApi.fetchFreebuffStatus()
+      batch(() => {
+        setStatus(next)
+        setError(next.error ? next.error : null)
+      })
+      if (next.ready) connectEvents()
+    } catch (cause) {
+      log.error("Failed to load FreeBuff status", cause)
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  })()
+  const settled = refresh.finally(() => {
+    if (statusRefreshInFlight === settled) statusRefreshInFlight = null
+  })
+  statusRefreshInFlight = settled
+  return settled
 }
 
 export async function startFreebuffEngine(): Promise<FreebuffStatusResponse | null> {
@@ -182,7 +207,13 @@ export async function refreshFreebuffThreads(): Promise<void> {
   if (!status()?.ready) return
   try {
     const response = await serverApi.fetchFreebuffThreads()
-    setThreads(response.threads)
+    batch(() => {
+      setThreads(response.threads)
+      const keep = new Set(response.threads.map((thread) => thread.id))
+      const active = activeThreadId()
+      if (active && !keep.has(active)) setActiveThreadId(null)
+      setEventsByThread((current) => pruneThreadEvents(current, keep))
+    })
   } catch (cause) {
     log.error("Failed to load FreeBuff threads", cause)
     setError(cause instanceof Error ? cause.message : String(cause))
@@ -277,13 +308,7 @@ export async function loadFreebuffThreadHistory(threadId: string): Promise<void>
   try {
     const response = await serverApi.fetchFreebuffThread(threadId)
     const events = messagesToEvents(response.messages)
-    if (events.length > 0) {
-      setEventsByThread((current) => {
-        const next = new Map(current)
-        next.set(threadId, events)
-        return next
-      })
-    }
+    setEventsByThread((current) => putFreebuffThreadEvents(current, threadId, events))
   } catch (cause) {
     log.error("Failed to load FreeBuff thread history", cause)
     setError(cause instanceof Error ? cause.message : String(cause))
@@ -297,11 +322,11 @@ function messagesToEvents(messages: FreebuffThreadMessage[]): FreebuffAgentEvent
     for (const part of message.parts ?? []) {
       const kind = part.kind
       if (kind === "text" || kind === "reasoning" || kind === "reasoning_delta") {
-        events.push({ seq: events.length, type: prefix, text: part.text ?? "" })
+        events.push({ seq: events.length, type: prefix, text: boundEventText(part.text ?? "") })
       } else if (kind === "tool-call" || kind === "tool_call") {
         events.push({ seq: events.length, type: "tool_call", toolName: typeof part.toolName === "string" ? part.toolName : "tool" })
       } else {
-        events.push({ seq: events.length, type: prefix, text: String(part.text ?? "") })
+        events.push({ seq: events.length, type: prefix, text: boundEventText(String(part.text ?? "")) })
       }
     }
   }
@@ -309,23 +334,25 @@ function messagesToEvents(messages: FreebuffThreadMessage[]): FreebuffAgentEvent
 }
 
 export function clearFreebuffEvents(threadId: string): void {
-  setEventsByThread((current) => {
-    if (!current.has(threadId)) return current
-    const next = new Map(current)
-    next.delete(threadId)
-    return next
-  })
+  setEventsByThread((current) => deleteThreadEvents(current, threadId))
 }
 
 export function startFreebuffStatusPolling(): () => void {
-  if (statusRefreshTimer) clearInterval(statusRefreshTimer)
-  statusRefreshTimer = setInterval(() => {
-    if (status()?.ready) void refreshFreebuffStatus()
-  }, 30_000)
-  return () => {
-    if (statusRefreshTimer) {
-      clearInterval(statusRefreshTimer)
-      statusRefreshTimer = null
-    }
-  }
+  return statusPoller.subscribe()
+}
+
+function putFreebuffThreadEvents(
+  current: ReadonlyMap<string, FreebuffAgentEventView[]>,
+  threadId: string,
+  events: FreebuffAgentEventView[],
+): Map<string, FreebuffAgentEventView[]> {
+  return putThreadEvents(current, threadId, events, {
+    maxWeightPerThread: FREEBUFF_THREAD_EVENT_WEIGHT,
+    weight: (event) => (typeof event.text === "string" ? event.text.length : 0) + 256,
+  })
+}
+
+function boundEventText(text: string): string {
+  if (text.length <= FREEBUFF_EVENT_TEXT_CHARS) return text
+  return TRUNCATED_EVENT_PREFIX + text.slice(-(FREEBUFF_EVENT_TEXT_CHARS - TRUNCATED_EVENT_PREFIX.length))
 }

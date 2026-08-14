@@ -46,14 +46,24 @@ export function createFreebuffClient(options: FreebuffClientOptions) {
   const fetchFn = options.fetch ?? ((url, init) => fetch(url, init))
   const baseUrl = options.baseUrl.replace(/\/+$/, "")
 
+  const requestHeaders = (init?: RequestInit): Headers => {
+    const headers = new Headers({
+      accept: "application/json",
+      origin: baseUrl,
+      "sec-fetch-site": "same-origin",
+      // Preserve the Desktop same-origin contract without concealing that the
+      // caller is SAIWORK's coordinator rather than the Electron renderer.
+      "x-saiwork-coordinator": "1",
+    })
+    if (init?.body) headers.set("content-type", "application/json")
+    new Headers(init?.headers).forEach((value, name) => headers.set(name, value))
+    return headers
+  }
+
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetchFn(`${baseUrl}${path}`, {
       ...init,
-      headers: {
-        accept: "application/json",
-        ...(init?.body ? { "content-type": "application/json" } : {}),
-        ...init?.headers,
-      },
+      headers: requestHeaders(init),
     })
     const text = await response.text()
     let body: unknown = null
@@ -160,7 +170,10 @@ export function createFreebuffClient(options: FreebuffClientOptions) {
       }
       void (async () => {
         try {
-          const response = await fetchFn(`${baseUrl}/api/events`, { signal: controller.signal })
+          const response = await fetchFn(`${baseUrl}/api/events`, {
+            headers: requestHeaders(),
+            signal: controller.signal,
+          })
           if (!response.ok || !response.body) {
             finish(new FreebuffClientError(response.status, "events stream failed"))
             return

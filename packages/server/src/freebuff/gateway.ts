@@ -39,7 +39,11 @@ export function freebuffOpenAiText(content: FreebuffOpenAiMessage["content"]): s
   return ""
 }
 
-/** The text of the first user message: the session identity for a thread. */
+/**
+ * The first user text is the thread TITLE seed only; it is never the thread
+ * identity. Canonical thread identity is workspace + OpenCode session id +
+ * model (see freebuffThreadKey).
+ */
 export function firstUserText(messages: FreebuffOpenAiMessage[]): string {
   for (const message of messages) {
     if (message.role === "user") {
@@ -155,18 +159,22 @@ export class FreebuffThreadRegistry {
       }
       thread = { updatedAt: now }
       this.threadByKey.set(key, thread)
-      thread.creating = client.createThread({
-          projectPath: workspace,
-          harnessId: FREEBUFF_HARNESS_ID,
-          model,
-          // FreeBuff 0.0.55 reasons per-thread; always request the model's
-          // maximum effort so turns run at full reasoning instead of the
-          // engine's medium default.
-          reasoningEffort: freebuffMaxReasoningEffort(model),
-          executionMode: FREEBUFF_EXECUTION_MODE_LOCAL,
-          // The first prompt is the thread TITLE only; it is never the identity.
-          title: firstUserText(messages).slice(0, 80) || "FreeBuff conversation",
-        })
+      // FreeBuff 0.0.55 reasons per-thread. A KNOWN model declares its effort
+      // range, so request its maximum so turns run at full reasoning instead
+      // of the engine's medium default. An unknown live model has no declared
+      // capability: omit reasoningEffort entirely and let FreeBuff choose its
+      // own supported default rather than inventing one.
+      const maxEffort = freebuffMaxReasoningEffort(model)
+      const createThreadParams: Parameters<typeof client.createThread>[0] = {
+        projectPath: workspace,
+        harnessId: FREEBUFF_HARNESS_ID,
+        model,
+        executionMode: FREEBUFF_EXECUTION_MODE_LOCAL,
+        // The first prompt is the thread TITLE only; it is never the identity.
+        title: firstUserText(messages).slice(0, 80) || "FreeBuff conversation",
+      }
+      if (maxEffort !== undefined) createThreadParams.reasoningEffort = maxEffort
+      thread.creating = client.createThread(createThreadParams)
         .then((created) => {
           thread!.threadId = created.id
           thread!.updatedAt = Date.now()

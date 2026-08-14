@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { createBackpressuredSender, createSseBroadcaster } from "./events"
+import { EventSource } from "undici"
+import Fastify from "fastify"
+import { createBackpressuredSender, createSseBroadcaster, registerEventRoutes } from "./events"
 import { sanitizeLogValue } from "../../log-sanitize"
 import { EventBus } from "../../events/bus"
 
@@ -28,7 +30,7 @@ describe("backpressured SSE sender", () => {
     assert.ok(sender.pendingCount <= 64, "the in-memory backlog stays bounded")
   })
 
-  it("coalesces a bounded backlog by type and flushes on drain", () => {
+  it("queues a bounded FIFO backlog preserving order and identity, and flushes on drain", () => {
     const frames: string[] = []
     const sender = createBackpressuredSender({
       writeFrame: (frame) => {
@@ -41,8 +43,9 @@ describe("backpressured SSE sender", () => {
 
     sender.send(ser("a"), event("a"))
     sender.send(ser("b"), event("b"))
-    sender.send({ frame: "newest-a-frame\n\n", type: "a" }, event("a")) // newest a replaces the backlogged a
-    assert.equal(sender.pendingCount, 2, "same-type events coalesce to the newest")
+    sender.send({ frame: "second-a-frame\n\n", type: "a" }, event("a")) // same type, distinct entity
+    sender.send(ser("c"), event("c"))
+    assert.equal(sender.pendingCount, 3, "same-type events are NOT coalesced; every entity event is kept in order")
 
     let allow = false
     const draining = createBackpressuredSender({
@@ -52,13 +55,41 @@ describe("backpressured SSE sender", () => {
       },
       onOverflow: () => {},
     })
-    draining.send(ser("x"), event("x"))
-    draining.send(ser("y"), event("y"))
-    draining.flush() // writer still backpressured: only the first backlogged frame is attempted
+    draining.send(ser("x"), event("x")) // buffered by the writer (write=false), enters backpressure
+    draining.send(ser("y"), event("y")) // queued while backpressured
+    draining.send(ser("z"), event("z")) // queued while backpressured
+    draining.flush() // writer still backpressured: y is attempted and accepted by the writer
     assert.equal(draining.pendingCount, 1, "flush stops while the writer stays backpressured")
     allow = true
     draining.flush()
     assert.equal(draining.pendingCount, 0, "a later drain continues from the backlog")
+    assert.deepEqual(frames.slice(-3), ['data: {"type":"x"}\n\n', 'data: {"type":"y"}\n\n', 'data: {"type":"z"}\n\n'], "FIFO order is preserved with no coalescing")
+  })
+
+  it("never resends a frame the writer already buffered when backpressure begins", () => {
+    const frames: string[] = []
+    let allow = true
+    const sender = createBackpressuredSender({
+      writeFrame: (frame) => {
+        frames.push(frame)
+        if (frame.startsWith("data: first")) {
+          allow = false
+          return false // first backpressure: the frame is already buffered by Node
+        }
+        return allow
+      },
+      onOverflow: () => {},
+    })
+
+    sender.send(ser("first"), event("first")) // buffered by the writer, enters backpressure
+    sender.send(ser("second"), event("second")) // queued while backpressured
+    sender.send(ser("third"), event("third")) // queued while backpressured
+    sender.flush() // drain: must NOT resend "first"; only the queued backlog
+    assert.equal(frames.length, 3, "every frame appears exactly once, in order")
+    assert.deepEqual(
+      frames.map((frame) => JSON.parse(frame.slice("data: ".length)).type),
+      ["first", "second", "third"],
+    )
   })
 
   it("stops sending and drops the backlog after close", () => {
@@ -128,5 +159,62 @@ describe("SSE trace payload sanitization", () => {
     const payload = { type: "x", content: "y".repeat(100_000) }
     const sanitized = sanitizeLogValue(payload) as { content: string }
     assert.ok(sanitized.content.length < 5_000, "trace logging must not serialize a huge payload")
+  })
+})
+
+describe("SSE route with a real EventSource", () => {
+  const nullLogger = {
+    debug: () => {},
+    warn: () => {},
+    trace: () => {},
+    info: () => {},
+    error: () => {},
+    isLevelEnabled: () => false,
+  }
+
+  it("publishes one bus event and the EventSource receives exactly one onmessage with a parseable data payload", async (t) => {
+    const bus = new EventBus()
+    const app = Fastify({ logger: false })
+    registerEventRoutes(app, {
+      eventBus: bus,
+      registerClient: () => () => {},
+      logger: nullLogger as never,
+      connectionManager: { register: () => () => {} } as never,
+    })
+    const port = await new Promise<number>((resolve) => {
+      app.listen({ port: 0, host: "127.0.0.1" }, () => resolve((app.server.address() as { port: number }).port))
+    })
+
+    const source = new EventSource(`http://127.0.0.1:${port}/api/events?clientId=it-client&connectionId=it-conn`)
+    t.after(async () => {
+      source.close()
+      await app.close()
+    })
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("EventSource did not open")), 3_000)
+      source.onopen = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+    })
+
+    const payload = { type: "instance.event", instanceId: "i", event: { type: "audit" } }
+    const messages: string[] = []
+    source.onmessage = (message) => messages.push(String(message.data))
+
+    await new Promise((resolve) => setTimeout(resolve, 50)) // let the route's subscription register
+    bus.publish(payload as never)
+
+    await new Promise<void>((resolve) => {
+      const deadline = Date.now() + 2_000
+      const poll = () => {
+        if (messages.length >= 1 || Date.now() > deadline) return resolve()
+        setTimeout(poll, 25)
+      }
+      poll()
+    })
+    assert.equal(messages.length, 1, "exactly one onmessage per published event")
+    assert.deepEqual(JSON.parse(messages[0]), payload, "event.data parses back to the original payload")
   })
 })

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs"
+import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
@@ -92,6 +92,8 @@ export interface FreebuffInstall {
   root: string
   bunPath: string
   orchestratorPath: string
+  /** Verified version from the installed Desktop package metadata. */
+  version: string | null
   /** Account already signed in for this FreeBuff install, if any. */
   auth: FreebuffAuthState | null
 }
@@ -154,9 +156,12 @@ export function locateFreebuffInstall(
   overrides: {
     home?: string
     exists?: (filePath: string) => boolean
+    readFile?: (filePath: string) => string
+    readAsarPackage?: (filePath: string) => string
   } = {},
 ): FreebuffInstall | null {
   const exists = overrides.exists ?? existsSync
+  const read = overrides.readFile ?? ((filePath: string) => readFileSync(filePath, "utf8"))
   const candidates = overrides.home
     ? [overrides.home]
     : [...DESKTOP_INSTALL_CANDIDATES(), ...scanDesktopInstallRoots()]
@@ -164,7 +169,9 @@ export function locateFreebuffInstall(
   for (const root of candidates) {
     // Windows/macOS/Linux share the `resources/{bun,orchestrator}` layout of
     // the desktop app. A user-supplied home may point straight at `resources`.
-    const resources = /(?:resources)?[\\/]$/.test(root) ? root : path.join(root, "resources")
+    const resources = path.basename(path.normalize(root)).toLowerCase() === "resources"
+      ? root
+      : path.join(root, "resources")
     const bunPath = path.join(resources, "bun", process.platform === "win32" ? "bun.exe" : "bun")
     const orchestratorPath = path.join(resources, "orchestrator", "orchestrator.js")
     try {
@@ -173,6 +180,7 @@ export function locateFreebuffInstall(
           root,
           bunPath,
           orchestratorPath,
+          version: readDesktopVersion(resources, read, overrides.readAsarPackage ?? readAsarPackage),
           auth: readFreebuffAuth(),
         }
       }
@@ -181,4 +189,81 @@ export function locateFreebuffInstall(
     }
   }
   return null
+}
+
+function readDesktopVersion(
+  resources: string,
+  read: (filePath: string) => string,
+  readAsar: (filePath: string) => string,
+): string | null {
+  const candidates = [
+    path.join(resources, "app", "package.json"),
+    path.join(resources, "app.asar.unpacked", "package.json"),
+  ]
+  const packageSources = [
+    () => readAsar(path.join(resources, "app.asar")),
+    // A wrapper may have its own package.json but retain the genuine Desktop
+    // archive below app/. Prefer the archive's version when it is available.
+    () => readAsar(path.join(resources, "app", "app.asar")),
+    ...candidates.map((candidate) => () => read(candidate)),
+  ]
+  for (const load of packageSources) {
+    try {
+      const parsed = JSON.parse(load()) as { version?: unknown }
+      if (typeof parsed.version === "string" && /^\d+\.\d+\.\d+(?:[-+].+)?$/.test(parsed.version)) {
+        return parsed.version
+      }
+    } catch {
+      // A package may be packed into app.asar; try every readable metadata path.
+    }
+  }
+  return null
+}
+
+const MAX_ASAR_HEADER_BYTES = 16 * 1024 * 1024
+const MAX_ASAR_PACKAGE_BYTES = 1024 * 1024
+
+/** Read only package.json from an Electron ASAR; no extraction or writes. */
+function readAsarPackage(archivePath: string): string {
+  const fd = openSync(archivePath, "r")
+  try {
+    const prefix = Buffer.alloc(8)
+    readExact(fd, prefix, 0)
+    if (prefix.readUInt32LE(0) !== 4) throw new Error("invalid ASAR size pickle")
+    const headerSize = prefix.readUInt32LE(4)
+    if (headerSize < 8 || headerSize > MAX_ASAR_HEADER_BYTES) throw new Error("invalid ASAR header size")
+    const headerBuffer = Buffer.alloc(headerSize)
+    readExact(fd, headerBuffer, 8)
+    const stringBytes = headerBuffer.readUInt32LE(4)
+    if (stringBytes <= 0 || stringBytes > headerSize - 8) throw new Error("invalid ASAR header string")
+    const header = JSON.parse(headerBuffer.subarray(8, 8 + stringBytes).toString("utf8")) as {
+      files?: Record<string, { size?: unknown; offset?: unknown; unpacked?: unknown }>
+    }
+    const info = header.files?.["package.json"]
+    const size = typeof info?.size === "number" ? info.size : Number.NaN
+    const offset = typeof info?.offset === "string" && /^\d+$/.test(info.offset)
+      ? Number(info.offset)
+      : Number.NaN
+    if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_ASAR_PACKAGE_BYTES) {
+      throw new Error("invalid ASAR package size")
+    }
+    if (info?.unpacked === true) {
+      return readFileSync(path.join(`${archivePath}.unpacked`, "package.json"), "utf8")
+    }
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("invalid ASAR package offset")
+    const packageBuffer = Buffer.alloc(size)
+    readExact(fd, packageBuffer, 8 + headerSize + offset)
+    return packageBuffer.toString("utf8")
+  } finally {
+    closeSync(fd)
+  }
+}
+
+function readExact(fd: number, buffer: Buffer, position: number): void {
+  let read = 0
+  while (read < buffer.length) {
+    const count = readSync(fd, buffer, read, buffer.length - read, position + read)
+    if (count <= 0) throw new Error("unexpected end of ASAR archive")
+    read += count
+  }
 }

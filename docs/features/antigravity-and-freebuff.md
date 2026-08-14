@@ -108,7 +108,21 @@ FreeBuff right-panel tab.
 - Install: `%LOCALAPPDATA%\Programs\@codebufffreebuff-desktop\resources\
   {bun\bun.exe, orchestrator\orchestrator.js}`. Override with `SAIWORK_FREEBUFF_HOME`.
 - Account: `~/.config/freebuff-desktop/state.json` (already logged in).
-- Spawned on a free loopback port; HTTP + SSE API:
+- Coordinator lifecycle (matched against Desktop 0.0.61): SAIWORK owns a
+  loopback HMAC shell-lifetime server, gives the genuine orchestrator its
+  one-time 256-bit token on stdin, and launches with the installed package
+  version, a fresh `FREEBUFF_LAUNCH_ID`, `PORT=0`, and the Desktop 10-second
+  profile-lock wait. It trusts readiness only after the stdout announcement's
+  launch id/PID/port match the owned child and `/healthz` echoes all three with
+  the launch-bound header. Concurrent starts share one promise. A never-ready
+  child is reaped before retry; a post-ready crash gets at most three same-port
+  restarts (budget resets after 60 seconds stable); closing the lifetime socket
+  gives the engine three seconds to release hosted slots before forced stop.
+- SAIWORK never scans for or attaches to an arbitrary running Desktop process.
+  It does not forward Electron signing/CDP identity, and engine requests carry
+  `x-saiwork-coordinator: 1`; public status reports `coordinator: "saiwork"`
+  plus the genuine Desktop version. The auth token remains server-side.
+- The managed loopback HTTP + SSE API includes:
   - `POST /api/threads` (create; needs `harnessId: "codebuff"` for hosted models)
   - `POST /api/thread/:id/message` (dispatch; reopens closed threads)
   - `POST /api/thread/:id/stop`, `/resume`, `/close`
@@ -171,13 +185,16 @@ FreeBuff right-panel tab.
 
 ### Re-verify after a FreeBuff update
 
-Run `node --import tsx packages/server/scripts/verify-freebuff.ts`
-(FREEBUFF_RUN_TURN=1 for one real turn). It checks install location (tolerant
-of a renamed app directory), engine spawn, auth, which catalog models the
-engine currently accepts, and that `closeThread` releases the slot. Then, by
-hand:
+Close FreeBuff Desktop first: the verifier deliberately respects Desktop's
+profile lock and never hijacks its process. Then run
+`node --import tsx packages/server/scripts/verify-freebuff.ts`
+(`FREEBUFF_RUN_TURN=1` for one real, quota-consuming turn). It checks install
+location and ASAR version metadata, concurrent managed startup, launch-bound
+readiness, auth, current model acceptance, create/close/create slot release,
+optional completed response text, graceful close, and a fresh SAIWORK restart.
+Then, by hand:
 
-1. Engine still spawns and `/api/auth/status` answers.
+1. Engine still emits the launch announcement and bound `/healthz` response.
 2. `createThread` accepts the current model ids (drop stale ids from the catalog).
 3. `closeThread` still releases the slot (admission for another thread succeeds
    right after); if the release becomes automatic, `freeSlotFor` can be simplified.

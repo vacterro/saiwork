@@ -416,9 +416,46 @@ function checkMetadata(rootDir, errors = []) {
   return errors
 }
 
+/**
+ * Release-time SAIPEN coherence guard (narrow by design).
+ *
+ * A shipped CHANGELOG section may only reference tickets that are DONE on the
+ * .saipen BOARD. This compares the CHANGELOG's `T-*` references against the
+ * BOARD's OPEN checkbox items (TODO / DOING / BLOCKED, i.e. anything that is
+ * not `- [x]`). It deliberately does NOT parse STATE, LOG, or protocol
+ * semantics -- that is the SAIPEN engine's job (validate.py). This gate only
+ * prevents the demonstrated paper-TODO/paper-DONE divergence: a release that
+ * claims shipped work while the BOARD still lists that ticket as open.
+ */
+function checkTicketReconciliation(rootDir, errors = []) {
+  const changelogPath = path.join(rootDir, "CHANGELOG.md")
+  if (!fs.existsSync(changelogPath)) return errors
+  const changelog = fs.readFileSync(changelogPath, "utf8")
+  const referenced = new Set(changelog.match(/\bT-\d+\b/g) ?? [])
+  if (referenced.size === 0) return errors
+
+  const boardPath = path.join(rootDir, ".saipen", "BOARD.md")
+  if (!fs.existsSync(boardPath)) {
+    errors.push("CHANGELOG references shipped tickets but .saipen/BOARD.md is missing; cannot verify they are DONE")
+    return errors
+  }
+  const board = fs.readFileSync(boardPath, "utf8")
+  // Open items: checkbox lines whose status is NOT "[x]" (covers [ ] and [/]).
+  const openTickets = new Set(
+    Array.from(board.matchAll(/^-\s*\[(?!x\])[^\]]*\]\s*(T-\d+)/gm), (match) => match[1]),
+  )
+  for (const ticket of referenced) {
+    if (openTickets.has(ticket)) {
+      errors.push(`CHANGELOG references shipped ticket ${ticket} but BOARD still lists it as open`)
+    }
+  }
+  return errors
+}
+
 async function checkRepository(rootDir, options = {}) {
   const errors = []
   if (options.metadata !== false) checkMetadata(rootDir, errors)
+  if (options.metadata !== false) checkTicketReconciliation(rootDir, errors)
   if (options.artifacts !== false) await checkArtifacts(rootDir, errors, { required: options.requireArtifacts === true })
   return errors
 }
@@ -450,6 +487,7 @@ module.exports = {
   checkArtifacts,
   checkMetadata,
   checkRepository,
+  checkTicketReconciliation,
   findPeVersions,
   interpolateArtifactName,
   peVersionMatches,

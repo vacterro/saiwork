@@ -25,7 +25,7 @@ function fakeClient(): FreebuffClient {
   } as unknown as FreebuffClient
 }
 
-function createApp(overrides: Partial<{ client: FreebuffClient | null; status: Record<string, unknown> }> = {}) {
+function createApp(overrides: Partial<{ client: FreebuffClient | null; status: Record<string, unknown>; liveModelIds: Set<string> }> = {}) {
   const app = Fastify({ logger: false })
   const controller = {
     status: () => overrides.status ?? { installFound: true, engineRunning: true, ready: true, port: 19_000, root: null, auth: null, error: null },
@@ -33,6 +33,7 @@ function createApp(overrides: Partial<{ client: FreebuffClient | null; status: R
     client: () => overrides.client === undefined ? fakeClient() : overrides.client,
     auth: () => null,
     quota: async () => ({ configured: true, snapshot: null, error: null }),
+    liveModelIds: async () => overrides.liveModelIds ?? null,
     stop: async () => {},
     freeSlotFor: async () => {},
     releaseSlotNow: async () => ({ closedThreads: 1, slotFree: true, sessionsActive: 0, note: null }),
@@ -50,12 +51,52 @@ describe("registerFreebuffRoutes", () => {
     assert.ok(ids.includes("mimo/mimo-v2.5"))
   })
 
+  it("lists a newly released FreeBuff model the backend reports live", async () => {
+    const response = await createApp({ liveModelIds: new Set(["nova/nova-1.0"]) }).inject({ method: "GET", url: "/api/freebuff/models" })
+    assert.equal(response.statusCode, 200)
+    const ids = response.json().models.map((model: { id: string }) => model.id)
+    assert.ok(ids.includes("nova/nova-1.0"), "a live model must appear in the catalog")
+  })
+
   it("reports engine status including quota", async () => {
-    const response = await createApp().inject({ method: "GET", url: "/api/freebuff/status" })
+    const response = await createApp({
+      status: {
+        installFound: true,
+        engineRunning: true,
+        ready: true,
+        port: 19_000,
+        root: null,
+        auth: { token: "must-not-leave-server", user: { id: "u1", email: "dev@example.com" } },
+        error: null,
+        coordinator: "saiwork",
+        desktopVersion: "0.0.61",
+      },
+    }).inject({ method: "GET", url: "/api/freebuff/status" })
     assert.equal(response.statusCode, 200)
     const body = response.json()
     assert.equal(body.engineRunning, true)
     assert.equal(body.quota.configured, true)
+    assert.deepEqual(body.auth, { id: "u1", email: "dev@example.com" })
+    assert.equal(JSON.stringify(body).includes("must-not-leave-server"), false)
+  })
+
+  it("returns a sanitized, complete status when starting", async () => {
+    const response = await createApp({
+      status: {
+        installFound: true,
+        engineRunning: true,
+        ready: true,
+        port: 19_000,
+        root: null,
+        auth: { token: "secret", user: { id: "u1" } },
+        error: null,
+      },
+    }).inject({ method: "POST", url: "/api/freebuff/start" })
+    const body = response.json()
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(body.auth, { id: "u1" })
+    assert.equal(body.quota.configured, true)
+    assert.equal(JSON.stringify(body).includes("secret"), false)
   })
 
   it("creates a thread with the codebuff harness", async () => {
