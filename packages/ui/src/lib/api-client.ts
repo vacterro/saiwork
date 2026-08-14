@@ -803,17 +803,20 @@ export const serverApi = {
     }
     return request<FileSystemFileContentResponse>(`/api/filesystem/files/content?${params.toString()}`)
   },
-  readInstanceData(id: string): Promise<InstanceData> {
-    return request<InstanceData>(`/api/storage/instances/${encodeURIComponent(id)}`)
+  readInstanceData(id: string): Promise<{ data: InstanceData; revision: number }> {
+    return request<{ data: InstanceData; revision: number }>(`/api/storage/instances/${encodeURIComponent(id)}`)
   },
-  writeInstanceData(id: string, data: InstanceData): Promise<void> {
-    return request(`/api/storage/instances/${encodeURIComponent(id)}`, {
+  writeInstanceData(id: string, data: InstanceData, expectedRevision: number): Promise<{ data: InstanceData; revision: number }> {
+    return request<{ data: InstanceData; revision: number }>(`/api/storage/instances/${encodeURIComponent(id)}`, {
       method: "PUT",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ data, expectedRevision }),
     })
   },
-  deleteInstanceData(id: string): Promise<void> {
-    return request(`/api/storage/instances/${encodeURIComponent(id)}`, { method: "DELETE" })
+  deleteInstanceData(id: string, expectedRevision: number): Promise<void> {
+    return request(`/api/storage/instances/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      body: JSON.stringify({ expectedRevision }),
+    })
   },
   listBackgroundProcesses(instanceId: string): Promise<BackgroundProcessListResponse> {
     return request<BackgroundProcessListResponse>(

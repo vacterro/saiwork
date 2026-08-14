@@ -483,7 +483,7 @@ export type WorkspaceEventPayload =
   | { type: "sidecar.removed"; sidecarId: string }
   | { type: "storage.configChanged"; owner: SettingsOwner; value: SettingsBucket }
   | { type: "storage.stateChanged"; owner: SettingsOwner; value: SettingsBucket }
-  | { type: "instance.dataChanged"; instanceId: string; data: InstanceData }
+  | { type: "instance.dataChanged"; instanceId: string; data: InstanceData; revision?: number }
   | { type: "instance.event"; instanceId: string; event: InstanceStreamEvent }
   | { type: "instance.eventStatus"; instanceId: string; status: InstanceStreamStatus; reason?: string }
   | {

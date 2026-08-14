@@ -37,6 +37,7 @@ export class ServerStorage {
   private configOwnerListeners = new Map<string, Set<(value: OwnerBucket) => void>>()
   private stateOwnerListeners = new Map<string, Set<(value: OwnerBucket) => void>>()
   private instanceDataCache = new Map<string, InstanceData>()
+  private instanceDataRevisions = new Map<string, number>()
   private instanceDataListeners = new Map<string, Set<(data: InstanceData) => void>>()
   private instanceLoadPromises = new Map<string, Promise<InstanceData>>()
 
@@ -54,6 +55,9 @@ export class ServerStorage {
     serverEvents.on("instance.dataChanged", (event) => {
       if (event.type !== "instance.dataChanged") return
       this.setInstanceDataCache(event.instanceId, event.data)
+      if (typeof event.revision === "number") {
+        this.instanceDataRevisions.set(event.instanceId, event.revision)
+      }
     })
   }
 
@@ -118,9 +122,10 @@ export class ServerStorage {
     if (!this.instanceLoadPromises.has(instanceId)) {
       const promise = serverApi
         .readInstanceData(instanceId)
-        .then((data) => {
+        .then(({ data, revision }) => {
           const normalized = this.normalizeInstanceData(data)
           this.setInstanceDataCache(instanceId, normalized)
+          this.instanceDataRevisions.set(instanceId, revision)
           return normalized
         })
         .finally(() => {
@@ -135,13 +140,39 @@ export class ServerStorage {
 
   async saveInstanceData(instanceId: string, data: InstanceData): Promise<void> {
     const normalized = this.normalizeInstanceData(data)
-    await serverApi.writeInstanceData(instanceId, normalized)
-    this.setInstanceDataCache(instanceId, normalized)
+    const expectedRevision = this.instanceDataRevisions.get(instanceId) ?? 0
+    try {
+      const result = await serverApi.writeInstanceData(instanceId, normalized, expectedRevision)
+      this.setInstanceDataCache(instanceId, this.normalizeInstanceData(result.data))
+      this.instanceDataRevisions.set(instanceId, result.revision)
+    } catch (error) {
+      // A stale writer must never stand in for authority: re-read the
+      // server state so the next interaction sees the real revision.
+      await this.refreshInstanceData(instanceId)
+      throw error
+    }
   }
 
   async deleteInstanceData(instanceId: string): Promise<void> {
-    await serverApi.deleteInstanceData(instanceId)
-    this.setInstanceDataCache(instanceId, DEFAULT_INSTANCE_DATA)
+    const expectedRevision = this.instanceDataRevisions.get(instanceId) ?? 0
+    try {
+      await serverApi.deleteInstanceData(instanceId, expectedRevision)
+      this.setInstanceDataCache(instanceId, DEFAULT_INSTANCE_DATA)
+      this.instanceDataRevisions.set(instanceId, 0)
+    } catch (error) {
+      await this.refreshInstanceData(instanceId)
+      throw error
+    }
+  }
+
+  private async refreshInstanceData(instanceId: string): Promise<void> {
+    try {
+      const { data, revision } = await serverApi.readInstanceData(instanceId)
+      this.setInstanceDataCache(instanceId, this.normalizeInstanceData(data))
+      this.instanceDataRevisions.set(instanceId, revision)
+    } catch {
+      // Keep whatever was cached; the failed operation already surfaced.
+    }
   }
 
   onConfigOwnerChanged(owner: string, listener: (value: OwnerBucket) => void): () => void {
