@@ -832,12 +832,34 @@ export class WorkspaceManager {
       this.exitDuringStartup(params, "exited during configuration validation"),
     ])
 
-    await Promise.race([
-      delay(STARTUP_STABILITY_DELAY_MS, undefined, { signal: params.signal }),
-      this.exitDuringStartup(params, "exited shortly after start"),
-    ])
+    // READY now: health + config are valid, so first interaction is not held
+    // hostage to a fixed stability sleep. A crash shortly after READY is
+    // observed in the background and transitions ready -> error through the
+    // normal exit path, which publishes the authoritative event.
+    void this.observeStartupStability(params)
 
     return version
+  }
+
+  /**
+   * Background post-ready crash observation. The old critical path slept a
+   * fixed 1500 ms after readiness; that guaranteed latency is removed from the
+   * workspace cold start, and only the observation itself stays. The
+   * authoritative ready -> error/stopped transition is always
+   * {@link handleProcessExit}; this only logs the early-crash signal.
+   */
+  private async observeStartupStability(params: WorkspaceReadiness): Promise<void> {
+    try {
+      await Promise.race([
+        delay(STARTUP_STABILITY_DELAY_MS, undefined, { signal: params.signal }),
+        params.exitPromise,
+      ])
+    } catch {
+      // Aborted (cleanup) or the process exited; handleProcessExit owns the
+      // authoritative transition either way.
+      return
+    }
+    this.options.logger.warn({ workspaceId: params.workspaceId }, "Workspace exited within the post-ready stability window")
   }
 
   private async waitForInstanceHealth(params: WorkspaceReadiness): Promise<string | undefined> {

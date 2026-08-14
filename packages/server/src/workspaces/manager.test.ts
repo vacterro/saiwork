@@ -412,3 +412,30 @@ describe("WorkspaceManager worktree directory invariant", () => {
     }
   })
 })
+
+describe("WorkspaceManager startup readiness", () => {
+  it("returns READY without a fixed stability sleep", async () => {
+    const harness = createHarness({ stubReadiness: false })
+    const manager = harness.manager as any
+    manager.waitForPortAvailability = async () => {}
+    manager.waitForInstanceHealth = async () => "v1"
+    manager.validateInstanceConfiguration = async () => {}
+    const controller = new AbortController()
+    const started = Date.now()
+    try {
+      const version = await manager.waitForWorkspaceReadiness({
+        workspaceId: "ws",
+        port: 9999,
+        signal: controller.signal,
+        exitPromise: new Promise(() => {}),
+        getLastOutput: () => "",
+      })
+      const elapsed = Date.now() - started
+      assert.equal(version, "v1")
+      assert.ok(elapsed < 1000, `readiness returned after ${elapsed}ms, no fixed stability sleep expected`)
+    } finally {
+      controller.abort()
+      await harness.manager.shutdown()
+    }
+  })
+})
