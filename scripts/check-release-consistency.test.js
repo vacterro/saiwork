@@ -13,7 +13,7 @@ const {
 
 const VERSION = "0.0.3"
 const TYPECHECK = "npm run typecheck --workspace @saiwork/saiwork && npm run typecheck --workspace @saiwork/ui && npm run typecheck --workspace @saiwork/electron-app"
-const RELEASE_CHECK = "npm run test:release && node ./scripts/check-release-consistency.js && npm run typecheck"
+const RELEASE_CHECK = "npm run test:release && node ./scripts/check-release-consistency.js && npm run test && npm run typecheck"
 
 function write(filePath, contents) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
@@ -98,7 +98,7 @@ function makeFixture() {
   )
   write(
     path.join(rootDir, ".github/workflows/reusable-release.yml"),
-    "      build_tauri: ${{ inputs.build_tauri }}\nif [ \"$GITHUB_REF_TYPE\" = \"tag\" ] && [ \"$GITHUB_REF_NAME\" != \"$TAG\" ]; then\nrun: npm ci --workspaces --include-workspace-root --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\n",
+    "      build_tauri: ${{ inputs.build_tauri }}\nif [ \"$GITHUB_REF_TYPE\" = \"tag\" ] && [ \"$GITHUB_REF_NAME\" != \"$TAG\" ]; then\nrun: npm ci --workspaces --include-workspace-root --include=optional\nrun: npm run bumpVersion -- 0.0.3 --allow-same-version\nrun: npm run release:check\nCreate GitHub release\n",
   )
   write(path.join(rootDir, ".github/workflows/release-ui.yml"), "run: npm run release:check\n")
   write(

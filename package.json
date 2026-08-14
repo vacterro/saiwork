@@ -1,6 +1,6 @@
 {
   "name": "saiwork-workspace",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "private": true,
   "description": "SaiWork monorepo workspace",
   "license": "MIT",
@@ -25,7 +25,7 @@
     "typecheck": "npm run typecheck --workspace @saiwork/saiwork && npm run typecheck --workspace @saiwork/ui && npm run typecheck --workspace @saiwork/electron-app",
     "test": "npm run test --workspace @saiwork/ui && npm run test --workspace @saiwork/saiwork && npm run test --workspace @saiwork/opencode-plugin && npm run test:native --workspace @saiwork/electron-app",
     "test:release": "node --test ./scripts/bump-version.test.js ./scripts/check-release-consistency.test.js",
-    "release:check": "npm run test:release && node ./scripts/check-release-consistency.js && npm run typecheck",
+    "release:check": "npm run test:release && node ./scripts/check-release-consistency.js && npm run test && npm run typecheck",
     "bumpVersion": "node ./scripts/bump-version.js"
   },
   "dependencies": {

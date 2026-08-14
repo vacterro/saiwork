@@ -103,6 +103,9 @@ jobs:
       - name: Ensure rollup native binary
         run: npm install @rollup/rollup-darwin-x64 --no-save
 
+      - name: Run Electron native tests (macOS process-identity cleanup)
+        run: npm run test:native --workspace @saiwork/electron-app
+
       - name: Build macOS binaries (Electron)
         run: npm run build:mac --workspace @saiwork/electron-app
 
@@ -476,6 +479,10 @@ jobs:
       - name: Prebuild (Tauri)
         run: npm run prebuild --workspace @saiwork/tauri-app
 
+      - name: Run Tauri Rust tests (macOS x64)
+        working-directory: packages/tauri-app/src-tauri
+        run: cargo test
+
       - name: Verify bundled Node resource (Tauri macOS x64)
         run: node scripts/verify-bundled-node.cjs packages/tauri-app/src-tauri/resources@darwin-x64
 
@@ -566,6 +573,10 @@ jobs:
 
       - name: Prebuild (Tauri)
         run: npm run prebuild --workspace @saiwork/tauri-app
+
+      - name: Run Tauri Rust tests (macOS arm64)
+        working-directory: packages/tauri-app/src-tauri
+        run: cargo test
 
       - name: Verify bundled Node resource (Tauri macOS arm64)
         run: node scripts/verify-bundled-node.cjs packages/tauri-app/src-tauri/resources@darwin-arm64
@@ -658,6 +669,11 @@ jobs:
 
       - name: Prebuild (Tauri)
         run: npm run prebuild --workspace @saiwork/tauri-app
+
+      - name: Run Tauri Rust tests (Windows)
+        shell: bash
+        working-directory: packages/tauri-app/src-tauri
+        run: cargo test
 
       - name: Verify bundled Node resource (Tauri Windows)
         run: node scripts/verify-bundled-node.cjs packages/tauri-app/src-tauri/resources@win32-x64
@@ -766,6 +782,10 @@ jobs:
 
       - name: Prebuild (Tauri)
         run: npm run prebuild --workspace @saiwork/tauri-app
+
+      - name: Run Tauri Rust tests (Linux)
+        working-directory: packages/tauri-app/src-tauri
+        run: cargo test
 
       - name: Verify bundled Node resource (Tauri Linux)
         run: node scripts/verify-bundled-node.cjs packages/tauri-app/src-tauri/resources@linux-x64

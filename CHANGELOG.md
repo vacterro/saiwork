@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.30] - 2026-08-14
+
+References such as `T-738` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Verification gates cover runnable release bytes (T-738)
+
+- The UI test runner now discovers `.test.tsx` files, so component tests like
+  `message-part.test.tsx` actually run in the suite.
+- Direct regression tests for serialized thinking selection cover the pending
+  overlay shown before storage responds, strictly ordered writes, and the
+  stale-response guard that must not clear a newer pending selection.
+- `release:check` now runs the full Node runtime suites (UI, server, plugin,
+  Electron) in addition to the release consistency tests and root typecheck,
+  so a failing runtime suite blocks GitHub release creation.
+- Release consistency validation enforces that the reusable release workflow
+  runs `release:check` before it can create a release; the build workflow runs
+  Electron native tests on macOS (Darwin process-identity cleanup) and Rust
+  tests for every enabled Tauri target.
+
 ## [0.1.29] - 2026-08-14
 
 References such as `T-737` below are internal `.saipen` work-log identifiers,

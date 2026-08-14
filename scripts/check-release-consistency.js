@@ -306,8 +306,8 @@ function checkMetadata(rootDir, errors = []) {
   expect(errors, rootPackage.scripts?.typecheck === expectedTypecheck, "root typecheck must run server -> UI -> Electron without omissions")
   expect(
     errors,
-    rootPackage.scripts?.["release:check"] === "npm run test:release && node ./scripts/check-release-consistency.js && npm run typecheck",
-    "release:check must retain consistency tests, metadata check, and root typecheck",
+    rootPackage.scripts?.["release:check"] === "npm run test:release && node ./scripts/check-release-consistency.js && npm run test && npm run typecheck",
+    "release:check must run consistency tests, metadata check, the full Node runtime suites, and root typecheck",
   )
   for (const [name] of REQUIRED_TYPECHECKS) {
     const script = packageByName.get(name)?.json.scripts?.typecheck
@@ -388,6 +388,13 @@ function checkMetadata(rootDir, errors = []) {
     expect(errors, guardedJob.test(buildWorkflow), `${jobName} must honor build_tauri`)
   }
   expect(errors, reusableWorkflow.includes("npm run release:check"), "reusable release workflow must run release:check")
+  const releaseGateIndex = reusableWorkflow.indexOf("npm run release:check")
+  const releaseCreationIndex = reusableWorkflow.indexOf("Create GitHub release")
+  expect(
+    errors,
+    releaseGateIndex !== -1 && releaseCreationIndex !== -1 && releaseGateIndex < releaseCreationIndex,
+    "reusable release workflow must run release:check before it can create a GitHub release",
+  )
   expect(errors, installsBeforeEveryBump(reusableWorkflow), "reusable release workflow must install dependencies before bumpVersion")
   expect(errors, installsBeforeEveryBump(buildWorkflow), "build workflow must install dependencies before every bumpVersion")
   expect(errors, installsBeforeEveryBump(releaseUiWorkflow), "UI release workflow must install dependencies before bumpVersion")
