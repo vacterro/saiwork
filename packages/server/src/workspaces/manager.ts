@@ -1,7 +1,7 @@
 import path from "path"
 import os from "os"
 import { spawnSync } from "child_process"
-import { copyFileSync, existsSync, mkdirSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, realpathSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { connect } from "net"
 import { setTimeout as delay } from "node:timers/promises"
@@ -251,7 +251,8 @@ export class WorkspaceManager {
   }
 
   readFileInDirectory(workspaceId: string, directory: string, relativePath: string, options?: { encoding?: "utf-8" | "base64" }): WorkspaceFileResponse {
-    this.requireWorkspace(workspaceId)
+    const workspace = this.requireWorkspace(workspaceId)
+    this.assertDirectoryWithinWorkspace(workspace.path, directory)
     const browser = new FileSystemBrowser({ rootDir: directory })
     const encoding = options?.encoding ?? "utf-8"
     const contents = encoding === "base64" ? browser.readFileBase64(relativePath) : browser.readFile(relativePath)
@@ -270,9 +271,34 @@ export class WorkspaceManager {
   }
 
   writeFileInDirectory(workspaceId: string, directory: string, relativePath: string, contents: string): void {
-    this.requireWorkspace(workspaceId)
+    const workspace = this.requireWorkspace(workspaceId)
+    this.assertDirectoryWithinWorkspace(workspace.path, directory)
     const browser = new FileSystemBrowser({ rootDir: directory })
     browser.writeFile(relativePath, contents)
+  }
+
+  /**
+   * The dangerous-method boundary: `directory` is caller-supplied and must be
+   * a physically-inside-the-workspace managed worktree root, never an
+   * arbitrary path the caller happened to name. The relative path inside it is
+   * then additionally protected by the filesystem containment primitive.
+   */
+  private assertDirectoryWithinWorkspace(workspacePath: string, directory: string): void {
+    let rootReal: string
+    let directoryReal: string
+    try {
+      rootReal = realpathSync(workspacePath)
+    } catch {
+      throw new Error("Workspace path is not accessible")
+    }
+    try {
+      directoryReal = realpathSync(directory)
+    } catch {
+      throw new Error("Directory is not accessible")
+    }
+    if (directoryReal !== rootReal && !directoryReal.startsWith(`${rootReal}${path.sep}`)) {
+      throw new Error("Directory is outside the workspace")
+    }
   }
 
   async create(

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import pino from "pino"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 
 import { EventBus } from "../events/bus"
 import {
@@ -385,4 +388,27 @@ describe("workspace manager lifecycle", () => {
       assert.equal(harness.runtime.active.has(workspaceId), true)
     })
   }
+})
+
+describe("WorkspaceManager worktree directory invariant", () => {
+  it("rejects arbitrary directories at the dangerous method boundary", async () => {
+    const harness = createHarness()
+    const workspaceId = await createReady(harness)
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ws-manager-outside-"))
+    try {
+      // A valid managed worktree root (the workspace itself) is allowed.
+      const response = harness.manager.readFileInDirectory(workspaceId, process.cwd(), "package.json")
+      assert.ok(response.contents.length > 0)
+
+      // os.tmpdir() is not inside the workspace.
+      assert.throws(() => harness.manager.readFileInDirectory(workspaceId, os.tmpdir(), "x.txt"), /outside the workspace/)
+      // Another workspace path is not inside this one.
+      assert.throws(() => harness.manager.writeFileInDirectory(workspaceId, outside, "x.txt", "boom"), /outside the workspace/)
+      // A deleted/stale worktree directory does not resolve.
+      assert.throws(() => harness.manager.readFileInDirectory(workspaceId, path.join(process.cwd(), "does-not-exist-worktree"), "x.txt"), /not accessible/)
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+      await harness.manager.shutdown()
+    }
+  })
 })
