@@ -2,6 +2,7 @@ import fs from "fs"
 import { promises as fsp } from "fs"
 import os from "os"
 import path from "path"
+import { createHash } from "crypto"
 import type { InstanceData } from "../api-types"
 
 const DEFAULT_INSTANCE_DATA: InstanceData = {
@@ -9,6 +10,15 @@ const DEFAULT_INSTANCE_DATA: InstanceData = {
   agentModelSelections: {},
 }
 
+/**
+ * File-backed per-instance state keyed by a collision-resistant digest.
+ *
+ * The old lossy `sanitizeId` (collapse separators, lowercase, drop non-safe
+ * chars) mapped distinct identities to one persistence file: `/a/b` and
+ * `/a_b`, or any case-distinct POSIX path, collapsed to the same key. The
+ * digest of the RAW id is now the authority, so two distinct workspace
+ * identities can never share a storage object.
+ */
 export class InstanceStore {
   private readonly instancesDir: string
 
@@ -49,16 +59,7 @@ export class InstanceStore {
   }
 
   private resolvePath(id: string): string {
-    const filename = this.sanitizeId(id)
-    return path.join(this.instancesDir, `${filename}.json`)
-  }
-
-  private sanitizeId(id: string): string {
-    return id
-      .replace(/[\\/]/g, "_")
-      .replace(/[^a-zA-Z0-9_.-]/g, "_")
-      .replace(/_{2,}/g, "_")
-      .replace(/^_|_$/g, "")
-      .toLowerCase()
+    const digest = createHash("sha256").update(id).digest("hex")
+    return path.join(this.instancesDir, `${digest}.json`)
   }
 }
