@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.1.39] - 2026-08-14
+
+References such as `T-744` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Audit hardening (T-744)
+
+- **SSE framing + backpressure**: `/api/events` now serializes each event once
+  as a proper SSE `data:` frame (native EventSource parses every `onmessage`);
+  a frame the writer already buffered on `write() === false` is never re-queued
+  (removes a double-send on drain); the backpressure backlog is a bounded FIFO
+  with no type-coalescing, so distinct entities and ordered `instance.event`
+  deltas cannot overwrite each other while the client stays connected.
+  Overflowing clients are disconnected once to force an authoritative re-sync.
+- **Storage identity gate**: instance persistence is keyed only by a
+  registered workspace path; the raw-id fallback is gone, so a late client of
+  a permanently deleted instance can no longer mint a fresh revision-0
+  persistence namespace. Unknown instance ids return 404 on GET/PUT/DELETE.
+- **FreeBuff reasoning effort**: unknown live-discovered models no longer get
+  an invented `high`; the gateway omits `reasoningEffort` and lets FreeBuff
+  pick its supported default. Known catalog models keep their explicit max.
+- **Release ticket-state gate**: `check-release-consistency` now rejects a
+  release whose shipped CHANGELOG references a `.saipen` BOARD ticket that is
+  still open (TODO/DOING/BLOCKED), and requires coherent STATE/BOARD/LOG at
+  ship time.
+- **Canonical SAIPEN reconciliation**: stale shipped tickets (T-734..T-743,
+  T-093, T-094, T-096, T-097) were verified against current bytes/tests and
+  closed; `validate.py --gate ship` passes with STATE/BOARD/LOG/CHANGELOG
+  agreeing on one reality.
+
 ## [0.1.38] - 2026-08-14
 
 References such as `T-096` below are internal `.saipen` work-log identifiers,
