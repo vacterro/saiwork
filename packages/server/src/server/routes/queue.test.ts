@@ -1,6 +1,9 @@
 import assert from "node:assert/strict"
 import { afterEach, describe, it } from "node:test"
 import Fastify from "fastify"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 
 import type { QueueState } from "../../api-types"
 import { EventBus } from "../../events/bus"
@@ -144,11 +147,11 @@ describe("queue routes", () => {
     const { app, queueManager } = createApp({
       statePath: "virtual/prompt-queue.json",
       persistence: {
-        exists: () => false,
-        mkdir() {},
-        write: () => { throw new Error("injected write failure") },
-        rename() {},
-        remove() {},
+        exists: async () => false,
+        mkdir: async () => {},
+        write: async () => { throw new Error("injected write failure") },
+        rename: async () => {},
+        remove: async () => {},
       },
     })
 
@@ -169,32 +172,31 @@ describe("queue routes", () => {
   })
 
   it("returns a structured 503 for unsupported persisted state", async () => {
-    let wrote = false
-    const { app } = createApp({
-      statePath: "virtual/prompt-queue.json",
-      persistence: {
-        exists: () => true,
-        read: () => JSON.stringify({ version: 2, queues: {} }),
-        write: () => { wrote = true },
-      },
-    })
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "queue-route-"))
+    try {
+      const statePath = path.join(dir, "queue.json")
+      fs.writeFileSync(statePath, JSON.stringify({ version: 2, queues: {} }))
+      const { app } = createApp({ statePath })
 
-    const list = await app.inject({ method: "GET", url: "/api/queue" })
-    assert.equal(list.statusCode, 503)
-    assert.deepEqual(list.json(), {
-      ok: false,
-      code: "storage",
-      error: { operation: "load", message: "Failed to load prompt queue persistence" },
-    })
+      const list = await app.inject({ method: "GET", url: "/api/queue" })
+      assert.equal(list.statusCode, 503)
+      assert.deepEqual(list.json(), {
+        ok: false,
+        code: "storage",
+        error: { operation: "load", message: "Failed to load prompt queue persistence" },
+      })
 
-    const mutation = await app.inject({
-      method: "POST",
-      url: MUTATE,
-      payload: { op: "enqueue", key: "inst:session", expectedRevision: "", text: "must not overwrite" },
-    })
-    assert.equal(mutation.statusCode, 503)
-    assert.equal(wrote, false)
-    await app.close()
+      const mutation = await app.inject({
+        method: "POST",
+        url: MUTATE,
+        payload: { op: "enqueue", key: "inst:session", expectedRevision: "", text: "must not overwrite" },
+      })
+      assert.equal(mutation.statusCode, 503)
+      assert.equal(fs.readFileSync(statePath, "utf8"), JSON.stringify({ version: 2, queues: {} }))
+      await app.close()
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 describe("queue fanout route", () => {

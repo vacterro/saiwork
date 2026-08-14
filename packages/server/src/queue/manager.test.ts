@@ -243,12 +243,12 @@ describe("queue manager", () => {
   it("serializes concurrent mutations for different keys through one file transaction", async () => {
     const writes: string[] = []
     const persistence: Partial<QueuePersistenceAdapter> = {
-      exists: () => false,
-      mkdir() {},
-      write: (_filePath, content) => writes.push(content),
-      rename() {},
-      remove() {},
-      syncDirectory() {},
+      exists: async () => false,
+      mkdir: async () => {},
+      write: async (_filePath, content) => { writes.push(content) },
+      rename: async () => {},
+      remove: async () => {},
+      syncDirectory: async () => {},
     }
     const { manager, events } = createManager("virtual/prompt-queue.json", persistence)
 
@@ -278,11 +278,11 @@ describe("queue manager", () => {
 
   it("returns a structured write failure without memory, revision, or event success", async () => {
     const persistence: Partial<QueuePersistenceAdapter> = {
-      exists: () => false,
-      mkdir() {},
-      write: () => { throw new Error("injected write failure") },
-      rename() {},
-      remove() {},
+      exists: async () => false,
+      mkdir: async () => {},
+      write: async () => { throw new Error("injected write failure") },
+      rename: async () => {},
+      remove: async () => {},
     }
     const { manager, events } = createManager("virtual/prompt-queue.json", persistence)
 
@@ -303,7 +303,7 @@ describe("queue manager", () => {
     const originalBytes = fs.readFileSync(statePath, "utf8")
 
     const failing = createManager(statePath, {
-      rename: () => { throw new Error("injected rename failure") },
+      rename: async () => { throw new Error("injected rename failure") },
     })
     const revision = failing.manager.get("inst:session")!.revision
     const result = await mutate(failing.manager, "inst:session", revision, { op: "dequeue" })
@@ -328,7 +328,7 @@ describe("queue manager", () => {
     const revision = seeded.manager.get("inst:session")!.revision
     let syncCalls = 0
     const failing = createManager(statePath, {
-      syncDirectory: () => {
+      syncDirectory: async () => {
         syncCalls += 1
         if (syncCalls === 1) throw new Error("injected directory fsync failure")
       },
@@ -401,7 +401,7 @@ describe("QueueManager.mutateMany atomic fan-out", () => {
     const statePath = path.join(dir, "queue.json")
     let failRename = false
     const { manager } = createManager(statePath, {
-      rename: (from: string, to: string) => {
+      rename: async (from: string, to: string) => {
         if (failRename) throw new Error("EACCES")
         fs.renameSync(from, to)
       },
@@ -536,7 +536,7 @@ describe("queue manager purge", () => {
     const statePath = path.join(dir, "queue.json")
     let writes = 0
     const { manager } = createManager(statePath, {
-      write: (filePath, content) => {
+      write: async (filePath, content) => {
         writes += 1
         if (writes === 2) throw new Error("injected persistence failure")
         fs.writeFileSync(filePath, content)
@@ -548,5 +548,25 @@ describe("queue manager purge", () => {
     if (result.ok) throw new Error("unreachable")
     assert.equal(result.code, "storage")
     assert.equal(manager.get("ws:sessA")?.items.length, 1, "memory must not commit on a failed purge")
+  })
+
+  it("slow async persistence does not block unrelated event-loop work", async () => {
+    const { manager } = createManager("virtual/prompt-queue.json", {
+      exists: async () => false,
+      mkdir: async () => {},
+      write: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      },
+      rename: async () => {},
+      remove: async () => {},
+      syncDirectory: async () => {},
+    })
+    const mutation = mutate(manager, "inst:session", "", { op: "enqueue", text: "slow disk", attachments: [] })
+    const started = Date.now()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    const tickLatency = Date.now() - started
+    assert.ok(tickLatency < 100, `event loop blocked during async persistence: ${tickLatency}ms`)
+    const result = await mutation
+    assert.equal(result.ok, true)
   })
 })

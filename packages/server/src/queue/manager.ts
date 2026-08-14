@@ -1,15 +1,9 @@
 import { createHash, randomUUID } from "node:crypto"
 import {
-  closeSync,
   existsSync,
-  fsyncSync,
-  mkdirSync,
-  openSync,
   readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
 } from "node:fs"
+import { promises as fsp } from "node:fs"
 import path from "node:path"
 import {
   MAX_QUEUED_ATTACHMENT_BYTES,
@@ -36,13 +30,13 @@ import { isQueueState, isQueuedAttachment, isQueuedPrompt, queuedAttachmentBytes
  */
 
 export interface QueuePersistenceAdapter {
-  exists(filePath: string): boolean
-  read(filePath: string): string
-  mkdir(directoryPath: string): void
-  write(filePath: string, content: string): void
-  rename(sourcePath: string, destinationPath: string): void
-  remove(filePath: string): void
-  syncDirectory(directoryPath: string): void
+  exists(filePath: string): Promise<boolean>
+  read(filePath: string): Promise<string>
+  mkdir(directoryPath: string): Promise<void>
+  write(filePath: string, content: string): Promise<void>
+  rename(sourcePath: string, destinationPath: string): Promise<void>
+  remove(filePath: string): Promise<void>
+  syncDirectory(directoryPath: string): Promise<void>
 }
 
 export interface QueueManagerOptions {
@@ -81,33 +75,41 @@ type TentativeMutation =
   | { result: FailedMutation }
 
 const DEFAULT_PERSISTENCE: QueuePersistenceAdapter = {
-  exists: existsSync,
-  read: (filePath) => readFileSync(filePath, "utf8"),
-  mkdir: (directoryPath) => mkdirSync(directoryPath, { recursive: true }),
-  write: (filePath, content) => {
-    const descriptor = openSync(filePath, "w")
+  exists: async (filePath) => {
     try {
-      writeFileSync(descriptor, content, "utf8")
-      fsyncSync(descriptor)
-    } finally {
-      closeSync(descriptor)
+      await fsp.access(filePath)
+      return true
+    } catch {
+      return false
     }
   },
-  rename: renameSync,
-  remove: (filePath) => rmSync(filePath, { force: true }),
-  syncDirectory: (directoryPath) => {
-    if (process.platform === "win32") return
-    const descriptor = openSync(directoryPath, "r")
+  read: (filePath) => fsp.readFile(filePath, "utf8"),
+  mkdir: async (directoryPath) => { await fsp.mkdir(directoryPath, { recursive: true }) },
+  write: async (filePath, content) => {
+    const descriptor = await fsp.open(filePath, "w")
     try {
+      await descriptor.writeFile(content, "utf8")
+      await descriptor.sync()
+    } finally {
+      await descriptor.close().catch(() => undefined)
+    }
+  },
+  rename: fsp.rename,
+  remove: (filePath) => fsp.rm(filePath, { force: true }),
+  syncDirectory: async (directoryPath) => {
+    if (process.platform === "win32") return
+    let descriptor: Awaited<ReturnType<typeof fsp.open>> | undefined
+    try {
+      descriptor = await fsp.open(directoryPath, "r")
       try {
-        fsyncSync(descriptor)
+        await descriptor.sync()
       } catch (error) {
-        const code = error && typeof error === "object" && "code" in error ? String(error.code) : ""
+        const code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : ""
         if (["EINVAL", "ENOTSUP"].includes(code)) return
         throw error
       }
     } finally {
-      closeSync(descriptor)
+      await descriptor?.close().catch(() => undefined)
     }
   },
 }
@@ -150,6 +152,8 @@ export class QueueManager {
   private transactionQueue: Promise<void> = Promise.resolve()
   private readonly storage: QueuePersistenceAdapter
   private loadFailure: QueueStorageFailure | null = null
+  /** Last successfully persisted serialized snapshot, reused as rollback bytes. */
+  private lastPersistedBytes: string | null = null
 
   constructor(private readonly options: QueueManagerOptions) {
     const injected = options.persistence
@@ -197,7 +201,7 @@ export class QueueManager {
    * dispatching.
    */
   mutateMany(entries: QueueFanOutEntry[]): Promise<QueueFanOutMutationResult> {
-    return this.withTransaction<QueueFanOutMutationResult>(() => {
+    return this.withTransaction<QueueFanOutMutationResult>(async () => {
       if (this.loadFailure) return storageResult(this.loadFailure) as FailedMutation
 
       const applied: Array<{ key: string; tentative: TentativeMutation }> = []
@@ -214,7 +218,7 @@ export class QueueManager {
         updates.set(item.key, { state: item.tentative.result.state, keep: item.tentative.keep })
       }
 
-      const persistenceFailure = this.persistSnapshot(updates)
+      const persistenceFailure = await this.persistSnapshot(updates)
       if (persistenceFailure) return storageResult(persistenceFailure) as FailedMutation
 
       const states: Array<{ key: string; state: QueueState }> = []
@@ -254,14 +258,14 @@ export class QueueManager {
     if (!PREFIX_RE.test(prefix)) {
       return Promise.resolve({ ok: false, code: "invalid" })
     }
-    return this.withTransaction<QueuePurgeResult>(() => {
+    return this.withTransaction<QueuePurgeResult>(async () => {
       if (this.loadFailure) return storageResult(this.loadFailure) as QueuePurgeResult
 
       const matched = Array.from(this.queues.keys()).filter((key) => key.startsWith(prefix))
       if (matched.length === 0) return { ok: true, removedKeys: [] }
 
       const updates = new Map(matched.map((key) => [key, { state: emptyState(), keep: false }]))
-      const persistenceFailure = this.persistSnapshot(updates)
+      const persistenceFailure = await this.persistSnapshot(updates)
       if (persistenceFailure) return storageResult(persistenceFailure) as QueuePurgeResult
 
       for (const key of matched) this.queues.delete(key)
@@ -276,13 +280,13 @@ export class QueueManager {
     })
   }
 
-  private transact(key: string, expectedRevision: string, mutation: QueueMutation): QueueMutationResult {
+  private async transact(key: string, expectedRevision: string, mutation: QueueMutation): Promise<QueueMutationResult> {
     if (this.loadFailure) return storageResult(this.loadFailure)
 
     const tentative = this.apply(key, expectedRevision, mutation)
     if (!("keep" in tentative)) return tentative.result
 
-    const persistenceFailure = this.persist(key, tentative.result.state, tentative.keep)
+    const persistenceFailure = await this.persist(key, tentative.result.state, tentative.keep)
     if (persistenceFailure) return storageResult(persistenceFailure)
 
     const committedState = tentative.keep
@@ -418,11 +422,11 @@ export class QueueManager {
     return next
   }
 
-  private persist(key: string, state: QueueState, keep: boolean): QueueStorageFailure | null {
+  private async persist(key: string, state: QueueState, keep: boolean): Promise<QueueStorageFailure | null> {
     return this.persistSnapshot(new Map([[key, { state, keep }]]))
   }
 
-  private persistSnapshot(updates: Map<string, { state: QueueState; keep: boolean }>): QueueStorageFailure | null {
+  private async persistSnapshot(updates: Map<string, { state: QueueState; keep: boolean }>): Promise<QueueStorageFailure | null> {
     const statePath = this.options.statePath
     if (!statePath) return null
 
@@ -435,53 +439,55 @@ export class QueueManager {
 
     const payload: PersistedQueue = { version: PERSIST_VERSION, queues }
     const tempPath = `${statePath}.tmp`
-    let previousContent: string | null = null
+    // Rollback bytes come from the last successfully persisted snapshot kept in
+    // memory -- this manager is the authoritative owner of the file, so the
+    // on-disk bytes never change under it and the per-mutation disk read for
+    // rollback material is unnecessary I/O.
+    const previousContent = this.lastPersistedBytes
     try {
-      previousContent = this.storage.exists(statePath) ? this.storage.read(statePath) : null
-    } catch (error) {
-      return this.reportPersistenceFailure("load", error, statePath)
-    }
-    try {
-      this.storage.mkdir(path.dirname(statePath))
+      await this.storage.mkdir(path.dirname(statePath))
     } catch (error) {
       return this.reportPersistenceFailure("mkdir", error, statePath)
     }
+    let serialized: string
     try {
-      this.storage.write(tempPath, JSON.stringify(payload))
+      serialized = JSON.stringify(payload)
+      await this.storage.write(tempPath, serialized)
     } catch (error) {
-      this.removeTemp(tempPath)
+      await this.removeTemp(tempPath)
       return this.reportPersistenceFailure("write", error, statePath)
     }
     try {
-      this.storage.rename(tempPath, statePath)
+      await this.storage.rename(tempPath, statePath)
     } catch (error) {
-      this.removeTemp(tempPath)
+      await this.removeTemp(tempPath)
       return this.reportPersistenceFailure("rename", error, statePath)
     }
     try {
-      this.storage.syncDirectory(path.dirname(statePath))
+      await this.storage.syncDirectory(path.dirname(statePath))
     } catch (error) {
-      this.rollbackPersistedState(statePath, previousContent)
+      await this.rollbackPersistedState(statePath, previousContent)
       return this.reportPersistenceFailure("fsync", error, statePath)
     }
+    this.lastPersistedBytes = serialized
     return null
   }
 
-  private rollbackPersistedState(statePath: string, previousContent: string | null): void {
+  private async rollbackPersistedState(statePath: string, previousContent: string | null): Promise<void> {
     const rollbackPath = `${statePath}.rollback`
     try {
       if (previousContent === null) {
-        this.storage.remove(statePath)
+        await this.storage.remove(statePath)
       } else {
-        this.storage.write(rollbackPath, previousContent)
-        this.storage.rename(rollbackPath, statePath)
+        await this.storage.write(rollbackPath, previousContent)
+        await this.storage.rename(rollbackPath, statePath)
       }
-      this.storage.syncDirectory(path.dirname(statePath))
+      await this.storage.syncDirectory(path.dirname(statePath))
     } catch (error) {
       this.loadFailure = storageFailure("fsync")
       this.options.logger.error({ error, statePath }, "Failed to roll back prompt queue after directory fsync failure")
     } finally {
-      this.removeTemp(rollbackPath)
+      await this.removeTemp(rollbackPath)
     }
   }
 
@@ -490,9 +496,9 @@ export class QueueManager {
     return storageFailure(operation)
   }
 
-  private removeTemp(tempPath: string): void {
+  private async removeTemp(tempPath: string): Promise<void> {
     try {
-      this.storage.remove(tempPath)
+      await this.storage.remove(tempPath)
     } catch {
       // Original file remains authoritative; stale temp cleanup is best effort.
     }
@@ -502,11 +508,15 @@ export class QueueManager {
     const statePath = this.options.statePath
     if (!statePath) return
     try {
-      if (!this.storage.exists(statePath)) return
-      const parsed: unknown = JSON.parse(this.storage.read(statePath))
+      // One-time startup read stays synchronous (allowed: before serving
+      // traffic); every mutation persistence path is async.
+      if (!existsSync(statePath)) return
+      const raw = readFileSync(statePath, "utf-8")
+      const parsed: unknown = JSON.parse(raw)
       const loaded = parsePersistedQueue(parsed)
       if (!loaded) throw new Error("Unsupported or corrupt prompt queue persistence")
       this.queues = loaded
+      this.lastPersistedBytes = raw
     } catch (error) {
       this.loadFailure = storageFailure("load")
       this.options.logger.warn({ error, statePath }, "Prompt queue persistence unavailable; mutations disabled")
