@@ -461,6 +461,30 @@ export const serverApi = {
     return { ok: false, code }
   },
 
+  async purgeQueue(prefix: string): Promise<{ ok: true; removedKeys: string[] } | { ok: false; code: string }> {
+    const url = API_BASE ? new URL("/api/queue/purge", API_BASE).toString() : "/api/queue/purge"
+    const headers = normalizeHeaders(undefined)
+    headers["Content-Type"] = "application/json"
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ prefix }),
+    })
+    let parsed: unknown = null
+    try {
+      parsed = await response.json()
+    } catch {
+      parsed = null
+    }
+    if (response.status === 200 && isApiRecord(parsed) && parsed.ok === true && Array.isArray(parsed.removedKeys)) {
+      return { ok: true, removedKeys: parsed.removedKeys as string[] }
+    }
+    const rawCode = isApiRecord(parsed) && typeof parsed.code === "string" ? parsed.code : "invalid"
+    return { ok: false, code: rawCode }
+  },
+
+
   fetchProviderUsage(providerId: string, modelId?: string): Promise<ProviderUsageResponse> {
     const params = new URLSearchParams()
     if (modelId) params.set("modelId", modelId)

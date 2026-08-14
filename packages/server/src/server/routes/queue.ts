@@ -28,6 +28,8 @@ const FanOutBodySchema = z.object({
   attachments: z.array(z.unknown()).optional(),
 })
 
+const PurgeBodySchema = z.object({ prefix: z.string().min(1) })
+
 export function registerQueueRoutes(app: FastifyInstance, deps: RouteDeps) {
   app.get("/api/queue", async (request, reply) => {
     const query = ListQuerySchema.safeParse(request.query ?? {})
@@ -104,6 +106,18 @@ export function registerQueueRoutes(app: FastifyInstance, deps: RouteDeps) {
     }
     if (result.code === "conflict") return reply.code(409).send(result)
     if (result.code === "storage") return reply.code(503).send(result)
+    return result
+  })
+
+  app.post("/api/queue/purge", async (request, reply) => {
+    const body = PurgeBodySchema.safeParse(request.body ?? {})
+    if (!body.success) return reply.code(400).send({ error: "invalid body" })
+
+    const result = await deps.queueManager.purgeKeys(body.data.prefix)
+    if (!result.ok) {
+      if (result.code === "storage") return reply.code(503).send(result)
+      return reply.code(400).send(result)
+    }
     return result
   })
 }

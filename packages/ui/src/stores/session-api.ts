@@ -63,6 +63,7 @@ import { seedSessionMessagesV2, reconcilePendingPermissionsV2, reconcilePendingQ
 import { messageStoreBus } from "./message-v2/bus"
 import { clearCacheForSession } from "../lib/global-cache"
 import { getLogger } from "../lib/logger"
+import { serverApi } from "../lib/api-client"
 import { getOpencodeErrorMessage, requestData } from "../lib/opencode-api"
 import { withDeadline } from "../lib/with-deadline"
 import { isSessionBusy } from "./session-status"
@@ -1029,6 +1030,7 @@ async function deleteSession(instanceId: string, sessionId: string): Promise<voi
     )
 
     removeSessionRuntimeState(instanceId, sessionId)
+    purgeSessionQueue(instanceId, sessionId)
 
     // Clean up mapping for deleted parent sessions.
     if (deletingSession?.parentId === null) {
@@ -1102,6 +1104,20 @@ function removeSessionRuntimeState(instanceId: string, sessionId: string): void 
       clearActiveSession(instanceId)
     }
   }
+}
+
+/** Fire-and-forget purge of a deleted session's persisted prompt queue. */
+function purgeSessionQueue(instanceId: string, sessionId: string): void {
+  void serverApi
+    .purgeQueue(`${instanceId}:${sessionId}`)
+    .then((result) => {
+      if (!result.ok) {
+        log.warn("Prompt queue purge for deleted session was not accepted", { instanceId, sessionId, code: result.code })
+      }
+    })
+    .catch((error) => {
+      log.warn("Failed to purge prompt queue for deleted session", { instanceId, sessionId, error })
+    })
 }
 
 async function fetchAgents(instanceId: string): Promise<void> {
@@ -1433,6 +1449,7 @@ export {
   createSession,
   deleteSession,
   removeSessionRuntimeState,
+  purgeSessionQueue,
   fetchAgents,
   fetchProviders,
 

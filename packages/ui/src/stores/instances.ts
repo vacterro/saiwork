@@ -16,7 +16,7 @@ import {
 } from "../lib/workspace-delete-retry"
 import { serverEvents } from "../lib/server-events"
 import type { WorkspaceDescriptor, WorkspaceEventPayload, WorkspaceLogEntry } from "../../../server/src/api-types"
-import { ensureInstanceConfigLoaded } from "./instance-config"
+import { ensureInstanceConfigLoaded, clearInstanceConfig } from "./instance-config"
 import {
   fetchSessions,
   fetchAgents,
@@ -44,6 +44,7 @@ import {
   sessions,
   setSessionPendingPermission,
   setSessionPendingQuestion,
+  clearInstanceLoadingState,
 } from "./session-state"
 import { setHasInstances } from "./ui"
 import { messageStoreBus } from "./message-v2/bus"
@@ -1143,14 +1144,24 @@ function removeInstance(id: string, options: { authoritative?: boolean } = {}) {
   }
 
   // Clean up session indexes and drafts for removed instance
-  clearCacheForInstance(id)
-  messageStoreBus.unregisterInstance(id)
   clearInstanceDraftPrompts(id)
   clearSessionListRequestState(id)
   clearInstanceAttachments(id)
   clearInstanceDeletedSessionAuthority(id)
   clearInstanceSessionExpansionState(id)
   clearInstanceSessionSelection(id)
+
+  // Authoritative deletion (permanent workspace removal) reclaims the heavy
+  // per-instance caches and the persisted prompt queue. Transient removal
+  // (disconnect/reopen) retains them so the reopened instance restores its
+  // message history, instance data, pending-load bookkeeping and queue fast.
+  if (options.authoritative !== false) {
+    clearCacheForInstance(id)
+    messageStoreBus.unregisterInstance(id)
+    clearInstanceConfig(id)
+    clearInstanceLoadingState(id)
+    purgeInstanceQueue(id)
+  }
   if (removedInstance && removedOccurrence >= 0 && options.authoritative !== false) {
     publishInstanceLifecycleAuthority({
       type: "removed",
@@ -1160,6 +1171,20 @@ function removeInstance(id: string, options: { authoritative?: boolean } = {}) {
     })
   }
   syncHasInstancesFlag()
+}
+
+/** Fire-and-forget purge of a permanently deleted instance's persisted queue. */
+function purgeInstanceQueue(instanceId: string): void {
+  void serverApi
+    .purgeQueue(`${instanceId}:`)
+    .then((result) => {
+      if (!result.ok) {
+        log.warn("Prompt queue purge for deleted instance was not accepted", { instanceId, code: result.code })
+      }
+    })
+    .catch((error) => {
+      log.warn("Failed to purge prompt queue for deleted instance", { instanceId, error })
+    })
 }
 
 function removeRestoreCreatedInstanceFromUi(instanceId: string): void {

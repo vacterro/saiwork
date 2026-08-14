@@ -472,3 +472,81 @@ describe("QueueManager.mutateMany atomic fan-out", () => {
     assert.equal(dequeuedA.dequeued?.text, "hello", "only the seed may dispatch; the ghost never queued")
   })
 })
+
+describe("queue manager purge", () => {
+  it("atomically removes matching keys and survives a restart with no key or attachment left", async () => {
+    const dir = createTempDir()
+    const statePath = path.join(dir, "queue.json")
+    const first = createManager(statePath)
+    await seed(first.manager, "ws:sessA", "with attachment")
+    await first.manager.mutate("ws:sessA", first.manager.get("ws:sessA")!.revision, {
+      op: "enqueue",
+      text: "",
+      attachments: [textAttachment("pasted")],
+    })
+    await seed(first.manager, "ws:sessB", "stays")
+    await seed(first.manager, "other:sess", "untouched")
+
+    const result = await first.manager.purgeKeys("ws:sessA")
+    assert.equal(result.ok, true)
+    if (!result.ok) throw new Error("unreachable")
+    assert.deepEqual(result.removedKeys, ["ws:sessA"])
+    assert.equal(first.manager.get("ws:sessA"), null)
+    assert.equal(first.manager.get("ws:sessB")?.items.length, 1)
+    assert.equal(first.manager.get("other:sess")?.items.length, 1)
+
+    const restarted = createManager(statePath)
+    assert.equal(restarted.manager.get("ws:sessA"), null, "purged key must not resurrect on restart")
+    assert.equal(restarted.manager.get("ws:sessB")?.items.length, 1)
+    assert.equal(restarted.manager.get("other:sess")?.items.length, 1)
+  })
+
+  it("purges every key under an instance prefix in one transaction", async () => {
+    const { manager, events } = createManager()
+    await seed(manager, "ws:sessA")
+    await seed(manager, "ws:sessB")
+    await seed(manager, "other:sess")
+    const eventsBefore = events.length
+
+    const result = await manager.purgeKeys("ws:")
+    assert.equal(result.ok, true)
+    if (!result.ok) throw new Error("unreachable")
+    assert.deepEqual(new Set(result.removedKeys), new Set(["ws:sessA", "ws:sessB"]))
+    assert.equal(manager.get("ws:sessA"), null)
+    assert.equal(manager.get("ws:sessB"), null)
+    assert.equal(manager.get("other:sess")?.items.length, 1)
+    assert.equal(events.length - eventsBefore, 2, "one empty-state event per purged key")
+  })
+
+  it("rejects an invalid prefix and reports an empty match without error", async () => {
+    const { manager } = createManager()
+    const invalid = await manager.purgeKeys("no-colon")
+    assert.equal(invalid.ok, false)
+    if (invalid.ok) throw new Error("unreachable")
+    assert.equal(invalid.code, "invalid")
+
+    const empty = await manager.purgeKeys("ws:")
+    assert.equal(empty.ok, true)
+    if (!empty.ok) throw new Error("unreachable")
+    assert.deepEqual(empty.removedKeys, [])
+  })
+
+  it("surfaces a persistence failure without committing memory", async () => {
+    const dir = createTempDir()
+    const statePath = path.join(dir, "queue.json")
+    let writes = 0
+    const { manager } = createManager(statePath, {
+      write: (filePath, content) => {
+        writes += 1
+        if (writes === 2) throw new Error("injected persistence failure")
+        fs.writeFileSync(filePath, content)
+      },
+    })
+    await seed(manager, "ws:sessA")
+    const result = await manager.purgeKeys("ws:")
+    assert.equal(result.ok, false)
+    if (result.ok) throw new Error("unreachable")
+    assert.equal(result.code, "storage")
+    assert.equal(manager.get("ws:sessA")?.items.length, 1, "memory must not commit on a failed purge")
+  })
+})

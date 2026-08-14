@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.29] - 2026-08-14
+
+References such as `T-737` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Session and instance deletion reclaims dependent state (T-737)
+
+- The server prompt queue can be purged atomically by key prefix: a deleted
+  session's or instance's queued prompts and their attachments are removed in
+  one persisted transaction and stay gone across restarts.
+- Session deletion (both the delete flow and the `session.deleted` event)
+  purges the session's queue key.
+- Authoritative instance deletion evicts the message-history, instance-data,
+  instance-config and pending-load caches and purges the instance's queue
+  keys; a transient disconnect retains all of them so the reopened instance
+  restores its state fast.
+
 ## [0.1.28] - 2026-08-14
 
 References such as `T-735` below are internal `.saipen` work-log identifiers,

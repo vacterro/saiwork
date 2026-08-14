@@ -247,4 +247,20 @@ describe("queue fanout route", () => {
     assert.equal(queueManager.get("i:a")!.items.length, 2)
     await app.close()
   })
+
+  it("purges matching queue keys through the API and rejects an invalid prefix", async () => {
+    const { app, queueManager } = createApp()
+    await queueManager.mutate("ws:sessA", "", { op: "enqueue", text: "one", attachments: [] })
+    await queueManager.mutate("ws:sessB", "", { op: "enqueue", text: "two", attachments: [] })
+
+    const invalid = await app.inject({ method: "POST", url: "/api/queue/purge", payload: { prefix: "nope" } })
+    assert.equal(invalid.statusCode, 400)
+
+    const purged = await app.inject({ method: "POST", url: "/api/queue/purge", payload: { prefix: "ws:" } })
+    assert.equal(purged.statusCode, 200)
+    assert.deepEqual(new Set(purged.json().removedKeys), new Set(["ws:sessA", "ws:sessB"]))
+    assert.equal(queueManager.get("ws:sessA"), null)
+    assert.equal(queueManager.get("ws:sessB"), null)
+    await app.close()
+  })
 })

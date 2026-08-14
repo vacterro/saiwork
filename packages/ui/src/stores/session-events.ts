@@ -70,7 +70,7 @@ import { normalizeMessagePart } from "./message-v2/normalizers"
 import { updateSessionInfo } from "./message-v2/session-info"
 import { tGlobal } from "../lib/i18n"
 
-import { loadMessages, removeSessionRuntimeState } from "./session-api"
+import { loadMessages, removeSessionRuntimeState, purgeSessionQueue } from "./session-api"
 import { getRootClient } from "./opencode-client"
 import { getWorktreeSlugForDirectory, getWorktreeSlugForSession } from "./worktrees"
 import { getOpenCodeWorkspaceIdForWorktree } from "./opencode-workspaces"
@@ -511,6 +511,7 @@ function handleSessionDeleted(instanceId: string, event: EventSessionDeleted): v
 
   log.info(`[SSE] Session deleted: ${sessionId}`)
   removeSessionRuntimeState(instanceId, sessionId)
+  purgeSessionQueue(instanceId, sessionId)
 }
 
 function handleSessionIdle(instanceId: string, event: EventSessionIdle): void {

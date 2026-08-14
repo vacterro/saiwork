@@ -788,6 +788,16 @@ export type QueueFanOutResult =
   | { ok: false; code: "empty" | "paused" | "too-large" | "invalid" }
   | QueueStorageErrorResponse
 
+/**
+ * Result of atomically purging every queue key that starts with a prefix
+ * (used to clear a deleted session's or instance's persisted queue).
+ */
+export type QueuePurgeResult =
+  | { ok: true; removedKeys: string[] }
+  | { ok: false; code: "invalid" | "empty" | "paused" | "too-large" }
+  | QueueStorageErrorResponse
+
+
 
 /** Raw `.saipen` files for the SAIPENVIEW panel. */
 export interface SaipenViewResponse {

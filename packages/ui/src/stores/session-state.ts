@@ -483,6 +483,21 @@ function clearInstanceDeletedSessionAuthority(instanceId: string): void {
   })
 }
 
+/** Drop a permanently deleted instance's pending-load bookkeeping. */
+function clearInstanceLoadingState(instanceId: string): void {
+  if (!instanceId) return
+  setLoading((prev) => {
+    if (!prev.loadingMessages.has(instanceId)) return prev
+    const loadingMessages = new Map(prev.loadingMessages)
+    loadingMessages.delete(instanceId)
+    return { ...prev, loadingMessages }
+  })
+  const prefix = `${instanceId}:`
+  for (const key of messageLoadEpochs.keys()) {
+    if (key.startsWith(prefix)) messageLoadEpochs.delete(key)
+  }
+}
+
 function clearSessionDraftPrompt(instanceId: string, sessionId: string) {
   const key = getDraftKey(instanceId, sessionId)
   markSessionDraftAuthoritative(instanceId, sessionId)
@@ -1256,6 +1271,7 @@ export {
   markSessionDeletedAuthoritative,
   onSessionDeleted,
   clearInstanceDeletedSessionAuthority,
+  clearInstanceLoadingState,
   clearInstanceSessionExpansionState,
   hydrateSessionDraftPrompt,
   onSessionDraftHydrated,

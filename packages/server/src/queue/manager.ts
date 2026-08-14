@@ -15,6 +15,7 @@ import {
   MAX_QUEUED_ATTACHMENT_BYTES,
   type QueueMutation,
   type QueueMutationResult,
+  type QueuePurgeResult,
   type QueueState,
   type QueueStorageFailure,
   type QueueStorageOperation,
@@ -54,6 +55,7 @@ export interface QueueManagerOptions {
 }
 
 const KEY_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+$/
+const PREFIX_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9._-]*$/
 const PERSIST_VERSION = 1
 
 interface PersistedQueue {
@@ -239,6 +241,39 @@ export class QueueManager {
 
   async flush(): Promise<void> {
     await this.transactionQueue
+  }
+
+  /**
+   * Atomically remove every queue key that starts with `prefix` and publish an
+   * empty state for each. One transaction covers validation, the single
+   * persisted snapshot, the memory commit, and the events, so a deleted
+   * session's or instance's prompts and their attachments cannot be left half
+   * cleared or resurrected on the next load.
+   */
+  purgeKeys(prefix: string): Promise<QueuePurgeResult> {
+    if (!PREFIX_RE.test(prefix)) {
+      return Promise.resolve({ ok: false, code: "invalid" })
+    }
+    return this.withTransaction<QueuePurgeResult>(() => {
+      if (this.loadFailure) return storageResult(this.loadFailure) as QueuePurgeResult
+
+      const matched = Array.from(this.queues.keys()).filter((key) => key.startsWith(prefix))
+      if (matched.length === 0) return { ok: true, removedKeys: [] }
+
+      const updates = new Map(matched.map((key) => [key, { state: emptyState(), keep: false }]))
+      const persistenceFailure = this.persistSnapshot(updates)
+      if (persistenceFailure) return storageResult(persistenceFailure) as QueuePurgeResult
+
+      for (const key of matched) this.queues.delete(key)
+      for (const key of matched) {
+        try {
+          this.options.eventBus.publish({ type: "queue.changed", key, state: emptyState() })
+        } catch (error) {
+          this.options.logger.warn({ error, key }, "Failed to publish prompt queue purge")
+        }
+      }
+      return { ok: true, removedKeys: matched }
+    })
   }
 
   private transact(key: string, expectedRevision: string, mutation: QueueMutation): QueueMutationResult {
