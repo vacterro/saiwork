@@ -9,6 +9,7 @@ import {
   FileSystemListingMetadata,
   WINDOWS_DRIVES_ROOT,
 } from "../api-types"
+import { resolveContainedCreateTarget, resolveContainedPath } from "./containment"
 
 interface FileSystemBrowserOptions {
   rootDir: string
@@ -44,7 +45,7 @@ export class FileSystemBrowser {
     }
     const includeFiles = options.includeFiles ?? true
     const normalizedPath = this.normalizeRelativePath(relativePath)
-    const absolutePath = this.toRestrictedAbsolute(normalizedPath)
+    const absolutePath = this.resolveContainedExisting(normalizedPath)
     return this.readDirectoryEntries(absolutePath, {
       includeFiles,
       formatPath: (entryName) => this.buildRelativePath(normalizedPath, entryName),
@@ -75,11 +76,11 @@ export class FileSystemBrowser {
     }
 
     const normalizedParent = this.normalizeRelativePath(parentPath)
-    const parentAbsolute = this.toRestrictedAbsolute(normalizedParent)
+    const parentAbsolute = this.resolveContainedExisting(normalizedParent)
     this.assertDirectoryExists(parentAbsolute)
 
     const relativePath = this.buildRelativePath(normalizedParent, name)
-    const absolutePath = this.toRestrictedAbsolute(relativePath)
+    const absolutePath = this.resolveContainedCreate(relativePath)
     fs.mkdirSync(absolutePath)
     return { path: relativePath, absolutePath }
   }
@@ -88,7 +89,7 @@ export class FileSystemBrowser {
     if (this.unrestricted) {
       throw new Error("writeFile is not available in unrestricted mode")
     }
-    const resolved = this.toRestrictedAbsolute(relativePath)
+    const resolved = this.resolveContainedCreate(relativePath)
     fs.writeFileSync(resolved, contents, "utf-8")
   }
 
@@ -96,7 +97,10 @@ export class FileSystemBrowser {
     if (this.unrestricted) {
       throw new Error("readFile is not available in unrestricted mode")
     }
-    const resolved = this.toRestrictedAbsolute(relativePath)
+    const resolved = this.resolveContainedExisting(relativePath)
+    const stats = fs.statSync(resolved)
+    if (!stats.isFile()) throw new Error("Selected path is not a file")
+    if (stats.size > MAX_READABLE_FILE_BYTES) throw new Error("Selected file is too large to read")
     return fs.readFileSync(resolved, "utf-8")
   }
 
@@ -104,13 +108,18 @@ export class FileSystemBrowser {
     if (this.unrestricted) {
       throw new Error("readFileBase64 is not available in unrestricted mode")
     }
-    const resolved = this.toRestrictedAbsolute(relativePath)
+    const resolved = this.resolveContainedExisting(relativePath)
+    const stats = fs.statSync(resolved)
+    if (!stats.isFile()) throw new Error("Selected path is not a file")
+    if (stats.size > MAX_READABLE_FILE_BYTES) throw new Error("Selected file is too large to read")
     return fs.readFileSync(resolved).toString("base64")
   }
 
   readFileContent(targetPath: string, options?: { encoding?: "utf-8" | "base64" }): FileSystemFileContentResponse {
     const encoding = options?.encoding ?? "utf-8"
-    const resolved = this.unrestricted ? this.resolveUnrestrictedPath(targetPath) : this.toRestrictedAbsolute(targetPath)
+    const resolved = this.unrestricted
+      ? this.resolveUnrestrictedPath(targetPath)
+      : this.resolveContainedExisting(targetPath)
     const stats = fs.statSync(resolved)
     if (!stats.isFile()) {
       throw new Error("Selected path is not a file")
@@ -124,7 +133,7 @@ export class FileSystemBrowser {
 
   private listRestrictedWithMetadata(relativePath: string | undefined, includeFiles: boolean): FileSystemListResponse {
     const normalizedPath = this.normalizeRelativePath(relativePath)
-    const absolutePath = this.toRestrictedAbsolute(normalizedPath)
+    const absolutePath = this.resolveContainedExisting(normalizedPath)
     const entries = this.readDirectoryEntries(absolutePath, {
       includeFiles,
       formatPath: (entryName) => this.buildRelativePath(normalizedPath, entryName),
@@ -335,6 +344,20 @@ export class FileSystemBrowser {
       throw new Error("Access outside of root is not allowed")
     }
     return target
+  }
+
+  /** Realpath-proven existing target inside the root (symlink/junction escapes rejected). */
+  private resolveContainedExisting(relativePath: string): string {
+    return resolveContainedPath(this.root, this.normalizeRelativePath(relativePath), this.platformName)
+  }
+
+  /** Realpath-proven create target (nearest existing ancestor inside the root). */
+  private resolveContainedCreate(relativePath: string): string {
+    return resolveContainedCreateTarget(this.root, this.normalizeRelativePath(relativePath), this.platformName)
+  }
+
+  private get platformName(): NodeJS.Platform {
+    return this.isWindows ? "win32" : process.platform
   }
 
   private isOutsideRoot(relativeToRoot: string) {
