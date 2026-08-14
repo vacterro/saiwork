@@ -15,6 +15,7 @@ import {
   markGoalAutoAborted,
   noteGoalAutoTurnIdle,
   resetDispatchedContinues,
+  resolveGoalCommand,
   shouldCheckSaipenGoalAuto,
   shouldEnqueueSaipenContinue,
 } from "./saipen-goal-auto.ts"
@@ -146,5 +147,23 @@ describe("SAIPEN Goal Mode Auto dispatch marker", () => {
 
     clearDispatchedContinue("inst", "s2")
     assert.equal(hasDispatchedContinue("inst", "s1"), true)
+  })
+})
+
+describe("resolveGoalCommand", () => {
+  it("maps /goal to a bare saipen goal", () => {
+    assert.deepEqual(resolveGoalCommand("/goal"), { isGoal: true, submitText: "saipen goal" })
+  })
+
+  it("carries the objective into saipen goal", () => {
+    assert.deepEqual(resolveGoalCommand("/goal fix the login bug"), {
+      isGoal: true,
+      submitText: "saipen goal fix the login bug",
+    })
+  })
+
+  it("passes through non-goal prompts unchanged", () => {
+    assert.deepEqual(resolveGoalCommand("hello world"), { isGoal: false, submitText: "hello world" })
+    assert.deepEqual(resolveGoalCommand("/othercmd x"), { isGoal: false, submitText: "/othercmd x" })
   })
 })

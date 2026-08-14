@@ -9,12 +9,13 @@ import Kbd from "./kbd"
 import { getActiveInstance } from "../stores/instances"
 import { agents, executeCustomCommand } from "../stores/sessions"
 import { getCommands } from "../stores/commands"
+import { resolveGoalCommand } from "../lib/saipen-goal-auto"
 import { showAlertDialog } from "../stores/alerts"
 import { useI18n } from "../lib/i18n"
 import { getLogger } from "../lib/logger"
 import { serverApi } from "../lib/api-client"
 import { isDesktopHost, isLocalWindow } from "../lib/runtime-env"
-import { preferences } from "../stores/preferences"
+import { preferences, isSaipenGoalAutoEnabled, toggleSaipenGoalAuto } from "../stores/preferences"
 import type { ExpandState, PromptInputApi, PromptInputProps, PromptInsertMode, PromptMode } from "./prompt-input/types"
 import type { Attachment } from "../types/attachment"
 import type { FileSystemEntry } from "../../../server/src/api-types"
@@ -472,14 +473,27 @@ export default function PromptInput(props: PromptInputProps) {
     const commandName = isSlashCandidate ? commandToken.slice(1) : ""
     const commandArgs = isSlashCandidate ? (firstSpace === -1 ? "" : text.slice(firstSpace + 1).trimStart()) : ""
 
+    // /goal is SAIWORK's own command: it starts a saipen goal run and turns
+    // Goal Auto on so the agent keeps continuing until the board is done.
+    const goalResolution = resolveGoalCommand(text)
+    const isGoalCommand = goalResolution.isGoal
+    let effectiveText = text
+    if (isGoalCommand) {
+      effectiveText = goalResolution.submitText
+      if (props.instanceFolder && !isSaipenGoalAutoEnabled(props.instanceFolder)) {
+        toggleSaipenGoalAuto(props.instanceFolder)
+      }
+    }
+
     const isKnownSlashCommand =
       isSlashCandidate &&
+      !isGoalCommand &&
       commandName.length > 0 &&
       getCommands(props.instanceId).some((cmd) => cmd.name === commandName)
 
     const submission = preparePromptSubmission({
       mode: isKnownSlashCommand ? "slash" : isShellMode ? "shell" : "message",
-      text,
+      text: effectiveText,
       attachments: currentAttachments,
       commandToken,
       commandArgs,

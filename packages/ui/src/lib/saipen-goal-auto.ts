@@ -2,6 +2,25 @@ import type { SaipenStatusResponse } from "../../../server/src/api-types"
 
 export const SAIPEN_CONTINUE_PROMPT = "saipen continue"
 
+export interface GoalCommandResolution {
+  isGoal: boolean
+  submitText: string
+}
+
+/**
+ * Resolve a `/goal [objective]` prompt into the saipen command that starts a
+ * goal run. A bare `/goal` maps to `saipen goal`; with arguments the objective
+ * travels as `saipen goal <objective>`. Anything else passes through unchanged.
+ */
+export function resolveGoalCommand(text: string): GoalCommandResolution {
+  const trimmed = text.trim()
+  if (!trimmed.startsWith("/goal")) {
+    return { isGoal: false, submitText: trimmed }
+  }
+  const rest = trimmed.slice("/goal".length).trim()
+  return { isGoal: true, submitText: rest ? `saipen goal ${rest}` : "saipen goal" }
+}
+
 /** Do not fire another auto-continue this soon after a turn ended. */
 export const GOAL_AUTO_TURN_COOLDOWN_MS = 30_000
 /** Much longer pause after the user explicitly aborted a turn. */
