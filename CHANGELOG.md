@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.32] - 2026-08-14
+
+References such as `T-097` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Sunken active session state (T-097)
+
+- Selected sidebar session rows now render with the inset (pressed) bevel and
+  dropped surface, unmistakably distinct from the raised idle rows. The
+  single-class active rule lost to the global button bevel by specificity, so
+  the fix uses the explicit `.session-item-base.session-item-active` weight.
+- Active top project tabs already render sunken; both states are now pinned by
+  structural style tests asserting the flipped bevel.
+
 ## [0.1.31] - 2026-08-14
 
 References such as `T-093` below are internal `.saipen` work-log identifiers,
