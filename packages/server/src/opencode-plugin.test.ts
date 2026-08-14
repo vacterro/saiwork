@@ -61,7 +61,13 @@ describe("buildOpencodeConfigContent", () => {
     assert.equal(parsed.provider.freebuff.npm, "@ai-sdk/openai-compatible")
     assert.equal(parsed.provider.freebuff.options.baseURL, "http://127.0.0.1:4000/fb/v1")
     assert.equal(parsed.provider.freebuff.options.headers["x-saiwork-workspace"], "C:/work/proj")
-    assert.ok(parsed.provider.freebuff.models["deepseek/deepseek-v4-flash"])
+    assert.equal(parsed.provider.freebuff.models, undefined, "freebuff models must be auto-discovered from /fb/v1/models, never pinned")
+  })
+
+  it("does not pin Antigravity models so new backend models appear live", () => {
+    const parsed = JSON.parse(buildOpencodeConfigContent(undefined, "file:///plugin.tgz"))
+    assert.ok(parsed.provider.google_antigravity)
+    assert.equal(parsed.provider.google_antigravity.models, undefined, "antigravity models must be auto-discovered from /v1/models")
   })
 
   it("omits the freebuff provider without a workspace path", () => {

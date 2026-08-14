@@ -4,6 +4,7 @@ import {
   type GoogleModelInfo,
   type GoogleProviderId,
 } from "./types"
+import type { AntigravityModelInfo } from "./antigravity-session"
 
 /**
  * Provider-scoped Google model catalogs.
@@ -58,6 +59,39 @@ const ANTIGRAVITY_MODELS: RawModel[] = [
 
 function scoped(providerId: GoogleProviderId, models: RawModel[]): GoogleModelInfo[] {
   return models.map((model) => ({ ...model, providerId }))
+}
+
+/**
+ * Backend-registered ids that must never be offered: they are served by
+ * `fetchAvailableModels` but reject generate requests (the working twin is
+ * exposed instead).
+ */
+export const ANTIGRAVITY_DENIED_LIVE_IDS = new Set(["gemini-3.1-pro-high"])
+
+/**
+ * The live Antigravity catalog: what the subscription backend currently
+ * serves, merged with static display metadata and with known-broken ids
+ * filtered out. A newly released model (Gemini 3.7 Flash, ...) appears here
+ * as soon as the backend returns it; models the backend no longer serves
+ * drop off. When the live list is empty (no session / network down) the
+ * static catalog is the fallback so the provider never goes empty.
+ */
+export function antigravityLiveCatalog(live: AntigravityModelInfo[]): RawModel[] {
+  if (live.length === 0) return ANTIGRAVITY_MODELS
+  const staticById = new Map(ANTIGRAVITY_MODELS.map((model) => [model.id, model]))
+  const out: RawModel[] = []
+  for (const model of live) {
+    if (ANTIGRAVITY_DENIED_LIVE_IDS.has(model.id)) continue
+    const existing = staticById.get(model.id)
+    out.push({
+      id: model.id,
+      displayName: existing?.displayName ?? model.displayName,
+      reasoning: existing?.reasoning ?? true,
+      context: existing?.context ?? (model.maxTokens ?? 1_048_576),
+      output: existing?.output ?? (model.maxOutputTokens ?? 65_536),
+    })
+  }
+  return out.length > 0 ? out : ANTIGRAVITY_MODELS
 }
 
 /** The raw Antigravity catalog used by both the OpenCode provider config and the shim. */

@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify"
 
 import { ANTIGRAVITY_SHIM_API_KEY } from "../../google/adapter"
 import { antigravitySession, type AntigravitySession } from "../../google/antigravity-session"
-import { antigravityCatalog } from "../../google/models"
+import { antigravityCatalog, antigravityLiveCatalog } from "../../google/models"
 import { openAiSseChunk, sseEncode } from "./sse-shared"
 import {
   FreebuffToolTranslationError,
@@ -62,7 +62,17 @@ export function registerGoogleShimRoutes(app: FastifyInstance, deps: ShimDeps = 
   const registry = deps.registry ?? new ToolCallRegistry()
 
   app.get("/v1/models", async () => {
-    const data = antigravityCatalog().map((model) => ({
+    let models = antigravityCatalog()
+    try {
+      // The live backend catalog is authoritative: a newly released model
+      // (Gemini 3.7 Flash, ...) appears here without a SAIWORK release. On any
+      // failure (no OAuth session, network down) the static catalog stands in
+      // so the provider never lists nothing.
+      models = antigravityLiveCatalog(await session.listModels())
+    } catch {
+      models = antigravityCatalog()
+    }
+    const data = models.map((model) => ({
       id: model.id,
       object: "model",
       created: 0,

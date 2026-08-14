@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 
 import type { FreebuffController } from "../../freebuff/controller"
-import { FREEBUFF_MODELS } from "../../freebuff/models"
+import { freebuffLiveCatalog } from "../../freebuff/models"
 import {
   FREEBUFF_EXECUTION_MODE_LOCAL,
   FREEBUFF_EXECUTION_MODE_WORKTREE,
@@ -34,12 +34,14 @@ const EnqueueSchema = z.object({
 })
 
 export function registerFreebuffRoutes(app: FastifyInstance, deps: RouteDeps) {
-  app.get("/api/freebuff/models", async () => ({ models: FREEBUFF_MODELS }))
+  app.get("/api/freebuff/models", async () => ({
+    models: freebuffLiveCatalog(await deps.freebuff.liveModelIds()),
+  }))
 
   app.get("/api/freebuff/status", async (_request, reply) => {
     const status = deps.freebuff.status()
     return {
-      ...status,
+      ...publicFreebuffStatus(status, deps.freebuff.auth()),
       quota: await deps.freebuff.quota(),
     }
   })
@@ -49,7 +51,10 @@ export function registerFreebuffRoutes(app: FastifyInstance, deps: RouteDeps) {
     if (!status.installFound || !status.engineRunning) {
       return reply.code(503).send({ error: status.error ?? "FreeBuff engine unavailable" })
     }
-    return status
+    return {
+      ...publicFreebuffStatus(status, deps.freebuff.auth()),
+      quota: await deps.freebuff.quota(),
+    }
   })
 
   app.post("/api/freebuff/stop", async (_request) => {
@@ -177,4 +182,15 @@ export function registerFreebuffRoutes(app: FastifyInstance, deps: RouteDeps) {
     request.raw.on("close", close)
     request.raw.on("error", close)
   })
+}
+
+function publicFreebuffStatus(
+  status: ReturnType<FreebuffController["status"]>,
+  currentAuth: ReturnType<FreebuffController["auth"]>,
+) {
+  const { auth, ...publicStatus } = status
+  return {
+    ...publicStatus,
+    auth: currentAuth?.user ?? auth?.user ?? null,
+  }
 }

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.35] - 2026-08-14
+
+References such as `T-741` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Live model catalog sync (T-741)
+
+- Antigravity and FreeBuff models are no longer hardcoded. The shim's
+  `/v1/models` serves the live backend catalog (Antigravity
+  `fetchAvailableModels`, 60-second cache), the FreeBuff gateway's
+  `/fb/v1/models` and `/api/freebuff/models` union the static display
+  metadata with the models the backend currently reports, and the OpenCode
+  Antigravity/FreeBuff providers no longer pin models so the
+  OpenAI-compatible provider auto-discovers them at runtime. A model the
+  vendor releases (Gemini 3.7 Flash, ...) therefore appears without a
+  SAIWORK release.
+- Known-broken backend ids (e.g. `gemini-3.1-pro-high`) are filtered out,
+  and any live-fetch failure falls back to the static catalog so a provider
+  never lists nothing.
+
 ## [0.1.34] - 2026-08-14
 
 References such as `T-740` below are internal `.saipen` work-log identifiers,

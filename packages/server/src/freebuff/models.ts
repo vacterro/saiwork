@@ -42,6 +42,31 @@ export const FREEBUFF_MODELS: FreebuffModelInfo[] = [
 
 export const FREEBUFF_MODEL_IDS = new Set(FREEBUFF_MODELS.map((model) => model.id))
 
+/**
+ * The effective catalog: the static display-metadata list unioned with any
+ * model ids the FreeBuff backend currently reports live (its quota snapshot
+ * lists per-model rate limits for every available model). A newly released
+ * model appears here as soon as the backend serves it, with the id as its
+ * display name until static metadata catches up.
+ */
+export function freebuffLiveCatalog(liveModelIds?: Iterable<string> | null): FreebuffModelInfo[] {
+  const byId = new Map(FREEBUFF_MODELS.map((model) => [model.id, model]))
+  for (const id of liveModelIds ?? []) {
+    if (!id || byId.has(id)) continue
+    byId.set(id, { id, displayName: id, tagline: "", free: true })
+  }
+  return [...byId.values()]
+}
+
+/** The set of model ids the FreeBuff backend currently exposes, static included. */
+export function freebuffLiveModelIds(liveModelIds?: Iterable<string> | null): Set<string> {
+  const ids = new Set<string>(FREEBUFF_MODELS.map((model) => model.id))
+  for (const id of liveModelIds ?? []) {
+    if (id) ids.add(id)
+  }
+  return ids
+}
+
 export function isFreebuffModelId(modelId: string | null | undefined): boolean {
   return Boolean(modelId && FREEBUFF_MODEL_IDS.has(modelId))
 }

@@ -53,7 +53,9 @@ export class FreebuffController {
   private readonly options: FreebuffControllerOptions
   private threadsByProject = new Map<string, Map<string, FreebuffThread>>()
   private listenerStarted = false
+  private listenerGeneration = 0
   private unsubscribeListener: (() => void) | null = null
+  private unsubscribeEngineStatus: (() => void) | null = null
   private stopped = true
   private idleSweepTimer: ReturnType<typeof setInterval> | null = null
   /** Threads currently holding a hosted-model session slot. */
@@ -74,14 +76,16 @@ export class FreebuffController {
   }
 
   async ensureRunning(): Promise<FreebuffEngineStatus> {
+    this.watchEngineStatus()
     const status = await this.options.engineManager.start()
     if (status.ready) this.startListening()
     return status
   }
 
   client(): FreebuffClient | null {
-    const port = this.options.engineManager.status.port
-    if (!port) return null
+    const status = this.options.engineManager.status
+    const port = status.port
+    if (!status.ready || !port) return null
     if (this.clientCache && this.clientCache.baseUrl === `http://127.0.0.1:${port}`) {
       return this.clientCache
     }
@@ -90,12 +94,36 @@ export class FreebuffController {
   }
 
   auth(): FreebuffAuthState | null {
-    return this.options.engineManager.status.auth ?? readFreebuffAuth()
+    return readFreebuffAuth() ?? this.options.engineManager.status.auth
   }
 
   async quota(): Promise<FreebuffQuotaResult> {
     const getToken = this.options.getToken ?? (() => this.auth()?.token ?? null)
     return fetchFreebuffQuota(getToken)
+  }
+
+  private modelIdsCache: { ids: Set<string>; at: number } | null = null
+
+  /**
+   * The model ids the FreeBuff backend currently serves, from the live quota
+   * snapshot's per-model rate limits (60s TTL). Any failure yields the empty
+   * set so callers fall back to the static catalog; a newly released model
+   * appears here as soon as the backend reports it.
+   */
+  async liveModelIds(): Promise<Set<string>> {
+    const now = Date.now()
+    if (this.modelIdsCache && now - this.modelIdsCache.at < 60_000) {
+      return this.modelIdsCache.ids
+    }
+    let ids = new Set<string>()
+    try {
+      const { snapshot } = await this.quota()
+      ids = new Set<string>(Object.keys(snapshot?.rateLimitsByModel ?? {}))
+    } catch {
+      ids = new Set<string>()
+    }
+    this.modelIdsCache = { ids, at: now }
+    return ids
   }
 
   /** Open threads across every registered project, newest first. */
@@ -117,6 +145,8 @@ export class FreebuffController {
   async stop(): Promise<void> {
     this.stopped = true
     this.stopListening()
+    this.unsubscribeEngineStatus?.()
+    this.unsubscribeEngineStatus = null
     this.stopIdleSweep()
     this.clientCache = null
     this.threadsByProject.clear()
@@ -256,6 +286,7 @@ export class FreebuffController {
     if (!client) return
     this.stopped = false
     this.listenerStarted = true
+    const generation = ++this.listenerGeneration
     const onEvent = (event: FreebuffBusEvent) => {
       if (event.type === "thread") this.recordThreadEvent(event)
       if (event.type === "state" && "snapshot" in event && typeof event.snapshot === "object" && event.snapshot !== null) {
@@ -268,14 +299,30 @@ export class FreebuffController {
       }
     }
     void client.subscribeEvents(onEvent, () => {
+      if (this.listenerGeneration !== generation) return
       this.listenerStarted = false
       this.unsubscribeListener = null
     }).then((unsubscribe) => {
+      if (this.listenerGeneration !== generation) {
+        unsubscribe()
+        return
+      }
       this.unsubscribeListener = unsubscribe
       if (!this.listenerStarted) unsubscribe()
     })
 
     this.startIdleSweep()
+  }
+
+  private watchEngineStatus(): void {
+    if (this.unsubscribeEngineStatus) return
+    // A crash-restarted orchestrator gets a new SSE connection immediately;
+    // no UI poll or thread-list request is required to heal the mirror.
+    this.unsubscribeEngineStatus = this.options.engineManager.onStatusChange?.((status) => {
+      if (this.stopped) return
+      if (status.ready) this.startListening()
+      else this.stopListening()
+    }) ?? null
   }
 
   private startIdleSweep(): void {
@@ -337,6 +384,7 @@ export class FreebuffController {
   }
 
   private stopListening(): void {
+    this.listenerGeneration += 1
     this.listenerStarted = false
     this.unsubscribeListener?.()
     this.unsubscribeListener = null
@@ -359,6 +407,7 @@ export class FreebuffController {
     } else {
       byId.delete(thread.id)
       this.queueCountByThread.delete(thread.id)
+      if (byId.size === 0) this.threadsByProject.delete(project)
     }
   }
 }

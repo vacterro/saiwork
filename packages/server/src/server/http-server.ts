@@ -347,7 +347,11 @@ export function createHttpServer(deps: HttpServerDeps) {
     freebuff: deps.freebuff,
     logger: apiLogger,
   })
-  registerFreebuffGatewayRoutes(app, { freebuff: deps.freebuff, registry: deps.freebuffThreadRegistry })
+  registerFreebuffGatewayRoutes(app, {
+    freebuff: deps.freebuff,
+    registry: deps.freebuffThreadRegistry,
+    liveModelIds: () => deps.freebuff.liveModelIds(),
+  })
   registerGoogleRoutes(app, {
     settings: deps.settings,
     logger: apiLogger,

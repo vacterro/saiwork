@@ -13,7 +13,7 @@ import {
   type FreebuffOpenAiChatRequest,
   type FreebuffOpenAiMessage,
 } from "../../freebuff/gateway"
-import { FREEBUFF_MODELS } from "../../freebuff/models"
+import { freebuffLiveCatalog, freebuffLiveModelIds } from "../../freebuff/models"
 import { FREEBUFF_SHIM_API_KEY } from "../shim-keys"
 import { openAiSseChunk, sseEncode } from "./sse-shared"
 
@@ -34,6 +34,8 @@ export { FREEBUFF_SHIM_API_KEY }
 interface GatewayDeps {
   freebuff: FreebuffController
   registry?: FreebuffThreadRegistry
+  /** Live model ids from the FreeBuff backend; absent => static catalog only. */
+  liveModelIds?: () => Promise<Iterable<string>>
 }
 
 const MAX_FREEBUFF_MESSAGES = 512
@@ -89,15 +91,18 @@ function parseChatBody(body: unknown): FreebuffOpenAiChatRequest | null {
 export function registerFreebuffGatewayRoutes(app: FastifyInstance, deps: GatewayDeps) {
   const registry = deps.registry ?? new FreebuffThreadRegistry()
 
-  app.get("/fb/v1/models", async () => ({
-    object: "list",
-    data: FREEBUFF_MODELS.map((model) => ({
-      id: model.id,
-      object: "model",
-      created: 0,
-      owned_by: "freebuff",
-    })),
-  }))
+  app.get("/fb/v1/models", async () => {
+    const liveIds = await (deps.liveModelIds?.() ?? Promise.resolve([]))
+    return {
+      object: "list",
+      data: freebuffLiveCatalog(liveIds).map((model) => ({
+        id: model.id,
+        object: "model",
+        created: 0,
+        owned_by: "freebuff",
+      })),
+    }
+  })
 
   app.post<{ Body: unknown }>("/fb/v1/chat/completions", async (request, reply) => {
     const auth = request.headers.authorization ?? ""
@@ -116,7 +121,7 @@ export function registerFreebuffGatewayRoutes(app: FastifyInstance, deps: Gatewa
     if (!prompt) {
       return reply.code(400).send({ error: { message: "no user message" } })
     }
-    if (!FREEBUFF_MODELS.some((model) => model.id === body.model)) {
+    if (!freebuffLiveModelIds(await (deps.liveModelIds?.() ?? Promise.resolve([]))).has(body.model)) {
       return reply.code(400).send({ error: { message: `unsupported model: ${body.model}` } })
     }
 

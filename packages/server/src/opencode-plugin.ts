@@ -1,7 +1,6 @@
 import { existsSync, readdirSync } from "fs"
 import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
-import { FREEBUFF_MODELS } from "./freebuff/models"
 import { FREEBUFF_SHIM_API_KEY } from "./server/routes/freebuff-gateway"
 import { buildGoogleProviderConfig } from "./google/adapter"
 import { createLogger } from "./logger"
@@ -119,13 +118,14 @@ function mergeProviderConfigs(
  * pool. OpenCode talks OpenAI-compatible to `${baseUrl}/fb/v1`; the workspace
  * path travels in a request header so the gateway creates threads in the right
  * project.
+ *
+ * The provider pins NO models: the `@ai-sdk/openai-compatible` provider lists
+ * them live from the gateway's `/fb/v1/models`, which serves the current
+ * backend catalog unioned with the static display metadata. A model the
+ * vendor releases therefore appears without a SAIWORK release.
  */
 export function buildFreebuffProviderConfig(baseUrl: string, workspacePath: string): Record<string, unknown> {
   const shimBaseUrl = baseUrl.replace(/\/+$/, "")
-  const models: Record<string, unknown> = {}
-  for (const model of FREEBUFF_MODELS) {
-    models[model.id] = { name: model.displayName, reasoning: true }
-  }
   return {
     npm: "@ai-sdk/openai-compatible",
     name: "FreeBuff",
@@ -134,7 +134,6 @@ export function buildFreebuffProviderConfig(baseUrl: string, workspacePath: stri
       apiKey: FREEBUFF_SHIM_API_KEY,
       headers: { "x-saiwork-workspace": workspacePath },
     },
-    models,
   }
 }
 

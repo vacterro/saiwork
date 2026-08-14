@@ -1,4 +1,3 @@
-import { antigravityCatalog } from "./models"
 import { resolveGeminiApiKey } from "./providers"
 import { ANTIGRAVITY_SHIM_API_KEY } from "../server/shim-keys"
 import {
@@ -126,21 +125,16 @@ export function googleSpawnEnv(
  * Antigravity subscription backend (cloudcode-pa.googleapis.com) with the
  * OAuth session it manages. The shim token is a constant local gate, not a
  * real secret.
+ *
+ * The Antigravity provider pins NO models: the `@ai-sdk/openai-compatible`
+ * provider lists them live from the shim's `/v1/models`, which serves the
+ * current backend catalog. A model the vendor releases (Gemini 3.7 Flash, ...)
+ * therefore appears without a SAIWORK release and without editing this file.
  */
 export function buildGoogleProviderConfig(options: { baseUrl?: string; includeAntigravity?: boolean } = {}): {
   provider: Record<string, unknown>
 } {
   const shimBaseUrl = options.baseUrl?.replace(/\/+$/, "") ?? "http://127.0.0.1:4000"
-  const antigravityModels: Record<string, unknown> = {}
-  for (const model of antigravityCatalog()) {
-    antigravityModels[model.id] = {
-      name: model.displayName,
-      reasoning: model.reasoning,
-      // OpenCode's config schema requires BOTH context and output when a limit
-      // is present; a missing key fails workspace launch.
-      limit: { context: model.context, output: model.output },
-    }
-  }
 
   const provider: Record<string, unknown> = {
     [GEMINI_API_PROVIDER_ID]: {
@@ -168,7 +162,6 @@ export function buildGoogleProviderConfig(options: { baseUrl?: string; includeAn
         baseURL: `${shimBaseUrl}/v1`,
         apiKey: ANTIGRAVITY_SHIM_API_KEY,
       },
-      models: antigravityModels,
     }
   }
   return { provider }
