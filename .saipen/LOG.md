@@ -21,3 +21,44 @@
 - 13.08.26 06:48 [E-717] [T-724] DEC: SHIP (REVIEW self re-ran gate: electron typecheck + 142 native tests green; diff = identity TTL cache + test; P0/P1 none; P2 note: cache Map practically bounded to own+marker pids, no ticket)
 - 13.08.26 06:51 [E-718] [parent: E-717] [T-724] RUN: ship v0.1.24 -> pushed 457bafa3 (tag v0.1.24; carries T-717/T-718/T-719/T-724; release:check + validate --gate ship green; 41 files)
 - 13.08.26 06:51 [E-719] DEC: ccc converge target -> ship @c756cd53 (pre-SHIP source_head for the v0.1.24 cycle; SHIP landed at 457bafa3, tag v0.1.24)
+- 13.08.26 07:12 [E-720] RUN: hunt (user spec wave) -> reproduced 10 findings in freebuff gateway + google shim; grouped into T-728..T-731 clusters; no redo of T-715 wave
+- 13.08.26 07:12 [E-721] [T-728] RUN: build+verify -> FreeBuff identity/idempotency/validation (X-Session-Id key, turnFingerprint state machine, strict parseChatBody + limits); gateway + route tests green
+- 13.08.26 07:12 [E-722] [T-729] RUN: build+verify -> FreeBuff timeout=FAIL (stop once, reject, no partial success), finish owns cleanup (stale abort cannot stop reused thread), turnGenerations bounded, generation-guard hostile tests; server suite green
+- 13.08.26 07:12 [E-723] [T-730] RUN: build+verify -> byte-safe Struct serializer, every shape <= cap, byte-safe truncation, wrapper+escaping overhead accounted; shim tests green
+- 13.08.26 07:12 [E-724] [T-731] RUN: build+verify -> tool history replay re-anchor + persisted session-scoped registry (atomic, TTL, fail-safe) + typed error for unknown tool results; shim + persistence tests green
+- 13.08.26 07:12 [E-725] RUN: similar-bug-class sweep -> clean (finish() call sites legit, abort listeners removed in workspaces, setTimeout bounded, no other BYTES misuse, controller maps pruned on thread close); server 537 tests green
+- 13.08.26 19:49 [E-726] [parent: E-725] [agent: opencode] [op: checkpoint-37785b7e] DEC: ccc converge target -> ship @6053d92d
+- 13.08.26 19:49 [E-727] [parent: E-726] [T-727] [agent: opencode] [op: claim-147f10b8] DEC: claimed via SAIOPS -- owner opencode
+- 13.08.26 19:49 [E-728] [parent: E-727] [T-727] [agent: opencode] [op: transition-4dd37747] RUN: async own-process identity startup
+- 13.08.26 20:51 [E-729] [parent: E-728] [T-727] [agent: opencode] [op: transition-c95929ed] RUN: scout complete: async identity architecture and shutdown boundaries mapped
+- 13.08.26 20:51 [E-730] [parent: E-729] [T-727] [agent: opencode] [op: checkpoint-9d493608] RUN: build complete: async startup identity, readiness-gated IPC/window tracker, shutdown race guards
+- 13.08.26 20:51 [E-731] [parent: E-730] [T-727] [agent: opencode] [op: transition-678699fa] RUN: implementation complete
+- 13.08.26 20:51 [E-732] [parent: E-731] [T-727] [agent: opencode] [op: checkpoint-e909383d] RUN: verify PASS: Electron typecheck + 148 native tests
+- 13.08.26 20:51 [E-733] [parent: E-732] [T-727] [agent: opencode] [op: transition-d07cffff] RUN: verification passed
+- 13.08.26 20:51 [E-734] [parent: E-733] [T-727] [agent: opencode] [op: checkpoint-1564aede] DEC: SHIP after fixes: independent review found shutdown race, fixed and re-review clean
+- 13.08.26 20:51 [E-735] [parent: E-734] [T-727] [agent: opencode] [op: transition-2dae36b5] RUN: review clean; queued for ccc release boundary
+- 13.08.26 21:11 [E-736] [parent: E-735] [T-727] [agent: opencode] [op: transition-e1f26677] RUN: release review findings: identity retry/window restore race and FreeBuff memory/abort bounds
+- 14.08.26 05:24 [E-737] [parent: E-736] [T-727] [agent: opencode] [op: checkpoint-20aa9b05] RUN: review fixes built: identity retry, user-window preservation, bounded replay cache, abortable FreeBuff waits
+- 14.08.26 05:24 [E-738] [parent: E-737] [T-727] [agent: opencode] [op: transition-03d0c3b3] RUN: targeted server/electron suites and package typechecks pass
+- 14.08.26 05:25 [E-739] [parent: E-738] [T-727] [agent: opencode] [op: checkpoint-99bb804d] RUN: VERIFY PASS: root test 560+12+149, root typecheck, production build, release:check, validate core, diff check
+- 14.08.26 05:25 [E-740] [parent: E-739] [T-727] [agent: opencode] [op: transition-c717261f] RUN: full canonical gate passed after release-review fixes
+- 14.08.26 05:28 [E-741] [parent: E-740] [T-727] [agent: opencode] [op: checkpoint-2fbfcf80] DEC: REVIEW NO: completed-turn replay tombstone, abortable engine probes/closes, pending-close recovery, persistence/shutdown test gaps
+- 14.08.26 05:28 [E-742] [parent: E-741] [T-727] [agent: opencode] [op: transition-3bf19a74] RUN: fix release-review P1 findings and concrete P2 persistence leak
+- 14.08.26 05:45 [E-743] [parent: E-742] [T-727] [agent: opencode] [op: checkpoint-4ab00146] RUN: review fixes complete: persistent tombstones, aborting operation timeouts, safe delayed window normal bounds, persistence and route integration tests
+- 14.08.26 05:45 [E-744] [parent: E-743] [T-727] [agent: opencode] [op: transition-f0b3f246] RUN: targeted hostile-case suites pass
+- 14.08.26 05:47 [E-745] [parent: E-744] [T-727] [agent: opencode] [op: checkpoint-dd5e74eb] RUN: VERIFY PASS final: server 572 pass/4 skip, plugin 12 pass, Electron 150 pass, typecheck, build, release check, core validation
+- 14.08.26 05:47 [E-746] [parent: E-745] [T-727] [agent: opencode] [op: transition-fd56f168] RUN: canonical verification passed on final bytes
+- 14.08.26 05:50 [E-747] [parent: E-746] [T-727] [agent: opencode] [op: checkpoint-be977ab8] DEC: REVIEW NO: bound identity failure; serialize stop and post dispatch settlement; retain close guard until remote close settles
+- 14.08.26 05:50 [E-748] [parent: E-747] [T-727] [agent: opencode] [op: transition-09f90873] RUN: fix final P1 async lifecycle races
+- 14.08.26 05:59 [E-749] [parent: E-748] [T-727] [agent: opencode] [op: checkpoint-a6c004ce] RUN: final lifecycle races fixed; focused independent recheck clean
+- 14.08.26 05:59 [E-750] [parent: E-749] [T-727] [agent: opencode] [op: transition-ab7cbc4e] RUN: hostile identity, dispatch, stop, and close tests pass
+- 14.08.26 06:00 [E-751] [parent: E-750] [T-727] [agent: opencode] [op: checkpoint-fe67ac6f] RUN: VERIFY PASS final-final: server 573 pass/4 skip, plugin 12 pass, Electron 151 pass, typecheck, build, release check, core validation, diff check
+- 14.08.26 06:00 [E-752] [parent: E-751] [T-727] [agent: opencode] [op: transition-82e308f0] RUN: all lifecycle review fixes pass canonical gate
+- 14.08.26 06:03 [E-753] [parent: E-752] [T-727] [agent: opencode] [op: checkpoint-cbca373c] DEC: REVIEW NO: client-state load must revalidate renderer authority after async readiness
+- 14.08.26 06:03 [E-754] [parent: E-753] [T-727] [agent: opencode] [op: transition-88877870] RUN: fix post-await IPC sender/origin/token race
+- 14.08.26 06:16 [E-755] [parent: E-754] [T-732] RUN: Thinking selection immediate; serialized persistence; UI checks PASS
+- 14.08.26 06:32 [E-756] [parent: E-755] [T-727] [agent: agents] DEC: stale takeover opencode->agents (>10h)
+- 14.08.26 06:33 [E-757] [parent: E-756] [T-727] [agent: agents] [op: transition-22b482c0] RUN: async identity startup built; temporary listeners disposed
+- 14.08.26 06:33 [E-758] [parent: E-757] [T-727] [agent: agents] [op: transition-f5887486] RUN: PASS: Electron typecheck + 153 native tests; conf: high
+- 14.08.26 06:34 [E-759] [parent: E-758] [T-733] [agent: agents] [op: ticket-4161669b] DEC: ticket added via SAIOPS
+- 14.08.26 06:38 [E-760] [parent: E-759] [T-727] [agent: agents] [op: transition-fb623ceb] RUN: SHIP after FIXES: review re-run Electron typecheck + 153 native tests PASS

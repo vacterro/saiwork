@@ -3,7 +3,7 @@ import { spawn } from "node:child_process"
 import { once } from "node:events"
 import { describe, it } from "node:test"
 
-import { installShutdownSignalHandlers, installShutdownStdinHandler, STDIN_SHUTDOWN_COMMAND } from "./index"
+import { installShutdownSignalHandlers, installShutdownStdinHandler, STDIN_SHUTDOWN_COMMAND, stopHttpResources } from "./index"
 import { createServerShutdownHandler } from "./shutdown"
 
 describe("CLI shutdown signal registration", () => {
@@ -69,5 +69,27 @@ describe("CLI shutdown signal registration", () => {
     child.stdin.end(`${STDIN_SHUTDOWN_COMMAND}\n`)
     const [code] = await once(child, "exit")
     assert.equal(code, 0)
+  })
+})
+
+describe("HTTP resource shutdown", () => {
+  it("flushes tool calls after servers settle and aggregates both failure classes", async () => {
+    const calls: string[] = []
+    const serverFailure = new Error("server failed")
+    const flushFailure = new Error("flush failed")
+    await assert.rejects(
+      stopHttpResources(
+        [
+          async () => { calls.push("server-1") },
+          async () => { calls.push("server-2"); throw serverFailure },
+        ],
+        async () => { calls.push("flush"); throw flushFailure },
+      ),
+      (error: Error & { failures?: unknown[] }) => {
+        assert.deepEqual(error.failures, [serverFailure, flushFailure])
+        return true
+      },
+    )
+    assert.deepEqual(calls, ["server-1", "server-2", "flush"])
   })
 })

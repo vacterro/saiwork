@@ -138,16 +138,31 @@ export class FreebuffController {
    * the running turn finishes and its thread closes, after which the slot is
    * free for a retry.
    */
-  async freeSlotFor(targetThreadId: string, options: { waitMs?: number } = {}): Promise<void> {
+  async freeSlotFor(targetThreadId: string, options: { waitMs?: number; signal?: AbortSignal; operationTimeoutMs?: number } = {}): Promise<void> {
+    throwIfAborted(options.signal)
     const client = this.client()
     if (!client) return
-    const holders = await this.collectIdleHolders(targetThreadId)
+    const operationTimeoutMs = options.operationTimeoutMs ?? 5_000
+    const holders = await this.collectIdleHolders(targetThreadId, options.signal, operationTimeoutMs)
+    throwIfAborted(options.signal)
     if (holders.length === 0) return
-    await Promise.all(holders.map((threadId) => client.closeThread(threadId).catch(() => undefined)))
+    await Promise.all(holders.map(async (threadId) => {
+      try {
+        return await boundedOperation(
+          (signal) => client.closeThread(threadId, { signal }),
+          options.signal,
+          operationTimeoutMs,
+        )
+      } catch (error) {
+        if (options.signal?.aborted) throw error
+        return undefined
+      }
+    }))
+    throwIfAborted(options.signal)
     // Give the engine time to observe the release and drop the server-side
     // usage count before the next admission is attempted.
     const waitMs = options.waitMs ?? 400
-    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs))
+    if (waitMs > 0) await abortableDelay(waitMs, options.signal)
   }
 
   /**
@@ -196,7 +211,7 @@ export class FreebuffController {
    * confirms are idle (never a blind kill on an unknown). Excludes
    * `exceptThreadId` when freeing a slot for that thread's own turn.
    */
-  private async collectIdleHolders(exceptThreadId?: string): Promise<string[]> {
+  private async collectIdleHolders(exceptThreadId?: string, signal?: AbortSignal, operationTimeoutMs = 5_000): Promise<string[]> {
     const client = this.client()
     if (!client) return []
     const holders: string[] = []
@@ -212,10 +227,15 @@ export class FreebuffController {
       // Unknown to the mirror (possible desync): probe the engine before
       // deciding, and only close a holder the engine confirms is idle.
       try {
-        const live = await client.getThread(threadId)
+        const live = await boundedOperation(
+          (operationSignal) => client.getThread(threadId, { signal: operationSignal }),
+          signal,
+          operationTimeoutMs,
+        )
         const state = (live as { thread?: { turnState?: string } }).thread ?? live
         if (state?.turnState === "idle") holders.push(threadId)
-      } catch {
+      } catch (error) {
+        if (signal?.aborted) throw error
         // Unreachable: leave it alone rather than risk a blind kill.
       }
     }
@@ -341,4 +361,56 @@ export class FreebuffController {
       this.queueCountByThread.delete(thread.id)
     }
   }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new Error("Request aborted")
+}
+
+function abortableDelay(waitMs: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(new Error("Request aborted"))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort)
+      resolve()
+    }, waitMs)
+    if (timer.unref) timer.unref()
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener("abort", onAbort, { once: true })
+  })
+}
+
+function boundedOperation<T>(operation: (signal: AbortSignal) => Promise<T>, signal: AbortSignal | undefined, timeoutMs: number): Promise<T> {
+  throwIfAborted(signal)
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const operationAbort = new AbortController()
+    const finish = (error: unknown, value?: T) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", onAbort)
+      if (error) reject(error)
+      else resolve(value as T)
+    }
+    const onAbort = () => {
+      operationAbort.abort()
+      finish(new Error("Request aborted"))
+    }
+    const timer = setTimeout(() => {
+      operationAbort.abort()
+      finish(new Error(`FreeBuff operation timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    if (timer.unref) timer.unref()
+    try {
+      operation(operationAbort.signal).then((value) => finish(null, value), finish)
+    } catch (error) {
+      finish(error)
+    }
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener("abort", onAbort, { once: true })
+  })
 }

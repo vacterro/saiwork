@@ -7,6 +7,7 @@ import { antigravitySession, type AntigravitySession } from "../../google/antigr
 import { antigravityCatalog } from "../../google/models"
 import { openAiSseChunk, sseEncode } from "./sse-shared"
 import {
+  FreebuffToolTranslationError,
   normalizeAntigravityModel,
   translateCloudCodeFrame,
   translateOpenAiRequest,
@@ -80,8 +81,25 @@ export function registerGoogleShimRoutes(app: FastifyInstance, deps: ShimDeps = 
       return reply.code(400).send({ error: { message: "invalid body" } })
     }
 
+    // OpenCode sends a per-conversation session id header; use it to key tool
+    // registry entries so one conversation's calls never resolve in another.
+    const sessionHeader = request.headers["x-session-id"]
+    const sessionId = typeof sessionHeader === "string" ? sessionHeader.trim() : ""
+    if (!sessionId) {
+      return reply.code(400).send({ error: { message: "missing x-session-id" } })
+    }
+
+    let args: ReturnType<typeof translateOpenAiRequest>
+    try {
+      await registry.ensureInitialized()
+      args = translateOpenAiRequest(body, registry, sessionId)
+    } catch (error) {
+      if (error instanceof FreebuffToolTranslationError) {
+        return reply.code(400).send({ error: { message: error.message } })
+      }
+      throw error
+    }
     const model = normalizeAntigravityModel(body.model)
-    const args = translateOpenAiRequest(body, registry)
     const id = `chatcmpl-${randomUUID()}`
     const created = Math.floor(Date.now() / 1000)
 
@@ -103,7 +121,7 @@ export function registerGoogleShimRoutes(app: FastifyInstance, deps: ShimDeps = 
       let totalTokens = 0
       try {
         for await (const frame of session.streamGenerate(model, { ...args, signal: abort.signal })) {
-          for (const chunk of translateCloudCodeFrame(frame, registry)) {
+          for (const chunk of translateCloudCodeFrame(frame, registry, sessionId)) {
             if (chunk.toolCalls?.length) sawToolCalls = true
             if (chunk.usage) {
               promptTokens = chunk.usage.promptTokens
@@ -142,7 +160,7 @@ export function registerGoogleShimRoutes(app: FastifyInstance, deps: ShimDeps = 
     let totalTokens = 0
     try {
       for await (const frame of session.streamGenerate(model, args)) {
-        for (const chunk of translateCloudCodeFrame(frame, registry)) {
+        for (const chunk of translateCloudCodeFrame(frame, registry, sessionId)) {
           if (chunk.content) text += chunk.content
           if (chunk.toolCalls) toolCalls.push(...openAiToolCalls(chunk.toolCalls))
           if (chunk.usage) {

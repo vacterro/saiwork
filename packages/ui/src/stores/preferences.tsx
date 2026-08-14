@@ -648,6 +648,9 @@ const [uiConfigBucket, setUiConfigBucket] = createSignal<UiConfigBucket>({})
 const [pendingThemePreference, setPendingThemePreference] = createSignal<ThemePreference | null>(null)
 const [serverConfigBucket, setServerConfigBucket] = createSignal<ServerConfigBucket>({})
 const [uiStateBucket, setUiStateBucket] = createSignal<UiStateBucket>({})
+const [pendingThinkingSelections, setPendingThinkingSelections] = createSignal<
+  Record<string, { value: string | undefined; version: number }>
+>({})
 const [isLoaded, setIsLoaded] = createSignal(false)
 const [useTauriNativeEventTransport, setUseTauriNativeEventTransportSignal] = createSignal(
   readUseTauriNativeEventTransportPreference(),
@@ -667,6 +670,8 @@ const remoteServers = createMemo<RemoteServerProfile[]>(() => uiState().remoteSe
 
 let loadPromise: Promise<void> | null = null
 let themePatchChain = Promise.resolve()
+let thinkingSelectionPatchChain = Promise.resolve()
+let thinkingSelectionPatchVersion = 0
 
 async function ensureLoaded(): Promise<void> {
   if (isLoaded()) return
@@ -950,24 +955,38 @@ function toggleFavoriteModelPreference(model: ModelPreference): void {
 
 function getModelThinkingSelection(model: { providerId: string; modelId: string }): string | undefined {
   if (!model.providerId || !model.modelId) return undefined
-  return uiState().models.thinkingSelections[getModelKey(model)]
+  const key = getModelKey(model)
+  const pending = pendingThinkingSelections()[key]
+  return pending ? pending.value : uiState().models.thinkingSelections[key]
 }
 
 function setModelThinkingSelection(model: { providerId: string; modelId: string }, value: string | undefined): void {
   if (!model.providerId || !model.modelId) return
   const key = getModelKey(model)
-  const current = uiState().models.thinkingSelections[key]
+  const current = getModelThinkingSelection(model)
   if (current === value) return
 
-  const selections = { ...uiState().models.thinkingSelections }
-  if (!value) {
-    delete selections[key]
-  } else {
-    selections[key] = value
-  }
-  void patchStateOwner("ui", { models: { thinkingSelections: selections } }).catch((error) =>
-    log.error("Failed to update thinking selection", error),
-  )
+  const version = ++thinkingSelectionPatchVersion
+  setPendingThinkingSelections((pending) => ({ ...pending, [key]: { value, version } }))
+
+  thinkingSelectionPatchChain = thinkingSelectionPatchChain.then(async () => {
+    try {
+      await ensureLoaded()
+      const selections = { ...uiState().models.thinkingSelections }
+      if (!value) delete selections[key]
+      else selections[key] = value
+      await patchStateOwner("ui", { models: { thinkingSelections: selections } })
+    } catch (error) {
+      log.error("Failed to update thinking selection", error)
+    } finally {
+      setPendingThinkingSelections((pending) => {
+        if (pending[key]?.version !== version) return pending
+        const next = { ...pending }
+        delete next[key]
+        return next
+      })
+    }
+  })
 }
 
 function setDiffViewMode(mode: DiffViewMode): void {

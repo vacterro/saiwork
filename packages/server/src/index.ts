@@ -45,6 +45,9 @@ import { QueueManager } from "./queue/manager"
 import { createOrphanCleanupController } from "./workspaces/orphan-wiring"
 import { orphanRegistryPath } from "./workspaces/orphan-cleanup"
 import type { SaipenSettings } from "./saipen/core"
+import { ToolCallRegistry } from "./google/shim"
+import { createFileToolCallRegistryPersister } from "./google/tool-call-persistence"
+import { FreebuffThreadRegistry } from "./freebuff/gateway"
 
 const require = createRequire(import.meta.url)
 
@@ -125,6 +128,24 @@ export function installShutdownStdinHandler(
     void shutdown("stdin")
   }
   source.on("data", onData)
+}
+
+export async function stopHttpResources(
+  stops: Array<() => Promise<unknown>>,
+  flushToolCalls: () => Promise<unknown>,
+): Promise<void> {
+  const results = await Promise.allSettled(stops.map((stop) => Promise.resolve().then(stop)))
+  const failures = results.flatMap((result) => (result.status === "rejected" ? [result.reason] : []))
+  try {
+    await flushToolCalls()
+  } catch (error) {
+    failures.push(error)
+  }
+  if (failures.length > 0) {
+    const error = new Error("One or more HTTP resources failed to stop") as Error & { failures: unknown[] }
+    error.failures = failures
+    throw error
+  }
 }
 
 function parseCliOptions(argv: string[]): CliOptions {
@@ -323,6 +344,14 @@ async function main() {
 
   const configLocation = resolveConfigLocation(options.configPath)
   const configDir = configLocation.baseDir
+  // HTTP and HTTPS listeners share one registry and one persistence writer.
+  // Separate instances would race and overwrite each other's tool history.
+  const toolCallRegistry = new ToolCallRegistry(
+    2000,
+    24 * 60 * 60 * 1000,
+    createFileToolCallRegistryPersister(path.join(configDir, "tool-call-registry.json")),
+  )
+  const freebuffThreadRegistry = new FreebuffThreadRegistry()
 
   if ((options.tlsKeyPath && !options.tlsCertPath) || (!options.tlsKeyPath && options.tlsCertPath)) {
     throw new InvalidArgumentError("--tls-key and --tls-cert must be provided together")
@@ -556,6 +585,8 @@ async function main() {
         freebuff,
         uiStaticDir: uiResolution.uiStaticDir ?? DEFAULT_UI_STATIC_DIR,
         uiDevServerUrl: uiResolution.uiDevServerUrl,
+        toolCallRegistry,
+        freebuffThreadRegistry,
         logger,
       })
     : null
@@ -587,6 +618,8 @@ async function main() {
         freebuff,
         uiStaticDir: uiResolution.uiStaticDir ?? DEFAULT_UI_STATIC_DIR,
         uiDevServerUrl: undefined,
+        toolCallRegistry,
+        freebuffThreadRegistry,
         logger,
       })
     : null
@@ -691,13 +724,10 @@ async function main() {
           stopWorkspaces: () => workspaceManager.shutdown(),
           stopHttpServers: async () => {
             yoloManager.stop()
-            const results = await Promise.allSettled(servers.map((srv) => srv.stop()))
-            const failures = results.flatMap((result) => (result.status === "rejected" ? [result.reason] : []))
-            if (failures.length > 0) {
-              const error = new Error("One or more HTTP servers failed to stop") as Error & { failures: unknown[] }
-              error.failures = failures
-              throw error
-            }
+            await stopHttpResources(
+              servers.map((server) => () => server.stop()),
+              () => toolCallRegistry.flush(),
+            )
             logger.info("HTTP server(s) stopped")
           },
           stopReleaseMonitor: () => devReleaseMonitor?.stop(),

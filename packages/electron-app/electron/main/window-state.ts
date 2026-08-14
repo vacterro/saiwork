@@ -130,6 +130,61 @@ export function restoreWindowState(window: BrowserWindow, state: NativeWindowSta
   }
 }
 
+export function createDeferredWindowStateRestorer(window: BrowserWindow) {
+  let changed = false
+  let disposed = false
+  const [initialX, initialY] = window.getPosition()
+  const [initialWidth, initialHeight] = window.getContentSize()
+  let normalBounds: WindowBounds = { x: initialX, y: initialY, width: initialWidth, height: initialHeight }
+  const captureNormalBounds = () => {
+    changed = true
+    if (window.isMaximized() || window.isFullScreen()) return
+    const [x, y] = window.getPosition()
+    const [width, height] = window.getContentSize()
+    normalBounds = { x, y, width, height }
+  }
+  const markChanged = () => { changed = true }
+  for (const event of ["move", "resize"] as const) {
+    window.on(event as "move", captureNormalBounds)
+  }
+  for (const event of ["maximize", "unmaximize", "enter-full-screen", "leave-full-screen"] as const) {
+    window.on(event as "maximize", markChanged)
+  }
+  window.webContents.on("zoom-changed", markChanged)
+
+  const dispose = () => {
+    if (disposed) return
+    disposed = true
+    window.removeListener("move", captureNormalBounds)
+    window.removeListener("resize", captureNormalBounds)
+    window.removeListener("maximize", markChanged)
+    window.removeListener("unmaximize", markChanged)
+    window.removeListener("enter-full-screen", markChanged)
+    window.removeListener("leave-full-screen", markChanged)
+    window.webContents.removeListener("zoom-changed", markChanged)
+  }
+
+  return {
+    dispose,
+    restore(state: NativeWindowState | undefined, bounds: WindowBounds | undefined) {
+      dispose()
+      const preserveCurrent = changed
+      if (!preserveCurrent) restoreWindowState(window, state, bounds)
+      return {
+        initialState: preserveCurrent
+          ? {
+              bounds: normalBounds,
+              maximized: window.isMaximized(),
+              fullscreen: window.isFullScreen(),
+              zoomFactor: normalizeZoomFactor(window.webContents.getZoomFactor()),
+            }
+          : state,
+        preserveCurrent,
+      }
+    },
+  }
+}
+
 export function installWindowZoomInput(window: BrowserWindow, setZoomLevel: (level: number) => void): void {
   const changeZoom = (delta: number) => setZoomLevel(window.webContents.getZoomLevel() + delta)
   window.webContents.on("before-input-event", (event, input) => {

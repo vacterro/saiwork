@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { clampWindowBounds, installWindowZoomInput, normalizeNativeWindowState, normalizeZoomFactor, restoreWindowState, WindowStateTracker } from "./window-state"
+import { clampWindowBounds, createDeferredWindowStateRestorer, installWindowZoomInput, normalizeNativeWindowState, normalizeZoomFactor, restoreWindowState, WindowStateTracker } from "./window-state"
 import type { BrowserWindow } from "electron"
 import type { ClientStateManager } from "./client-state"
 
@@ -33,6 +33,89 @@ test("restores shared outer position and content size", () => {
   const bounds = { x: 10, y: 20, width: 1200, height: 800 }
   restoreWindowState(window, { bounds, maximized: false, fullscreen: false, zoomFactor: 1 }, bounds)
   assert.deepEqual(calls, [["position", 10, 20], ["content", 1200, 800]])
+})
+
+test("deferred ownership never overwrites window state changed by the user", () => {
+  const events = new Map<string, () => void>()
+  const calls: unknown[] = []
+  const removed: string[] = []
+  let maximized = false
+  const window = {
+    on: (name: string, handler: () => void) => events.set(name, handler),
+    removeListener: (name: string, handler: () => void) => {
+      if (events.get(name) === handler) events.delete(name)
+      removed.push(name)
+    },
+    setPosition: (x: number, y: number) => calls.push(["position", x, y]),
+    setContentSize: (width: number, height: number) => calls.push(["content", width, height]),
+    maximize: () => calls.push(["maximize"]),
+    setFullScreen: (value: boolean) => calls.push(["fullscreen", value]),
+    getPosition: () => [100, 200],
+    getContentSize: () => [900, 700],
+    isMaximized: () => maximized,
+    isFullScreen: () => false,
+    webContents: {
+      on: (name: string, handler: () => void) => events.set(name, handler),
+      removeListener: (name: string, handler: () => void) => {
+        if (events.get(name) === handler) events.delete(name)
+        removed.push(name)
+      },
+      setZoomFactor: (value: number) => calls.push(["zoom", value]),
+      getZoomFactor: () => 1.2,
+    },
+  } as unknown as BrowserWindow
+  const restore = createDeferredWindowStateRestorer(window)
+  const bounds = { x: 10, y: 20, width: 1200, height: 800 }
+  const state = { bounds, maximized: false, fullscreen: false, zoomFactor: 1 }
+
+  events.get("move")?.()
+  maximized = true
+  events.get("maximize")?.()
+  const result = restore.restore(state, bounds)
+  assert.equal(result.preserveCurrent, true)
+  assert.deepEqual(result.initialState, {
+    bounds: { x: 100, y: 200, width: 900, height: 700 },
+    maximized: true,
+    fullscreen: false,
+    zoomFactor: 1.2,
+  })
+  assert.deepEqual(calls, [])
+  assert.equal(events.size, 0)
+  assert.deepEqual(removed.sort(), [
+    "enter-full-screen",
+    "leave-full-screen",
+    "maximize",
+    "move",
+    "resize",
+    "unmaximize",
+    "zoom-changed",
+  ])
+})
+
+test("deferred ownership listeners can be disposed when ownership is unavailable", () => {
+  const events = new Map<string, () => void>()
+  const window = {
+    on: (name: string, handler: () => void) => events.set(name, handler),
+    removeListener: (name: string, handler: () => void) => {
+      if (events.get(name) === handler) events.delete(name)
+    },
+    getPosition: () => [0, 0],
+    getContentSize: () => [800, 600],
+    isMaximized: () => false,
+    isFullScreen: () => false,
+    webContents: {
+      on: (name: string, handler: () => void) => events.set(name, handler),
+      removeListener: (name: string, handler: () => void) => {
+        if (events.get(name) === handler) events.delete(name)
+      },
+    },
+  } as unknown as BrowserWindow
+
+  const restore = createDeferredWindowStateRestorer(window)
+  assert.equal(events.size, 7)
+  restore.dispose()
+  restore.dispose()
+  assert.equal(events.size, 0)
 })
 
 test("flush captures the current native zoom", async () => {

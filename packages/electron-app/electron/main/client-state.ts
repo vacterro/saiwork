@@ -12,7 +12,7 @@ import {
   type ProcessOwner,
   removeRunningMarkerIfOwned,
 } from "./client-state-process"
-import { getProcessStartIdentity } from "./client-state-process-identity"
+import { getProcessStartIdentity, getProcessStartIdentityAsync } from "./client-state-process-identity"
 import {
   CrossHostRegistration,
   crossHostParticipants,
@@ -67,6 +67,9 @@ interface ClientStateManagerOptions {
   crossHostDependencies?: CrossHostLeaseDependencies
   legacyTauriDataPath?: string | null
   processOwner?: ProcessOwner
+  processStartIdentityAsync?(pid: number): Promise<string | undefined>
+  processStartIdentityRetryMs?: number
+  processStartIdentityMaxAttempts?: number
   removeLegacyState?(path: string): void
 }
 
@@ -143,6 +146,7 @@ export class ClientStateManager {
   private readonly lockPath: string
   private readonly legacyTauriDataPath: string | null
   private readonly owner: ProcessOwner
+  private readonly readiness: Promise<void>
   private state: PersistedClientState = { version: CLIENT_STATE_VERSION, restoreEnabled: true }
   private writeQueue: Promise<void> = Promise.resolve()
   private drainAndReleasePromise: Promise<void> | undefined
@@ -151,6 +155,7 @@ export class ClientStateManager {
   private persistenceSuppressed = false
   private unsupportedFutureEnvelope = false
   private frozen = false
+  private ownershipInitializationStopped = false
   private rendererAccessToken: string | undefined
 
   constructor(
@@ -158,10 +163,12 @@ export class ClientStateManager {
     private readonly writeState: ClientStateWriter = writeClientStateTemporary,
     options?: ClientStateManagerOptions,
   ) {
+    const initializeImmediately = options?.processOwner !== undefined
+      || (options?.crossHostElectionDirectory !== undefined && options.processStartIdentityAsync === undefined)
     this.owner = options?.processOwner ?? {
       pid: process.pid,
       runToken: randomUUID(),
-      processStartIdentity: getProcessStartIdentity(process.pid),
+      ...(initializeImmediately ? { processStartIdentity: getProcessStartIdentity(process.pid) } : {}),
     }
     mkdirSync(userDataPath, { recursive: true })
     this.userDataPath = userDataPath
@@ -172,17 +179,62 @@ export class ClientStateManager {
     mkdirSync(dirname(this.statePath), { recursive: true })
     this.lockPath = join(userDataPath, PRIMARY_LOCK_FILENAME)
     const registrationLockPath = join(userDataPath, REGISTRATION_LOCK_FILENAME)
-
-    const election = electClientStateProcess(
-      userDataPath,
-      this.owner,
-      { primaryLockPath: this.lockPath, registrationLockPath },
-      (message, error) => console.warn(`[client-state] ${message}`, error),
-    )
     const legacyTauriDataPath = options?.legacyTauriDataPath === undefined
       ? (options?.crossHostElectionDirectory ? null : resolveLegacyTauriDataDirectory())
       : options.legacyTauriDataPath
     this.legacyTauriDataPath = legacyTauriDataPath
+    if (initializeImmediately) {
+      this.initializeOwnership(crossHostElectionDirectory, registrationLockPath, legacyTauriDataPath, options)
+      this.readiness = Promise.resolve()
+    } else {
+      const lookupIdentity = options?.processStartIdentityAsync
+        ?? ((pid: number) => getProcessStartIdentityAsync(pid, 5_000))
+      const retryMs = options?.processStartIdentityRetryMs ?? 1_000
+      const maxAttempts = Math.max(1, options?.processStartIdentityMaxAttempts ?? 3)
+      const owner = this.owner
+      this.readiness = (async () => {
+        for (let attempt = 1; attempt <= maxAttempts && !this.ownershipInitializationStopped; attempt += 1) {
+          try {
+            const identity = await lookupIdentity(process.pid)
+            if (this.ownershipInitializationStopped) return
+            if (identity) {
+              owner.processStartIdentity = identity
+              this.initializeOwnership(crossHostElectionDirectory, registrationLockPath, legacyTauriDataPath, options)
+              return
+            }
+          } catch (error) {
+            console.warn("[client-state] process identity lookup failed", error)
+          }
+          if (attempt < maxAttempts) await new Promise((resolve) => setTimeout(resolve, retryMs))
+        }
+        if (!this.ownershipInitializationStopped) {
+          console.warn("[client-state] process identity unavailable; continuing without restore ownership")
+        }
+      })()
+    }
+  }
+
+  whenReady(): Promise<void> {
+    return this.readiness
+  }
+
+  stopOwnershipInitialization(): void {
+    this.ownershipInitializationStopped = true
+  }
+
+  private initializeOwnership(
+    crossHostElectionDirectory: string,
+    registrationLockPath: string,
+    legacyTauriDataPath: string | null,
+    options?: ClientStateManagerOptions,
+  ): void {
+    if (this.ownershipInitializationStopped || !this.owner.processStartIdentity) return
+    const election = electClientStateProcess(
+      this.userDataPath,
+      this.owner,
+      { primaryLockPath: this.lockPath, registrationLockPath },
+      (message, error) => console.warn(`[client-state] ${message}`, error),
+    )
     this.primary = election
     try {
       this.crossHostRegistration = CrossHostRegistration.register(
@@ -214,7 +266,7 @@ export class ClientStateManager {
     }
     if (this.isPrimary) {
       const legacyPaths = [
-        ["electron", join(userDataPath, CLIENT_STATE_FILENAME)],
+        ["electron", join(this.userDataPath, CLIENT_STATE_FILENAME)],
         ...(legacyTauriDataPath ? [["tauri", join(legacyTauriDataPath, CLIENT_STATE_FILENAME)] as const] : []),
       ] as ReadonlyArray<readonly ["electron" | "tauri", string]>
       this.migrateLegacyStateIfNeeded(legacyPaths, options?.removeLegacyState)
@@ -358,6 +410,7 @@ export class ClientStateManager {
       return this.drainAndReleasePromise
     }
 
+    this.stopOwnershipInitialization()
     this.frozen = true
     this.drainAndReleasePromise = this.writeQueue.finally(() => {
       this.primary = false

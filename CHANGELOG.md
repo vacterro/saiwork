@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.25] - 2026-08-14
+
+References such as `T-727` below are internal `.saipen` work-log identifiers,
+not Git commits or release history.
+
+### Runtime reliability and FreeBuff hardening (T-727..T-732)
+
+- Electron startup resolves its own process identity asynchronously, keeps
+  cross-host ownership readiness-gated, revalidates renderer authority after
+  asynchronous waits, and removes temporary window-state listeners after
+  restore or shutdown.
+- FreeBuff conversations are keyed by workspace plus OpenCode session identity;
+  bounded request validation and a full-turn replay state machine distinguish
+  safe transport retries from intentional repeated prompts and concurrent
+  duplicates.
+- FreeBuff turns have bounded timeout and abort cleanup, exactly-once stop
+  behavior, generation-guarded delayed closes, and bounded replay/lifecycle
+  registries so completed sessions do not accumulate stale entries.
+- Antigravity tool payloads are truncated by serialized UTF-8 byte length
+  without broken surrogate pairs. Tool-call metadata persists atomically with
+  TTL and size bounds, remains session-scoped, and survives replay or restart.
+- Thinking-level selection is visible and usable immediately while serialized
+  persistence prevents stale writes from flashing or dispatching an older
+  model variant.
+
 ## [0.1.24] - 2026-08-13
 
 References such as `T-083` and `E-557` below are internal `.saipen` work-log

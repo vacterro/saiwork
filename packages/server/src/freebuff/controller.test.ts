@@ -150,6 +150,130 @@ describe("FreebuffController thread registry", () => {
     }
   })
 
+  it("freeSlotFor aborts its release propagation wait", async () => {
+    const originalFetch = globalThis.fetch
+    const stateEvent = {
+      type: "state",
+      snapshot: { sessions: { activeSessionsByThread: { holder: { model: "mimo/mimo-v2.5" } } } },
+    }
+    globalThis.fetch = (async (input: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) {
+        return sseResponse([stateEvent, threadEvent("holder", "open", { turnState: "idle" })])
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({
+        engineManager: fakeEngineManager(19_004),
+        logger: logger as never,
+      })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      const abort = new AbortController()
+      const started = Date.now()
+      const pending = controller.freeSlotFor("target", { waitMs: 5_000, signal: abort.signal })
+      setTimeout(() => abort.abort(), 20)
+      await assert.rejects(pending, /Request aborted/)
+      assert.ok(Date.now() - started < 1_000)
+      await controller.stop()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("freeSlotFor aborts a hung unknown-holder probe", async () => {
+    const originalFetch = globalThis.fetch
+    const stateEvent = {
+      type: "state",
+      snapshot: { sessions: { activeSessionsByThread: { unknown: { model: "mimo/mimo-v2.5" } } } },
+    }
+    globalThis.fetch = (async (input: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) return sseResponse([stateEvent])
+      if (url.endsWith("/api/thread/unknown")) return new Promise<Response>(() => {})
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({ engineManager: fakeEngineManager(19_005), logger: logger as never })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      const abort = new AbortController()
+      const pending = controller.freeSlotFor("target", { signal: abort.signal })
+      setTimeout(() => abort.abort(), 20)
+      await assert.rejects(pending, /Request aborted/)
+      await controller.stop()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("freeSlotFor aborts a hung holder close", async () => {
+    const originalFetch = globalThis.fetch
+    const stateEvent = {
+      type: "state",
+      snapshot: { sessions: { activeSessionsByThread: { holder: { model: "mimo/mimo-v2.5" } } } },
+    }
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) {
+        return sseResponse([stateEvent, threadEvent("holder", "open", { turnState: "idle" })])
+      }
+      if (url.endsWith("/api/thread/holder/close") && init?.method === "POST") return new Promise<Response>(() => {})
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({ engineManager: fakeEngineManager(19_006), logger: logger as never })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      const abort = new AbortController()
+      const pending = controller.freeSlotFor("target", { signal: abort.signal })
+      setTimeout(() => abort.abort(), 20)
+      await assert.rejects(pending, /Request aborted/)
+      await controller.stop()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("freeSlotFor operation timeout aborts the underlying holder close", async () => {
+    const originalFetch = globalThis.fetch
+    let closeAborted = false
+    const stateEvent = {
+      type: "state",
+      snapshot: { sessions: { activeSessionsByThread: { holder: { model: "mimo/mimo-v2.5" } } } },
+    }
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input)
+      if (url.endsWith("/api/events")) {
+        return sseResponse([stateEvent, threadEvent("holder", "open", { turnState: "idle" })])
+      }
+      if (url.endsWith("/api/thread/holder/close") && init?.method === "POST") {
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            closeAborted = true
+            reject(new Error("aborted"))
+          }, { once: true })
+        })
+      }
+      return new Response("{}", { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const controller = new FreebuffController({ engineManager: fakeEngineManager(19_007), logger: logger as never })
+      await controller.ensureRunning()
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      await controller.freeSlotFor("target", { waitMs: 0, operationTimeoutMs: 20 })
+      assert.equal(closeAborted, true)
+      await controller.stop()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it("freeSlotFor probes unknown holders and only closes engine-confirmed idle ones", async () => {
     const originalFetch = globalThis.fetch
     const closed: string[] = []

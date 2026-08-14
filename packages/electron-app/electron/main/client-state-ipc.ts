@@ -39,18 +39,23 @@ export function setupClientStateIPC(
   }
   const handle = (
     channel: string,
-    operation: (argument: unknown, token: unknown) => unknown,
+    operation: (argument: unknown, token: unknown, event: IpcMainInvokeEvent) => unknown,
   ) => ipcMain.handle(channel, async (event, token: unknown, argument: unknown) => {
     validate(event)
     clientState.assertRendererAccessToken(token)
-    return operation(argument, token)
+    return operation(argument, token, event)
   })
 
   ipcMain.handle("client-state:claimAccess", async (event, token: unknown) => {
     validate(event)
     return clientState.claimClientStateAccess(token)
   })
-  handle("client-state:load", () => clientState.loadClientState())
+  handle("client-state:load", async (_argument, token, event) => {
+    await clientState.whenReady()
+    validate(event)
+    clientState.assertRendererAccessToken(token)
+    return clientState.loadClientState()
+  })
   handle("client-state:save", (snapshot, token) => clientState.saveClientState(snapshot, token))
   handle("client-state:setRestoreEnabled", (enabled, token) => {
     if (typeof enabled !== "boolean") throw new Error("Restore enabled must be a boolean")

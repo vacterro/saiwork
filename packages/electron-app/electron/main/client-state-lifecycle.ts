@@ -25,6 +25,7 @@ export class ClientStateLifecycle {
   private trackedMainWindow: BrowserWindow | null = null
   private windowStateTracker: WindowStateTracker | null = null
   private primaryRelease: Promise<void> | null = null
+  private shutdownStarted = false
 
   constructor(private readonly dependencies: ClientStateLifecycleDependencies) {}
 
@@ -70,6 +71,14 @@ export class ClientStateLifecycle {
     }
   }
 
+  updateMainWindowTracker(window: BrowserWindow, tracker: WindowStateTracker): void {
+    if (!this.shutdownStarted && this.trackedMainWindow === window) this.windowStateTracker = tracker
+  }
+
+  get isShuttingDown(): boolean {
+    return this.shutdownStarted
+  }
+
   detachMainWindow(window: BrowserWindow): void {
     if (this.trackedMainWindow !== window) return
     this.trackedMainWindow = null
@@ -101,6 +110,8 @@ export class ClientStateLifecycle {
 
   private startShutdown(window: BrowserWindow | null): Promise<void> {
     if (this.shutdown) return this.shutdown
+    this.shutdownStarted = true
+    this.dependencies.clientStateManager.stopOwnershipInitialization()
     const stages = (async () => {
       await this.runStage("renderer shutdown flush", () => this.flushRenderer(window))
       await this.runStage("native shutdown flush", () => this.flushNative())

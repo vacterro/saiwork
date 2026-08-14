@@ -16,6 +16,7 @@ function harness(options: {
   sessionEndCleanupTimeoutMs?: number
   sessionEndReleaseTimeoutMs?: number
   release?: () => Promise<void>
+  stopOwnershipInitialization?: () => void
 } = {}) {
   const windows = new Map<string, (event?: { preventDefault(): void }) => void>()
   const appEvents = new Map<string, (event?: { preventDefault(): void }) => void>()
@@ -31,7 +32,12 @@ function harness(options: {
   } as unknown as BrowserWindow
   const other = { isDestroyed: () => false, hide: () => { calls.push("hide-other") } } as unknown as BrowserWindow
   const app = { on: (name: string, handler: never) => appEvents.set(name, handler), quit: () => calls.push("quit"), exit: () => { exits++ } } as unknown as App
-  const manager = { isPrimary: true, flush: async () => {}, drainAndReleasePrimary: async () => { calls.push("release"); await options.release?.() } } as ClientStateManager
+  const manager = {
+    isPrimary: true,
+    flush: async () => {},
+    stopOwnershipInitialization: () => options.stopOwnershipInitialization?.(),
+    drainAndReleasePrimary: async () => { calls.push("release"); await options.release?.() },
+  } as ClientStateManager
   const cli = { shutdown: async () => { calls.push("stop"); await options.stop?.() } } as unknown as CliProcessManager
   const lifecycle = new ClientStateLifecycle({ app, clientStateManager: manager, cliManager: cli, getMainWindow: () => window, getAllWindows: () => options.otherWindow ? [window, other] : [window], getAllowedRendererOrigins: () => ["http://127.0.0.1:43123"], isTrustedRendererOrigin: () => true, isWindows: true, sessionEndCleanupTimeoutMs: options.sessionEndCleanupTimeoutMs, sessionEndReleaseTimeoutMs: options.sessionEndReleaseTimeoutMs })
   lifecycle.attachMainWindow(window, { flush: async () => { calls.push("native"); await options.nativeFlush?.() } } as unknown as WindowStateTracker)
@@ -70,6 +76,32 @@ test("late old-window detach preserves replacement tracker during shutdown", asy
   h.appEvents.get("before-quit")?.({ preventDefault: () => {} })
   await (h.lifecycle as any).shutdown
   assert.deepEqual(h.calls, ["hide", "renderer", "replacement-native", "stop", "release"])
+})
+
+test("late ownership readiness replaces tracker without duplicating window handlers", async () => {
+  const h = harness()
+  const handlers = h.windows.size
+  const tracker = { flush: async () => { h.calls.push("ready-native") } } as unknown as WindowStateTracker
+  h.lifecycle.updateMainWindowTracker(h.window, tracker)
+
+  assert.equal(h.windows.size, handlers)
+  h.appEvents.get("before-quit")?.({ preventDefault() {} })
+  await (h.lifecycle as any).shutdown
+  assert.ok(h.calls.includes("ready-native"))
+  assert.ok(!h.calls.includes("native"))
+})
+
+test("shutdown blocks ownership initialization and ignores a late tracker", async () => {
+  let stopped = false
+  const h = harness({ stopOwnershipInitialization: () => { stopped = true } })
+  h.appEvents.get("before-quit")?.({ preventDefault() {} })
+  assert.equal(stopped, true)
+
+  const tracker = { flush: async () => { h.calls.push("too-late-native") } } as unknown as WindowStateTracker
+  h.lifecycle.updateMainWindowTracker(h.window, tracker)
+  await (h.lifecycle as any).shutdown
+  assert.ok(h.calls.includes("native"))
+  assert.ok(!h.calls.includes("too-late-native"))
 })
 
 test("Windows session end vetoes termination until cleanup exits explicitly", async () => {

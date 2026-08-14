@@ -15,14 +15,21 @@ function harness() {
   const window = { isDestroyed: () => false, webContents }
   let current: typeof window | null = window
   const calls: string[] = []
+  let tokenValid = true
+  let releaseReady: (() => void) | undefined
+  let readiness: Promise<void> = Promise.resolve()
   const state = {
-    claimClientStateAccess: (token: unknown) => { calls.push(`claim:${token}`); return true },
-    assertRendererAccessToken: (token: unknown) => calls.push(`assert:${token}`),
+    claimClientStateAccess: (token: unknown) => { calls.push(`claim:${token}`); tokenValid = true; return true },
+    assertRendererAccessToken: (token: unknown) => {
+      calls.push(`assert:${token}`)
+      if (!tokenValid) throw new Error("stale renderer token")
+    },
     loadClientState: () => ({ isPrimary: true }),
+    whenReady: () => readiness,
     saveClientState: () => true,
     setRestoreEnabled: () => true,
     clearClientState: () => true,
-    resetRendererAccessToken: () => calls.push("reset"),
+    resetRendererAccessToken: () => { calls.push("reset"); tokenValid = false },
   }
   const bind = setupClientStateIPC(
     { handle: (channel, listener) => handlers.set(channel, listener) },
@@ -31,7 +38,17 @@ function harness() {
     () => ["http://127.0.0.1:3000"],
   )
   bind(window as never)
-  return { calls, frame, handlers, listeners, setCurrent: (value: typeof window | null) => { current = value }, webContents, window }
+  return {
+    calls,
+    frame,
+    handlers,
+    listeners,
+    setCurrent: (value: typeof window | null) => { current = value },
+    delayReady: () => { readiness = new Promise<void>((resolve) => { releaseReady = resolve }) },
+    releaseReady: () => releaseReady?.(),
+    webContents,
+    window,
+  }
 }
 
 test("IPC channels enforce the current main sender, frame, origin, and token", async () => {
@@ -43,7 +60,7 @@ test("IPC channels enforce the current main sender, frame, origin, and token", a
   const event = { sender: h.webContents, senderFrame: h.frame }
   await h.handlers.get("client-state:claimAccess")!(event as never, "token")
   await h.handlers.get("client-state:load")!(event as never, "token")
-  assert.deepEqual(h.calls, ["claim:token", "assert:token"])
+  assert.deepEqual(h.calls, ["claim:token", "assert:token", "assert:token"])
 
   for (const invalid of [
     { sender: {}, senderFrame: h.frame },
@@ -61,4 +78,28 @@ test("only the registered current window can reset renderer authority", () => {
   h.listeners.get("did-navigate")!({}, "http://127.0.0.1:3000/late")
   h.listeners.get("destroyed")!()
   assert.deepEqual(h.calls, ["reset", "reset"])
+})
+
+test("load waits for async ownership readiness", async () => {
+  const h = harness()
+  h.delayReady()
+  const event = { sender: h.webContents, senderFrame: h.frame }
+  let settled = false
+  const pending = Promise.resolve(h.handlers.get("client-state:load")!(event as never, "token"))
+    .finally(() => { settled = true })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(settled, false)
+  h.releaseReady()
+  assert.deepEqual(await pending, { isPrimary: true })
+})
+
+test("load revalidates renderer authority after async ownership readiness", async () => {
+  const h = harness()
+  h.delayReady()
+  const event = { sender: h.webContents, senderFrame: h.frame }
+  const pending = Promise.resolve(h.handlers.get("client-state:load")!(event as never, "token"))
+  await new Promise((resolve) => setImmediate(resolve))
+  h.listeners.get("did-navigate")!({}, "http://127.0.0.1:3000/next")
+  h.releaseReady()
+  await assert.rejects(pending, /stale renderer token/)
 })

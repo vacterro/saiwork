@@ -91,6 +91,105 @@ test("restore defaults on unless explicitly disabled", (t) => {
   assert.equal(harness(t, { version: 1, restoreEnabled: false }).create().loadClientState().restoreEnabled, false)
 })
 
+test("async startup publishes no identity-less ownership before lookup resolves", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "saiwork-state-async-"))
+  const election = join(directory, "election")
+  let resolveIdentity!: (identity: string) => void
+  const identity = new Promise<string>((resolve) => { resolveIdentity = resolve })
+  const manager = new ClientStateManager(directory, undefined, {
+    crossHostElectionDirectory: election,
+    processStartIdentityAsync: async () => identity,
+  })
+  t.after(async () => {
+    await manager.drainAndReleasePrimary().catch(() => {})
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  assert.equal(manager.isPrimary, false)
+  assert.equal(existsSync(election), false)
+  resolveIdentity("async-start")
+  await manager.whenReady()
+  assert.equal(manager.isPrimary, true)
+  assert.equal(existsSync(join(election, "primary.owner.json", "owner.json")), true)
+})
+
+test("async startup retries an unavailable process identity", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "saiwork-state-async-retry-"))
+  const election = join(directory, "election")
+  let attempts = 0
+  const manager = new ClientStateManager(directory, undefined, {
+    crossHostElectionDirectory: election,
+    processStartIdentityAsync: async () => ++attempts === 1 ? undefined : "retry-start",
+    processStartIdentityRetryMs: 1,
+  })
+  t.after(async () => {
+    await manager.drainAndReleasePrimary().catch(() => {})
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  await manager.whenReady()
+  assert.equal(attempts, 2)
+  assert.equal(manager.isPrimary, true)
+})
+
+test("async startup becomes a safe secondary after bounded identity failures", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "saiwork-state-async-unavailable-"))
+  const election = join(directory, "election")
+  let attempts = 0
+  const manager = new ClientStateManager(directory, undefined, {
+    crossHostElectionDirectory: election,
+    processStartIdentityAsync: async () => { attempts += 1; return undefined },
+    processStartIdentityRetryMs: 1,
+    processStartIdentityMaxAttempts: 2,
+  })
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+
+  await manager.whenReady()
+  assert.equal(attempts, 2)
+  assert.equal(manager.isPrimary, false)
+  assert.deepEqual(manager.loadClientState(), { isPrimary: false, restoreEnabled: false, snapshot: null })
+  assert.equal(existsSync(election), false)
+})
+
+test("shutdown during async startup prevents late ownership registration", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "saiwork-state-async-stop-"))
+  const election = join(directory, "election")
+  let resolveIdentity!: (identity: string) => void
+  const identity = new Promise<string>((resolve) => { resolveIdentity = resolve })
+  const manager = new ClientStateManager(directory, undefined, {
+    crossHostElectionDirectory: election,
+    processStartIdentityAsync: async () => identity,
+  })
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+
+  await manager.drainAndReleasePrimary()
+  resolveIdentity("too-late")
+  await manager.whenReady()
+  assert.equal(manager.isPrimary, false)
+  assert.equal(existsSync(election), false)
+})
+
+test("shutdown preparation prevents late ownership registration", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "saiwork-state-async-prepare-stop-"))
+  const election = join(directory, "election")
+  let resolveIdentity!: (identity: string) => void
+  const identity = new Promise<string>((resolve) => { resolveIdentity = resolve })
+  const manager = new ClientStateManager(directory, undefined, {
+    crossHostElectionDirectory: election,
+    processStartIdentityAsync: async () => identity,
+  })
+  t.after(async () => {
+    await manager.drainAndReleasePrimary().catch(() => {})
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  manager.stopOwnershipInitialization()
+  resolveIdentity("too-late")
+  await manager.whenReady()
+  assert.equal(manager.isPrimary, false)
+  assert.equal(existsSync(election), false)
+})
+
 test("CodeNomad cohort and SAIWORK restore through isolated state namespaces", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "saiwork-product-isolation-"))
   const codeElection = join(root, ".codenomad", "client-state", "election")

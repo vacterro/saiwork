@@ -84,8 +84,8 @@ export function createFreebuffClient(options: FreebuffClientOptions) {
       return response.threads ?? []
     },
 
-    async getThread(threadId: string): Promise<FreebuffThread> {
-      return request(`/api/thread/${encodeURIComponent(threadId)}`)
+    async getThread(threadId: string, options?: { signal?: AbortSignal }): Promise<FreebuffThread> {
+      return request(`/api/thread/${encodeURIComponent(threadId)}`, { signal: options?.signal })
     },
 
     async createThread(params: CreateThreadParams): Promise<CreateThreadResult> {
@@ -96,10 +96,11 @@ export function createFreebuffClient(options: FreebuffClientOptions) {
      * Dispatch a prompt directly to a thread (post + run immediately, bypassing
      * the queue). Equivalent to the FreeBuff UI composer's send.
      */
-    async postMessage(threadId: string, text: string, attachments: string[] = []): Promise<{ ok?: boolean }> {
+    async postMessage(threadId: string, text: string, attachments: string[] = [], options?: { signal?: AbortSignal }): Promise<{ ok?: boolean }> {
       return request(`/api/thread/${encodeURIComponent(threadId)}/message`, {
         method: "POST",
         body: JSON.stringify({ text, attachments }),
+        signal: options?.signal,
       })
     },
 
@@ -116,8 +117,8 @@ export function createFreebuffClient(options: FreebuffClientOptions) {
       return request(`/api/queue/${encodeURIComponent(itemId)}/send-now`, { method: "POST" })
     },
 
-    async stopThread(threadId: string): Promise<{ ok?: boolean }> {
-      return request(`/api/thread/${encodeURIComponent(threadId)}/stop`, { method: "POST" })
+    async stopThread(threadId: string, options?: { signal?: AbortSignal }): Promise<{ ok?: boolean }> {
+      return request(`/api/thread/${encodeURIComponent(threadId)}/stop`, { method: "POST", signal: options?.signal })
     },
 
     async resumeThread(threadId: string): Promise<{ ok?: boolean }> {
@@ -131,10 +132,11 @@ export function createFreebuffClient(options: FreebuffClientOptions) {
      * the thread the user is actively writing to. Sending a message later
      * reopens a closed thread without losing its history.
      */
-    async closeThread(threadId: string): Promise<{ id?: string }> {
+    async closeThread(threadId: string, options?: { signal?: AbortSignal }): Promise<{ id?: string }> {
       return request(`/api/thread/${encodeURIComponent(threadId)}/close`, {
         method: "POST",
         body: JSON.stringify({}),
+        signal: options?.signal,
       })
     },
 

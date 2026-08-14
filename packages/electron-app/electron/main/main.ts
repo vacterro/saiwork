@@ -18,6 +18,7 @@ import { resolveConfiguredRendererOrigins } from "./renderer-origin"
 import { CliProcessManager } from "./process-manager"
 import {
   clampWindowBounds,
+  createDeferredWindowStateRestorer,
   DEFAULT_WINDOW_HEIGHT,
   DEFAULT_WINDOW_WIDTH,
   installWindowZoomInput,
@@ -506,10 +507,37 @@ function createWindow() {
   mainNavigationController = navigationController
 
   let windowStateTracker: WindowStateTracker | null = null
-  if (clientStateManager.isPrimary) {
-    restoreWindowState(window, savedWindowState, restoredBounds)
-    windowStateTracker = new WindowStateTracker(window, clientStateManager, savedWindowState)
+  const restoreDeferredWindowState = clientStateManager.isPrimary
+    ? null
+    : createDeferredWindowStateRestorer(window)
+  const initializeWindowState = () => {
+    if (window.isDestroyed() || clientStateLifecycle.isShuttingDown || !clientStateManager.isPrimary) {
+      restoreDeferredWindowState?.dispose()
+      return
+    }
+    const readyWindowState = clientStateManager.getWindowState()
+    const readyBounds = readyWindowState
+      ? clampWindowBounds(
+          readyWindowState.bounds,
+          screen.getAllDisplays().map((display) => display.workArea),
+        )
+      : undefined
+    const deferred = restoreDeferredWindowState?.restore(readyWindowState, readyBounds)
+    if (!deferred) restoreWindowState(window, readyWindowState, readyBounds)
+    const trackerInitialState = deferred ? deferred.initialState : readyWindowState
+    windowStateTracker = new WindowStateTracker(window, clientStateManager, trackerInitialState)
+    clientStateLifecycle.updateMainWindowTracker(window, windowStateTracker)
+    if (deferred?.preserveCurrent) {
+      void windowStateTracker.flush().catch((error) => {
+        console.warn("[client-state] failed to persist pre-ownership window changes", error)
+      })
+    }
   }
+  if (clientStateManager.isPrimary) initializeWindowState()
+  else void clientStateManager.whenReady().then(initializeWindowState).catch((error) => {
+    restoreDeferredWindowState?.dispose()
+    console.warn("[client-state] failed to initialize window state", error)
+  })
   installWindowZoomInput(window, (level) => {
     if (windowStateTracker) windowStateTracker.setZoomLevel(level)
     else window.webContents.setZoomLevel(level)
